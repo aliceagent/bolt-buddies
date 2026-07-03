@@ -54,6 +54,22 @@ AudioContext
 - Global keys: **M** toggles mute anywhere (Title, Hub, Game, Settings).
   A small mute icon shows in the corner of every scene while muted.
 
+## Music direction (owner feedback — binding for S2/S5)
+
+1. **Every scene has background music, unique per scene/level** (see table).
+2. **Long, non-repetitive compositions.** Minimum 32 bars per track before the
+   loop point (≈60–90s at the listed tempos), structured in sections
+   (e.g. intro → A → A' → B → A) with real variation between sections: drop
+   voices in/out, vary the drum pattern, move the chord progression. A 4-bar
+   loop repeated is NOT acceptable. Use per-section pattern data, not one
+   repeated pattern.
+3. **Soft by design.** Music must sit under the game, never compete with it:
+   default music volume 0.45 (sfx 0.8); prefer triangle/sine leads over raw
+   squares, run pads and leads through a gentle lowpass (~2–4 kHz), keep
+   percussion sparse and quiet in menu/hub/puzzle scenes (hats + soft kick;
+   save fuller drums for 1-3's boss layer), no note louder than the KOBI
+   typewriter blip. When in doubt, quieter.
+
 ## Music inventory — one track per screen and level
 
 | Track id | Where | Direction |
@@ -158,9 +174,12 @@ plays after a keypress (verify state via evaluate), all suites green.
 ### Sound Sprint S2 — The soundtrack
 All tracks from the music inventory + scene/level wiring + crossfades +
 clear/unlock jingles + the 1-3 tension layer + blip ducking. Each track must
-be genuinely distinct (different tempo, scale, voices, drum pattern) and loop
-seamlessly for at least 8 bars. Acceptance: audio test checks 2, 3, 7; a
-human-readable one-line description per track in music.js comments.
+be genuinely distinct (different tempo, scale, voices, drum pattern), obey
+the **Music direction** section above (≥32 bars with sections, soft mix,
+lowpassed voices, default music volume 0.45), and loop seamlessly at the
+section level. Acceptance: audio test checks 2, 3, 7 plus a new check that a
+track's section pointer advances (expose `music.bar`/`music.section` state);
+a human-readable one-line description per track in music.js comments.
 
 ### Sound Sprint S3 — The SFX pass
 Everything in the SFX inventory: unique voices, proximity attenuation,
