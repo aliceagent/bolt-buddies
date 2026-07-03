@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { COLORS } from "../constants.js";
+import { COLORS, WORLD_THEMES } from "../constants.js";
 
 // Every texture in the game is generated here with Graphics — zero asset files.
 export default class BootScene extends Phaser.Scene {
@@ -71,20 +71,37 @@ export default class BootScene extends Phaser.Scene {
         g.lineBetween(0, i, 96, i);
       }
     });
-    // Vertical alpha ramp: opaque white at top -> transparent at bottom. Tinting
-    // this by a world's bgTop over a bgBottom camera background yields a true
-    // two-colour gradient with no visible edge (uncovered area == bgBottom).
-    make("bgGradient", 64, 720, (g) => {
-      g.fillGradientStyle(0xffffff, 0xffffff, 0xffffff, 0xffffff, 1, 1, 0, 0);
-      g.fillRect(0, 0, 64, 720);
-    });
-    // Soft radial glow blob: concentric circles of rising alpha toward the centre.
-    make("glowBlob", 256, 256, (g) => {
+    // Vertical gradient strips + radial glow blobs for the layered backgrounds.
+    // NOTE: drawn as manual strips/circles, NOT fillGradientStyle, and with the
+    // world colours BAKED IN rather than applied via setTint — both gradient
+    // fills and tint are WebGL-only features that silently no-op in the Canvas
+    // renderer (?canvas=1), which the playtests and screenshots run under.
+    const gradient = (top, bottom) => (g) => {
+      const steps = 60;
+      const strip = 720 / steps;
+      const a = Phaser.Display.Color.IntegerToColor(top);
+      const b = Phaser.Display.Color.IntegerToColor(bottom);
+      for (let i = 0; i < steps; i++) {
+        const c = Phaser.Display.Color.Interpolate.ColorWithColor(a, b, steps - 1, i);
+        g.fillStyle(Phaser.Display.Color.GetColor(c.r, c.g, c.b));
+        g.fillRect(0, Math.floor(i * strip), 64, Math.ceil(strip) + 1);
+      }
+    };
+    // Soft radial glow: concentric circles of rising alpha toward the centre.
+    const blob = (color) => (g) => {
       for (let r = 128; r > 0; r -= 3) {
-        g.fillStyle(0xffffff, 0.03 * (1 - r / 128));
+        g.fillStyle(color, 0.035 * (1 - r / 128));
         g.fillCircle(128, 128, r);
       }
-    });
+    };
+    // generic white versions (tintable under WebGL) + colour-baked world variants
+    make("bgGradient", 64, 720, gradient(0xffffff, 0x000000));
+    make("glowBlob", 256, 256, blob(0xffffff));
+    for (const w of Object.keys(WORLD_THEMES)) {
+      const t = WORLD_THEMES[w];
+      make(`bgGradient${w}`, 64, 720, gradient(t.bgTop, t.bgBottom));
+      make(`glowBlob${w}`, 256, 256, blob(t.glow));
+    }
 
     // --- robots ------------------------------------------------------------
     const robot = (color, dark) => (g) => {

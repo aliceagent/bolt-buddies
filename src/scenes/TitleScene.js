@@ -13,7 +13,7 @@ export default class TitleScene extends Phaser.Scene {
   create() {
     const W = this.scale.width;
     const H = this.scale.height;
-    addGradient(this, WORLD_THEMES[1]);
+    addGradient(this, 1);
     this.add.tileSprite(0, 0, W, H, "bggrid").setOrigin(0).setAlpha(0.22).setDepth(-8);
     addMotes(this, WORLD_THEMES[1].accent2);
 

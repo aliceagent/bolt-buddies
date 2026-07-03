@@ -136,13 +136,14 @@ export default class GameScene extends Phaser.Scene {
   // Layered, world-themed backdrop (all below DEPTH.terrain): fixed gradient,
   // two parallax grid layers, scattered additive glow blobs, and drifting motes.
   buildBackground() {
-    const theme = WORLD_THEMES[this.def.world] || WORLD_THEMES[1];
+    const world = WORLD_THEMES[this.def.world] ? this.def.world : 1;
+    const theme = WORLD_THEMES[world];
     this.theme = theme;
     const W = this.scale.width;
     const H = this.scale.height;
 
     // (1) fixed vertical gradient, sized 2x viewport (see backdrop.js)
-    addGradient(this, theme);
+    addGradient(this, world);
 
     // (2) far parallax grid — dim, larger tile scale to avoid moire with the near layer
     this.add
@@ -153,7 +154,7 @@ export default class GameScene extends Phaser.Scene {
       .setAlpha(0.2)
       .setDepth(DEPTH.bg - 9);
 
-    // (3) near parallax grid — brighter, world-tinted
+    // (3) near parallax grid — brighter (accent tint shows under WebGL only)
     this.add
       .tileSprite(-2 * W, -2 * H, this.worldW + 4 * W, this.worldH + 4 * H, "bggrid")
       .setOrigin(0)
@@ -162,19 +163,18 @@ export default class GameScene extends Phaser.Scene {
       .setTint(theme.accent2)
       .setDepth(DEPTH.bg - 8);
 
-    // (4) scattered soft-glow blobs, additive, tinted the world glow colour
+    // (4) scattered soft-glow blobs, additive, world glow colour baked in
     const n = 5;
     for (let i = 0; i < n; i++) {
       const bx = ((i + 0.5) / n) * this.worldW + (i % 2 ? -90 : 90);
       const by = this.worldH * (0.24 + 0.46 * ((i * 0.37) % 1));
       this.add
-        .image(bx, by, "glowBlob")
+        .image(bx, by, `glowBlob${world}`)
         .setScrollFactor(0.85)
         .setDepth(DEPTH.bg - 7)
-        .setTint(theme.glow)
         .setBlendMode(Phaser.BlendModes.ADD)
-        .setAlpha(0.18)
-        .setScale(1.2 + (i % 3) * 0.5);
+        .setAlpha(0.32)
+        .setScale(2.6 + (i % 3) * 0.7);
     }
 
     // (5) ambient dust motes

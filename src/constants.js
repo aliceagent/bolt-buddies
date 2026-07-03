@@ -21,10 +21,10 @@ export const COLORS = {
 // tints the scattered soft-glow blobs, `accent`/`accent2` colour the near grid
 // and dust motes. Worlds 3-4 are picked tastefully now so later sprints inherit.
 export const WORLD_THEMES = {
-  1: { accent: 0xffb347, accent2: 0x35f0ff, bgTop: 0x14284d, bgBottom: 0x05080f, glow: 0x2f6fd6 },
-  2: { accent: 0xc39dff, accent2: 0x59ffb0, bgTop: 0x0c2b24, bgBottom: 0x04090a, glow: 0x2fae8f },
-  3: { accent: 0xffd24d, accent2: 0xff4dd2, bgTop: 0x2a1233, bgBottom: 0x0a0410, glow: 0xb84dff },
-  4: { accent: 0x35f0ff, accent2: 0xff5566, bgTop: 0x0e1430, bgBottom: 0x02030a, glow: 0x2a4bc4 },
+  1: { accent: 0xffb347, accent2: 0x35f0ff, bgTop: 0x1e4380, bgBottom: 0x060a14, glow: 0x3f7fe8 },
+  2: { accent: 0xc39dff, accent2: 0x59ffb0, bgTop: 0x0f5242, bgBottom: 0x04100c, glow: 0x2fc29a },
+  3: { accent: 0xffd24d, accent2: 0xff4dd2, bgTop: 0x431e5e, bgBottom: 0x0c0614, glow: 0xc45cff },
+  4: { accent: 0x35f0ff, accent2: 0xff5566, bgTop: 0x1a2560, bgBottom: 0x03050e, glow: 0x3558e8 },
 };
 
 export const PHYS = {

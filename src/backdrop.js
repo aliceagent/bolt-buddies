@@ -1,23 +1,25 @@
 import Phaser from "phaser";
-import { DEPTH } from "./constants.js";
+import { DEPTH, WORLD_THEMES } from "./constants.js";
 
 // Shared layered-background helpers so the Title, Hub and Game screens all wear
 // the same procedural depth treatment. Everything sits below `DEPTH.terrain` and
 // is created once (no per-frame allocation).
 
 // Fixed vertical gradient, sized 2x the viewport and centred so camera zoom-out
-// never reveals an edge. The `bgGradient` texture is a white->transparent alpha
-// ramp; tinting it `theme.bgTop` over a `theme.bgBottom` camera background gives
-// a real two-colour gradient per world (any uncovered area is bgBottom too).
-export function addGradient(scene, theme) {
+// never reveals an edge. Uses the colour-baked `bgGradient<world>` texture
+// (setTint is WebGL-only and no-ops under ?canvas=1, so the world colours are
+// baked in at BootScene time); the camera background is set to the matching
+// bgBottom so anything beyond the oversized image blends seamlessly.
+export function addGradient(scene, world) {
+  const key = WORLD_THEMES[world] ? world : 1;
+  const theme = WORLD_THEMES[key];
   const W = scene.scale.width;
   const H = scene.scale.height;
   scene.cameras.main.setBackgroundColor(theme.bgBottom);
   return scene.add
-    .image(W / 2, H / 2, "bgGradient")
+    .image(W / 2, H / 2, `bgGradient${key}`)
     .setDisplaySize(W * 2, H * 2)
     .setScrollFactor(0)
-    .setTint(theme.bgTop)
     .setDepth(DEPTH.bg - 10);
 }
 
@@ -39,7 +41,7 @@ export function addMotes(scene, tint) {
       frequency: 260,
       quantity: 1,
       maxAliveParticles: 40,
-      tint,
+      tint, // WebGL only — under Canvas the motes render as soft white specks
       blendMode: Phaser.BlendModes.ADD,
     })
     .setScrollFactor(0)

@@ -24,7 +24,7 @@ export default class HubScene extends Phaser.Scene {
     if (this.sel === null) this.sel = Math.min(this.save.unlocked - 1, LEVELS.length - 1);
     this.sel = Phaser.Math.Clamp(this.sel, 0, LEVELS.length - 1);
 
-    addGradient(this, WORLD_THEMES[1]);
+    addGradient(this, 1);
     this.add.tileSprite(0, 0, W, H, "bggrid").setOrigin(0).setAlpha(0.22).setDepth(-8);
     addMotes(this, WORLD_THEMES[1].accent2);
     this.add.text(W / 2, 46, "DYNACORE LABS — SECTOR MAP", {
