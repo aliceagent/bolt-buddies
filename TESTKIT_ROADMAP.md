@@ -218,7 +218,101 @@ A red beat run is never just reported — it enters a fix loop until green:
 
 ## Fix log
 
-(append fix plans here — see protocol above)
+### FL-001 — Grapple targeting pre-empts the buddy-reel near anchors (blocks 1-2, 1-3)
+
+- **Triage class:** (b) gameplay bug. The reel mechanic itself works (proven in
+  1-1, where Grapple reels Heavy across the open chasm with no anchors nearby).
+  It is *unreachable* wherever an in-range/LOS anchor exists — which is exactly
+  where the World-1 co-op crossings need it. SKILL_INFO.grapple states the intent:
+  "ACTION: zip to rings, pull levers, **reel your buddy over gaps.**" That third
+  use is currently impossible next to rings.
+- **Symptom (from beat matrix):** 1-2 [A & B] FAIL at "chasm relay" and 1-3
+  [A & B] FAIL at the tower — the exact steps where grounded Grapple must reel
+  Heavy across/up. Grapple always crosses fine (zips the anchors); Heavy is
+  stranded (can't jump the 4-5-tile gaps, can't be reeled, and can't be
+  picked-up/carried/thrown either — pickup is likewise pre-empted by the same
+  anchors). Net effect is a **co-op deadlock**: one buddy reaches the far side,
+  the other has no legal way to follow. Verified two ways: (1) live — Grapple
+  standing on the 1-2 pillar with Heavy at the chasm edge; pressing ACTION zips
+  to anchor(46,8) and Heavy never moves; (2) exhaustive scan — for *every*
+  grounded Grapple position near the 1-2 chasm and the 1-3 tower, findGrappleTarget
+  returns an anchor (or null when anchors are out of range, at which point the
+  partner is out of reel range too). No grounded position ever yields "partner".
+- **Root cause:** `src/scenes/GameScene.js`, `findGrappleTarget(p)` scoring
+  (~L591-602): `score = d - (c.y < p.y - 20 ? 50 : 0) - c.bias`, lower wins.
+  Anchors carry `bias: 60`; the partner carries `bias: 0`. So an anchor beats the
+  partner by 60 (plus another 50 when the anchor is above the grappler, as it
+  always is for a reel-up). Because the levels place anchors right at the reel
+  spots (1-2 anchors 43/46/52 flank the pillar; 1-3 anchors 45/51/49 sit on the
+  tower ledges), the buddy-reel is never selected. A grounded grappler also can
+  never fall under the `d < 30` anchor-exclusion (anchors are 3+ tiles overhead),
+  so there is no positional escape.
+- **Minimal fix (preserves intent, kid-friendly = more forgiving):** make the
+  buddy-reel selectable when the grappler is on the ground and the buddy is a
+  genuine reel-across target. Concretely, in the partner candidate push, use a
+  grounded boost, e.g. `bias: (p.grounded && !p.zip) ? 100 : 0` (tune 95-130).
+  Rationale: an *airborne* grappler is mid-traversal and should still prefer
+  anchors (unchanged); a *grounded* grappler standing on solid ground next to a
+  gap has no need to zip an anchor — its useful action is pulling the buddy over.
+  100 clears the anchor's 60+50 edge only when the buddy is roughly as close as
+  the anchor (true in every 1-2/1-3 reel spot) without making far-away buddies
+  magnetic.
+- **What else this could affect (verify):**
+  - **Crane fight (1-3):** grounded Grapple near a shield plate must still yank
+    the *plate* (bias 90), not reel Heavy. Keep plate bias > grounded-partner
+    boost (90 vs 100 is too close) — either cap the boost at 85, OR keep 100 but
+    rely on the route parking Heavy 8+ tiles away (already done in `fightCrane`)
+    so the partner is out of range/LOS while yanking. Prefer the explicit cap
+    (partner boost 85 still beats an above-anchor's net 110? no — 85 loses to
+    110). Cleaner: only apply the boost when there is **no attached crane plate
+    in range** and the partner is **grounded** (a real reel-across), so the crane
+    case is untouched. Implementer to choose the least-surprising gate.
+  - **1-1:** reel already works (no anchors nearby) and pickup uses the adjacent
+    (<72px, not a grapple candidate) path — both unaffected.
+  - **Lever/plate yanks:** unaffected (levers 40, plates 90 remain below anchors
+    only when partner isn't grounded-boosted).
+- **Verification steps:** re-run `node tools/beat/runner.mjs 1-2` and `... 1-3`
+  (both assignments), then the full matrix twice, then `node tools/playtest.mjs`
+  (42) and `node tools/playtest_w2.mjs` (30). The mechanic suites teleport past
+  these crossings so they should be unaffected; if a grapple-target mechanic
+  check shifts, update it with justification.
+- **Status:** PLAN ONLY. Beat Sprint T1's kit-building task was scoped "do not
+  change src/ — stop and explain", so this entry is handed to the implementation
+  (Opus) pass per protocol step 3. The T1 kit, driver primitives, and the 1-1
+  route (green twice, both assignments) are complete and ready to re-prove the
+  matrix once FL-001 lands.
+
+- **REVIEWER DECISION (Fable) — the bias boost is replaced by a facing gate.**
+  The flat boost cannot work: at the 1-3 tower the grappler stands ~48px under
+  the anchor it just descended from (anchor score ≈ 48−50−60 = −62), so any
+  partner boost big enough to win there (>400) would make the buddy magnetic
+  everywhere and break 1-1 step 2 (grounded grappler at the belt edge with the
+  buddy in range behind them must still zip the anchor). GAME_DESIGN.md §2
+  already prescribes the disambiguator: "Partner-targeting skills target the
+  partner **when aimed at them**." Implement exactly that:
+  1. In `findGrappleTarget`, the partner is a candidate ONLY when aimed:
+     `Math.sign(q.x - p.x) === p.facing` (in addition to existing range/LOS/
+     state checks).
+  2. When the grappler is grounded, not zipping, the partner is grounded, and
+     the aim gate passes → the partner candidate gets decisive priority
+     (bias 500): a grounded grappler pointing at their buddy always throws the
+     rope to the buddy. Airborne behavior is untouched (anchors keep priority;
+     zip-to-partner unchanged).
+  3. Why every known case stays correct: 1-1 belt edge — buddy is BEHIND the
+     facing → zip ✓. 1-2 pillar / 1-3 tower reels — grappler faces the buddy →
+     reel ✓; after the reel the buddy lands adjacent (<72px, excluded) so the
+     next aimed action targets the anchor again ✓. Crane — the route parks the
+     partner out of range; even aimed, out-of-range partners are no candidate ✓.
+     Remote lever yank while facing a grounded in-range buddy now prefers the
+     buddy: acceptable — levers remain reachable by stepping adjacent, and "rope
+     goes to the buddy you point at" is the more predictable rule for kids.
+  4. Driver gains a `face(role, dir)` primitive (hold the direction key ~40ms);
+     routes 1-2 and 1-3 insert `face` toward the buddy before each reel `act`.
+  5. Known mechanic-test impact (pre-authorized per protocol step 4): the
+     playtest.mjs "grapple reels heavy to them" check teleports P0 in facing
+     right while the buddy is left — insert a brief left-tap before the action
+     press so P0 aims at the buddy. The "airborne grapple zips to heavy partner"
+     check is unaffected (airborne path unchanged).
 
 ## Maintenance rule (add to both other roadmaps' ground rules)
 

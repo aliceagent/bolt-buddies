@@ -1,0 +1,33 @@
+{
+  "when": "2026-07-03T12:36:13.278Z",
+  "levels": [
+    "1-1"
+  ],
+  "results": [
+    {
+      "id": "1-1",
+      "assignment": "A:P1=G",
+      "result": "PASS",
+      "complete": true,
+      "durationMs": 47034,
+      "deaths": 0,
+      "steps": 9,
+      "totalSteps": 9,
+      "failedStep": "",
+      "error": ""
+    },
+    {
+      "id": "1-1",
+      "assignment": "B:P1=H",
+      "result": "PASS",
+      "complete": true,
+      "durationMs": 46968,
+      "deaths": 0,
+      "steps": 9,
+      "totalSteps": 9,
+      "failedStep": "",
+      "error": ""
+    }
+  ],
+  "pageErrors": []
+}

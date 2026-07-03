@@ -1,0 +1,167 @@
+// 1-1 "First Day on the Job" — role-parametric walkthrough.
+// Roles: G = grapple, H = heavy. Transcribed from TESTKIT_ROADMAP.md.
+//
+// DEVIATION (documented): the roadmap's step 6 says "both walkTo 40" after H
+// exits the key pocket. But breaking the cracked lid (30-33) to reach the key
+// severs the mid-floor into a 4-tile chasm, and the pocket can only be exited to
+// the LEFT (its right side has a solid ceiling). Heavy cannot jump a 4-tile gap,
+// so H is stranded on the left. The physically-correct crossing: G runJumps the
+// chasm (grapple's ~4.6-tile jump clears it) and then REELS H across (the reel
+// primitive the roadmap lists). Everything else follows the written route.
+export default [
+  {
+    name: "equip skills -> gate opens",
+    fn: async (bb) => {
+      await bb.equip("G", 5);
+      await bb.equip("H", 8);
+      await bb.waitFor((s) => s.doors.find((d) => d.id === "gate")?.open, 5000, "gate open");
+    },
+  },
+  {
+    name: "G zips the belt gap, pulls lever lv1 -> bridge",
+    fn: async (bb) => {
+      await bb.walkTo("G", 13, { timeout: 6000 });
+      await bb.zipTo("G"); // zip to anchor (17,9)
+      await bb.zipRelease("G", "right"); // release right, land ~x20
+      await bb.walkTo("G", 21, { timeout: 6000 });
+      await bb.act("G"); // pull lever lv1 (adjacent)
+      await bb.waitFor((s) => s.bridges.find((b) => b.id === "br1")?.open, 4000, "bridge br1 open");
+    },
+  },
+  {
+    name: "H crosses the bridge into the yard",
+    fn: async (bb) => {
+      await bb.walkTo("H", 23, { timeout: 9000 });
+    },
+  },
+  {
+    name: "H stomps the two bug patrols (clears the way for G)",
+    fn: async (bb) => {
+      // Stomp from fixed safe anchors (tiles 25 and 37) well clear of the cracked
+      // lid (30-33): pouncing straight up keeps the blast off the lid, so it stays
+      // intact until H deliberately breaks it (otherwise H is stranded behind the
+      // chasm). Anchor 25 clears patrol 1 (24-29), anchor 37 clears patrol 2 (34-37).
+      await bb.stompBugs("H", 2, { timeout: 40000, anchors: [25, 37] });
+    },
+  },
+  {
+    name: "H breaks the cracked lid, grabs the key, climbs out to tile 29",
+    fn: async (bb) => {
+      const hi = bb.idx("H");
+      const kH = bb.keysFor("H");
+      // stomp the lid at its centre (tile 31) so all of 30-33 break -> a clean,
+      // deterministic 4-tile chasm, and H drops into the key pocket.
+      await bb.walkTo("H", 31, { tol: 12, timeout: 6000 });
+      let p = (await bb.state()).players[hi];
+      if (p.ty < 14.3) {
+        await bb.tap(kH.jump, 120);
+        await bb.page.waitForTimeout(140);
+        await bb.tap(kH.act, 80); // mid-air stomp
+        await bb.page.waitForTimeout(1000);
+      }
+      // collect the key inside the pocket
+      await bb.walkTo("H", 33, { tol: 22, timeout: 6000 }).catch(() => {});
+      await bb.waitFor((s) => s.keysHeld >= 1, 4000, "key collected");
+      // climb out to the LEFT: centre on the step (tile 30), jump straight up
+      // through the open lid to clear row 14, then drift left onto tile 29. (The
+      // pocket's right side has a solid ceiling, so left is the only exit.)
+      let escaped = false;
+      for (let i = 0; i < 12 && !escaped; i++) {
+        const b = (await bb.state()).players[hi];
+        if (b.y < 14 * 48 - 8 && b.tx < 30) { escaped = true; break; }
+        await bb.walkTo("H", 30, { tol: 6, timeout: 3000 }).catch(() => {});
+        await bb.tap(kH.jump, 175);
+        const t0 = Date.now();
+        while (Date.now() - t0 < 800) {
+          if ((await bb.state()).players[hi].y < 14 * 48 - 26) { await bb.down(kH.left); break; }
+          await bb.page.waitForTimeout(15);
+        }
+        await bb.page.waitForTimeout(300);
+        await bb.up(kH.left);
+        const a = (await bb.state()).players[hi];
+        if (a.y < 14 * 48 - 8 && a.tx < 30) escaped = true;
+      }
+      if (!escaped) throw new Error("H failed to climb out of the key pocket");
+    },
+  },
+  {
+    name: "G jumps the chasm; then reels H across the open gap",
+    fn: async (bb) => {
+      const hi = bb.idx("H");
+      // G walks to the chasm edge and jumps the 4-tile gap onto tile 34.
+      await bb.walkTo("G", 29, { tol: 14, timeout: 9000 });
+      await bb.runJump("G", 29, "right", { landTile: 34, retries: 5, runup: 3 });
+      // Both are now at row-14 level either side of the open gap (LOS is clear), so
+      // grounded G reels the stranded H across.
+      await bb.walkTo("G", 35, { tol: 16, timeout: 5000 });
+      for (let i = 0; i < 5; i++) {
+        const st = await bb.state();
+        if (st.players[hi].tx > 32.5 && st.players[hi].y < 14 * 48) break;
+        await bb.reelPartner("G", { partnerRole: "H" });
+        await bb.page.waitForTimeout(300);
+      }
+      await bb.waitFor((s) => s.players[hi].tx > 32.5 && s.players[hi].y < 14 * 48, 4000,
+        "H reeled onto the right side");
+    },
+  },
+  {
+    name: "both approach door1 (key opens it)",
+    fn: async (bb) => {
+      await bb.walkTo("H", 40, { timeout: 9000 });
+      await bb.walkTo("G", 40, { timeout: 9000 });
+      await bb.waitFor((s) => s.doors.find((d) => d.id === "door1")?.open, 4000, "door1 open");
+    },
+  },
+  {
+    name: "ride the co-op lift; G carries H across to the terrace",
+    fn: async (bb) => {
+      const gi = bb.idx("G");
+      const hi = bb.idx("H");
+      // Both aboard (weight 3 = Heavy 2 + Grapple 1) raises the lift.
+      await bb.walkTo("H", 49, { timeout: 8000 });
+      await bb.walkTo("G", 48, { timeout: 8000 });
+      await bb.waitFor((s) => s.lifts[0].y <= s.lifts[0].topY + 40, 9000, "lift near top");
+      // DEVIATION: heavy can't reliably clear the lift->terrace gap solo (its jump
+      // arc is a hair short off the 4-tile lift runway). Instead G picks H up and
+      // jumps across carrying it — grapple's stronger jump clears the gap, and
+      // carrying heavy keeps the lift at weight 3 so it never sinks. G must stand
+      // at tile 48 to pick up: from there the anchor at (51,4) is LOS-blocked by
+      // the core ledge (50-51,r7), so `act` falls through to the partner pickup.
+      let picked = false;
+      for (let i = 0; i < 12 && !picked; i++) {
+        const H = await bb.player("H");
+        // Snug G up against H (just left of it): at dx<50 the partner is too close
+        // to be a grapple target and the anchor is LOS-blocked, so act picks up.
+        await bb.walkTo("G", H.tx - 0.7 - (i % 2) * 0.2, { tol: 7, timeout: 2500 }).catch(() => {});
+        const tgt = await bb.grappleTarget("G"); // must be null, else act would grapple
+        const G = await bb.player("G");
+        const dx = Math.abs((await bb.player("H")).x - G.x);
+        if (!tgt && dx < 54) {
+          await bb.act("G"); // pick up H
+          await bb.page.waitForTimeout(200);
+          picked = (await bb.state()).players[gi].carrying;
+        } else {
+          await bb.page.waitForTimeout(100);
+        }
+      }
+      await bb.waitFor((s) => s.players[gi].carrying, 3000, "G carrying H");
+      await bb.runJump("G", 49, "right", { landTile: 52, retries: 4, runup: 3, jumpHold: 500, edgeX: 2384 });
+      // set H down on the terrace: H taps its jump to detach with a little hop
+      for (let i = 0; i < 4 && (await bb.state()).players[hi].carriedBy; i++) {
+        await bb.tap(bb.keysFor("H").jump, 90);
+        await bb.page.waitForTimeout(200);
+      }
+      await bb.waitFor((s) => !s.players[hi].carriedBy && s.players[hi].tx > 51, 3000, "H set down on terrace");
+      await bb.walkTo("H", 55, { timeout: 6000 });
+      await bb.walkTo("G", 55, { timeout: 6000 });
+    },
+  },
+  {
+    name: "both reach the exit -> complete",
+    fn: async (bb) => {
+      await bb.walkTo("H", 58, { timeout: 6000 });
+      await bb.walkTo("G", 58, { timeout: 6000 });
+      await bb.waitFor((s) => s.complete, 5000, "level complete");
+    },
+  },
+];

@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "playtest": "node tools/playtest.mjs && node tools/playtest_w2.mjs"
+    "playtest": "node tools/playtest.mjs && node tools/playtest_w2.mjs",
+    "test:beat": "node tools/beat/runner.mjs"
   },
   "dependencies": {
     "phaser": "^3.87.0"

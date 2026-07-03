@@ -118,7 +118,11 @@ export class Driver {
         bridges: s.bridges.map((b) => ({ id: b.id, open: b.open })),
         lifts: s.lifts.map((l) => ({ y: l.img.y, topY: l.topY, botY: l.botY })),
         crane: s.crane
-          ? { state: s.crane.state, x: s.crane.body.x, y: s.crane.body.y, podsStomped: s.crane.podsStomped }
+          ? {
+              state: s.crane.state, x: s.crane.body.x, y: s.crane.body.y,
+              podsStomped: s.crane.podsStomped,
+              plates: s.crane.plates.filter((p) => p.attached).map((p) => ({ x: p.img.x, y: p.img.y })),
+            }
           : null,
         pods: s.pods ? s.pods.filter((p) => p.active).map((p) => ({ x: p.x, y: p.y })) : [],
         plates: s.plates.map((p) => ({ id: p.id, active: p.active })),
@@ -187,6 +191,9 @@ export class Driver {
     const targetX = tileX * TILE + 24;
     const tol = opts.tol ?? 14;
     const timeout = opts.timeout ?? 8000;
+    // full-height hop by default so a heavy body clears 2-tile ledges/steps (a
+    // short hop is cut by variable-jump-height and only clears ~half a tile).
+    const hopHold = opts.hopHold ?? 240;
     const k = this.keysFor(role);
     this.log(`walkTo ${role} -> tile ${tileX} (x=${targetX})`);
     const end = now() + timeout;
@@ -196,6 +203,10 @@ export class Driver {
     let stallSince = 0;
     while (now() < end) {
       const st = await this.state();
+      if (st.complete) { // level finished mid-walk (physics paused); nothing more to do
+        await this.up(k.left); await this.up(k.right);
+        return true;
+      }
       const p = st.players[i];
       if (p.dead) {
         await this.awaitRespawn(role);
@@ -223,7 +234,7 @@ export class Driver {
       if (pressing) {
         if (!blockedSince) blockedSince = t;
         if (t - blockedSince > 150 && t - lastHopAt > 500) {
-          await this.tap(k.jump, 120);
+          await this.tap(k.jump, hopHold);
           lastHopAt = t;
           blockedSince = 0;
         }
@@ -235,7 +246,7 @@ export class Driver {
       if (lastX !== null && Math.abs(p.x - lastX) < 1.2) {
         if (!stallSince) stallSince = t;
         else if (t - stallSince > 400 && t - lastHopAt > 500) {
-          await this.tap(k.jump, 120);
+          await this.tap(k.jump, hopHold);
           lastHopAt = t;
           stallSince = 0;
         }
@@ -253,20 +264,45 @@ export class Driver {
   }
 
   // --- runJump (deliberate gap jump) -----------------------------------------
+  // opts.runup (tiles): start this far back and hold the direction across, so the
+  // jumper reaches full ground speed before the edge (heavy needs the run-up to
+  // clear ~3-tile gaps like the lift->terrace hop).
   async runJump(role, fromTileX, dir, opts = {}) {
     const i = this.idx(role);
     const k = this.keysFor(role);
     const landTile = opts.landTile ?? (dir === "right" ? fromTileX + 3 : fromTileX - 3);
     const retries = opts.retries ?? 3;
-    this.log(`runJump ${role} from ${fromTileX} ${dir} -> land ${landTile}`);
+    const runup = opts.runup ?? 0;
+    // Hold jump long enough to get the FULL arc — a short hold triggers the
+    // variable-jump-height cut and falls short of wide gaps (e.g. lift->terrace).
+    const jumpHold = opts.jumpHold ?? 300;
+    this.log(`runJump ${role} from ${fromTileX} ${dir} -> land ${landTile} (runup ${runup}, hold ${jumpHold})`);
+    const dirSign = dir === "right" ? 1 : -1;
     for (let attempt = 0; attempt < retries; attempt++) {
-      await this.walkTo(role, fromTileX, { tol: 20, timeout: 6000 });
       const dirKey = dir === "right" ? k.right : k.left;
       const offKey = dir === "right" ? k.left : k.right;
-      await this.up(offKey);
-      await this.down(dirKey);
-      await sleep(90);
-      await this.tap(k.jump, 160); // commit the jump while running
+      if (runup > 0) {
+        await this.walkTo(role, fromTileX - dirSign * runup, { tol: 16, timeout: 6000 });
+        await this.up(offKey);
+        await this.down(dirKey);
+        // hold the direction and jump when we cross the takeoff point at speed
+        // (opts.edgeX lets a caller delay the takeoff to the very edge of a short
+        // platform to squeeze out more run-up speed, e.g. the lift).
+        const edgeX = opts.edgeX ?? fromTileX * TILE + 24;
+        const runEnd = now() + 2500;
+        while (now() < runEnd) {
+          const p = (await this.state()).players[i];
+          if ((dirSign > 0 && p.x >= edgeX) || (dirSign < 0 && p.x <= edgeX)) break;
+          await sleep(20);
+        }
+        await this.tap(k.jump, jumpHold);
+      } else {
+        await this.walkTo(role, fromTileX, { tol: 20, timeout: 6000 });
+        await this.up(offKey);
+        await this.down(dirKey);
+        await sleep(90);
+        await this.tap(k.jump, jumpHold); // commit the jump while running
+      }
       // hold direction until we land (grounded) or time out
       const end = now() + 2600;
       let landed = false;
@@ -285,7 +321,7 @@ export class Driver {
         await this.awaitRespawn(role);
         continue;
       }
-      const okDir = dir === "right" ? p.x >= landTile * TILE : p.x <= (landTile + 1) * TILE;
+      const okDir = dir === "right" ? p.x >= landTile * TILE - 10 : p.x <= (landTile + 1) * TILE + 10;
       if (landed && okDir) {
         this.log(`runJump ${role} landed tile ${(p.x / TILE).toFixed(2)}`);
         return true;
@@ -295,6 +331,50 @@ export class Driver {
     throw new BeatError(`runJump ${role} from ${fromTileX} ${dir} failed`, {
       state: await this.state(),
     });
+  }
+
+  // --- mountLedge ------------------------------------------------------------
+  // Run-up jump onto a 2-tile-high ledge. A standing hop jams a tall body against
+  // the ledge face, so we back off to `fromTile`, build speed, and jump with a
+  // full arc. If opts.stayTile is given, release the direction once the jumper is
+  // over that tile so it settles ON the ledge (instead of running past it).
+  async mountLedge(role, fromTile, dir, opts = {}) {
+    const i = this.idx(role);
+    const k = this.keysFor(role);
+    const dirKey = dir === "right" ? k.right : k.left;
+    const offKey = dir === "right" ? k.left : k.right;
+    const targetTy = opts.ledgeTy ?? 12.6; // must end above this row to count as mounted
+    const stayTile = opts.stayTile;
+    const runupMs = opts.runupMs ?? 240;
+    const retries = opts.retries ?? 4;
+    this.log(`mountLedge ${role} from ${fromTile} ${dir}${stayTile != null ? ` stay ${stayTile}` : ""}`);
+    for (let attempt = 0; attempt < retries; attempt++) {
+      await this.walkTo(role, fromTile, { tol: 12, timeout: 5000 }).catch(() => {});
+      await this.up(offKey);
+      await this.down(dirKey);
+      await sleep(runupMs); // build run-up speed
+      await this.tap(k.jump, 320);
+      // hold the direction into the ledge; optionally release over stayTile
+      const end = now() + 1600;
+      while (now() < end) {
+        const p = (await this.state()).players[i];
+        if (stayTile != null) {
+          const past = dir === "right" ? p.x >= stayTile * TILE + 24 : p.x <= stayTile * TILE + 24;
+          if (past && p.ty < targetTy) { await this.up(dirKey); break; }
+        }
+        if (p.grounded && p.ty < targetTy) break; // landed on the ledge
+        await sleep(30);
+      }
+      await sleep(350);
+      await this.up(dirKey);
+      const p = (await this.state()).players[i];
+      if (p.ty < targetTy) {
+        this.log(`mountLedge ${role} on ledge tile ${(p.x / TILE).toFixed(2)} ty ${p.ty.toFixed(2)}`);
+        return true;
+      }
+      this.log(`mountLedge ${role} attempt ${attempt + 1} missed (ty ${p.ty.toFixed(2)}), retry`);
+    }
+    throw new BeatError(`mountLedge ${role} from ${fromTile} ${dir} failed`);
   }
 
   // --- act -------------------------------------------------------------------
@@ -367,63 +447,84 @@ export class Driver {
     await sleep(200);
   }
 
+  // Read the x of the live bug nearest a given player index.
+  async nearestBugX(i) {
+    return this.page.evaluate((i) => {
+      const s = window.__BB.scene;
+      let best = null, bd = Infinity;
+      s.bugs.children.each((b) => {
+        if (!b.active) return;
+        const d = Math.abs(b.x - s.players[i].x);
+        if (d < bd) { bd = d; best = b.x; }
+      });
+      return best;
+    }, i);
+  }
+
   // --- stompBugs (heavy) -----------------------------------------------------
-  // Walk above the nearest live bug, jump, then act (stomp). heavyImpact clears
-  // bugs in a ~2-tile radius. Verifies the live-bug count fell each time.
+  // Clear n scuttlebugs. heavyImpact kills every bug within a ~2-tile radius of a
+  // stomp. Two modes:
+  //  - opts.anchors=[tileX,...]: stand on the nearest safe anchor tile and pounce
+  //    STRAIGHT UP when a bug wanders into radius. The stomp x == the anchor, so
+  //    the blast never drifts into a cracked lid (used in 1-1). Deterministic.
+  //  - default: walk onto the nearest bug and stomp (used where no lid is nearby).
   async stompBugs(role, n, opts = {}) {
     const i = this.idx(role);
     const k = this.keysFor(role);
-    this.log(`stompBugs ${role} x${n}`);
+    const anchors = opts.anchors || null;
     const timeout = opts.timeout ?? 30000;
+    this.log(`stompBugs ${role} x${n}${anchors ? ` anchors ${anchors}` : ""}`);
     const end = now() + timeout;
     let cleared = 0;
-    let startCount = (await this.state()).bugs;
+    const startCount = (await this.state()).bugs;
     while (cleared < n && now() < end) {
       const st = await this.state();
       const p = st.players[i];
-      if (p.dead) {
-        await this.awaitRespawn(role);
-        continue;
-      }
+      if (p.dead) { await this.awaitRespawn(role); continue; }
       const before = st.bugs;
       if (before === 0) break;
-      // nearest bug x from the scene
-      const bugX = await this.page.evaluate(() => {
-        const s = window.__BB.scene;
-        let best = null, bd = Infinity;
-        s.bugs.children.each((b) => {
-          if (!b.active) return;
-          const d = Math.abs(b.x - s.players[0].x);
-          if (d < bd) { bd = d; best = b.x; }
-        });
-        return best;
-      });
+      const bugX = await this.nearestBugX(i);
       if (bugX == null) break;
       const bugTile = bugX / TILE;
-      // approach to within ~1 tile
-      await this.walkTo(role, Math.round(bugTile), { tol: 28, timeout: 6000 });
-      // re-read the (moving) bug and pounce when close
-      const st2 = await this.state();
-      const p2 = st2.players[i];
-      const freshBugX = await this.page.evaluate(() => {
-        const s = window.__BB.scene;
-        let best = null, bd = Infinity;
-        s.bugs.children.each((b) => {
-          if (!b.active) return;
-          const d = Math.abs(b.x - s.players[0].x);
-          if (d < bd) { bd = d; best = b.x; }
-        });
-        return best;
-      });
-      if (freshBugX == null) break;
-      const dx = freshBugX - p2.x;
-      const dirKey = dx > 0 ? k.right : k.left;
-      await this.down(dirKey);
-      await this.tap(k.jump, 120);
-      await sleep(120);
-      await this.tap(k.act, 80); // stomp mid-air
-      await sleep(700);
-      await this.up(dirKey);
+
+      if (anchors) {
+        // stand on the safe anchor nearest this bug, wait for it to enter radius
+        const anchor = anchors.reduce((a, b) => Math.abs(b - bugTile) < Math.abs(a - bugTile) ? b : a);
+        await this.walkTo(role, anchor, { tol: 10, timeout: 6000 });
+        const anchorX = anchor * TILE + 24;
+        const waitEnd = now() + 8000;
+        let bx = await this.nearestBugX(i);
+        while (bx != null && Math.abs(bx - anchorX) > 58 && now() < waitEnd) {
+          await sleep(60);
+          // hold position (re-center if shoved)
+          const pp = (await this.state()).players[i];
+          if (Math.abs(pp.x - anchorX) > 16) {
+            const dir = pp.x < anchorX ? k.right : k.left;
+            await this.up(dir === k.right ? k.left : k.right);
+            await this.down(dir);
+          } else { await this.up(k.left); await this.up(k.right); }
+          bx = await this.nearestBugX(i);
+        }
+        await this.up(k.left); await this.up(k.right);
+        if (bx == null) break;
+        // pounce straight up (no horizontal): stomp x stays on the safe anchor
+        await this.tap(k.jump, 120);
+        await sleep(130);
+        await this.tap(k.act, 80);
+        await sleep(750);
+      } else {
+        await this.walkTo(role, Math.round(bugTile), { tol: 30, timeout: 6000 }).catch(() => {});
+        const bx = await this.nearestBugX(i);
+        if (bx == null) break;
+        const p2 = (await this.state()).players[i];
+        const dirKey = bx - p2.x > 0 ? k.right : k.left;
+        await this.down(dirKey);
+        await this.tap(k.jump, 120);
+        await sleep(120);
+        await this.tap(k.act, 80);
+        await sleep(700);
+        await this.up(dirKey);
+      }
       const after = (await this.state()).bugs;
       if (after < before) {
         cleared += before - after;
@@ -560,22 +661,26 @@ export class Driver {
         if (!s2.crane || s2.crane.state !== "rest") break;
         const pg = s2.players[gi];
         if (pg.dead) { await this.awaitRespawn("G"); break; }
-        const target = s2.crane.x;
-        const dxg = target - pg.x;
-        if (Math.abs(dxg) > 26) {
+        // Stand ~1 tile to the side of the nearest attached plate: right under it
+        // the plate is within 30px and gets excluded from grapple targeting.
+        const plates = s2.crane.plates || [];
+        const plateX = plates.length
+          ? plates.reduce((a, b) => Math.abs(b.x - pg.x) < Math.abs(a.x - pg.x) ? b : a).x
+          : s2.crane.x;
+        const standX = plateX - 50; // just left of the plate, ~50px away
+        const dxg = standX - pg.x;
+        if (Math.abs(dxg) > 12) {
           const dk = dxg > 0 ? kG.right : kG.left;
           await this.up(dxg > 0 ? kG.left : kG.right);
           await this.down(dk);
         } else {
           await this.up(kG.left); await this.up(kG.right);
-          // verify the grapple would hit a plate before firing
           const tgt = await this.grappleTarget("G");
           if (tgt && tgt.kind === "plate") {
             await this.tap(kG.act, 80);
             await sleep(300);
             if ((await this.state()).pods.length > platesBefore) { yanked = true; break; }
           } else {
-            // nudge and retry targeting
             await sleep(60);
           }
         }
