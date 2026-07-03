@@ -186,6 +186,40 @@ notes above); plus a chaos smoke: 60s of random inputs per level asserting
 no page errors, no player permanently out of bounds, fps ≥ 50. Runs behind
 a flag (`--full`), not part of the default matrix.
 
+## Beatability-failure protocol (binding)
+
+A red beat run is never just reported — it enters a fix loop until green:
+
+1. **Triage.** Read the failure artifacts (screenshot, state dump, step log)
+   and replay the step by hand (headless, input-only) to classify:
+   - **(a) Kit bug** — the route/driver is wrong (bad tile, missed timing,
+     flaky primitive). Fix the kit; the game is innocent.
+   - **(b) Gameplay bug** — the game misbehaves against GAME_DESIGN.md intent
+     (physics edge case, stuck state, softlock, unreachable objective,
+     enemy/device malfunction). GAME_DESIGN.md is the arbiter of intent.
+   - **(c) Level-design flaw** — the mechanics work but the level cannot be
+     beaten (or not with both skill assignments): impossible jump, dead-end
+     after a one-way drop, co-op deadlock (both players stuck where neither
+     can act), objective gated on the wrong side of its own door.
+2. **For (b) and (c): write a detailed fix plan before any code** — appended
+   to this file under "Fix log": symptom, root cause (file/line or level
+   coordinates), the minimal change that preserves design intent, what else
+   that change could affect, and the verification steps. Kid-friendly rules
+   hold: prefer making levels more forgiving over more precise.
+3. **Hand the plan to an implementation agent (Opus)** as its full spec, with
+   the standard constraints (no unrelated changes, suites must stay green).
+4. **Re-run**: the failing run first, then the full 12-run matrix AND both
+   mechanic suites (a level fix can shift mechanic-test coordinates — if a
+   mechanic test fails only because geometry legitimately moved, update the
+   test with justification in the commit message).
+5. **Loop** 1-4 until the entire matrix is green twice in a row. Only then
+   does the pipeline advance. Every fix loop iteration is committed
+   separately so the history shows diagnosis → fix → proof.
+
+## Fix log
+
+(append fix plans here — see protocol above)
+
 ## Maintenance rule (add to both other roadmaps' ground rules)
 
 From T2 onward, **every sprint (UI or sound) must leave the 12-run beat
