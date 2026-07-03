@@ -1,20 +1,20 @@
 {
-  "name": "newvoice-demo",
+  "name": "bolt-buddies",
   "private": true,
-  "version": "1.0.0",
+  "version": "0.1.0",
   "type": "module",
-  "description": "NewVoice by Stagwell — AI phone secretary interactive demo",
+  "description": "Bolt Buddies — a 2-player couch co-op puzzle platformer",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "playtest": "node tools/playtest.mjs"
   },
   "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "phaser": "^3.87.0"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.3.4",
-    "vite": "^5.4.11"
+    "vite": "^5.4.11",
+    "playwright": "^1.49.0"
   }
 }

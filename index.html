@@ -2,21 +2,28 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <meta name="theme-color" content="#10173A" />
-    <meta name="description" content="NewVoice by Stagwell — an AI voice agent that answers, screens, schedules, and makes the calls you'd rather not. Interactive demo." />
-    <meta property="og:title" content="NewVoice by Stagwell" />
-    <meta property="og:description" content="A real secretary for your cell phone. Try the interactive demo." />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#070b14" />
+    <meta name="description" content="Bolt Buddies — a 2-player couch co-op puzzle platformer. Two little lab robots rescue their robo-puppy from a dramatic security AI." />
+    <meta property="og:title" content="Bolt Buddies" />
+    <meta property="og:description" content="Grab a buddy. Rescue Bolt. 2-player couch co-op in your browser." />
     <meta property="og:type" content="website" />
-    <title>NewVoice by Stagwell</title>
+    <title>Bolt Buddies</title>
     <style>
-      html, body, #root { height: 100%; margin: 0; padding: 0; }
-      body { background: #F7F8FC; -webkit-font-smoothing: antialiased; }
-      * { -webkit-tap-highlight-color: transparent; }
+      html, body { height: 100%; margin: 0; padding: 0; }
+      body {
+        background: #070b14;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+      #game { width: 100%; height: 100%; }
+      #game canvas { image-rendering: auto; }
     </style>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <div id="game"></div>
+    <script type="module" src="/src/main.js"></script>
   </body>
 </html>
