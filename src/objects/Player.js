@@ -46,11 +46,11 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
   setSkill(skill) {
     this.skill = skill;
-    if (skill === "heavy") {
-      // keep the feet planted: scaling grows the body downward and would embed
-      // it in the floor beyond what arcade separation can resolve
+    if (skill === "heavy" || skill === "tiny") {
+      // keep the feet planted: rescaling the body around the sprite centre
+      // would embed it in the floor beyond what arcade separation can resolve
       const feet = this.body.bottom;
-      this.setScale(1.22);
+      this.setScale(skill === "heavy" ? 1.22 : 0.55);
       this.body.reset(this.x, feet - this.displayHeight / 2);
     }
     if (this.badge) this.badge.destroy();
@@ -154,7 +154,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     if (this.reeled) return; // GameScene drives us toward the reeler
 
     const body = this.body;
-    const speed = (this.skill === "heavy" ? PHYS.heavySpeed : PHYS.speed) * (this.carrying ? 0.85 : 1);
+    let speed = (this.skill === "heavy" ? PHYS.heavySpeed : this.skill === "tiny" ? 285 : PHYS.speed) * (this.carrying ? 0.85 : 1);
+    if (this.inPhaseWall) speed = Math.min(speed, 115); // ghosting through walls is slow going
     let target = 0;
     if (K.left.isDown) {
       target = -speed;

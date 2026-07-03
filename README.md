@@ -19,8 +19,9 @@ The **Action** button is context-sensitive: equip a pedestal gadget, fire your s
 
 - ✅ Engine core: 2-player input, physics, shared camera with soft zoom, checkpoints & instant respawn
 - ✅ World 1 — Assembly Wing (Grapple + Heavyweight): levels 1-1, 1-2, 1-3 (crane set-piece)
+- ✅ World 2 — Maintenance Tunnels (Phase-Walk + Tiny): vents, shimmer-walls & hand-hold escorting, fans, steam jets, Patrol Rollers, Wall-Wardens, throw finale
 - ✅ Hub map, hidden data-cores, localStorage save
-- 🔜 Worlds 2–4, story scenes, polish (see roadmap in the design doc)
+- 🔜 Worlds 3–4, story scenes, polish (see roadmap in the design doc)
 
 ## Run locally
 

@@ -185,6 +185,56 @@ export default class BootScene extends Phaser.Scene {
       g.fillStyle(0x161d30).fillRect(0, 4, 48, 2);
     });
 
+    // --- world 2 -------------------------------------------------------------
+    make("phasewall", 48, 48, (g) => {
+      g.fillStyle(0x3a2a5e, 0.75).fillRect(0, 0, 48, 48);
+      g.lineStyle(2, 0xc39dff, 0.8).strokeRect(2, 2, 44, 44);
+      g.lineStyle(1, 0xc39dff, 0.45);
+      for (let y = 8; y < 48; y += 10) g.lineBetween(4, y, 44, y - 4);
+    });
+    make("duct", 48, 20, (g) => {
+      g.fillStyle(0x232c48).fillRect(0, 0, 48, 20);
+      g.lineStyle(2, 0x44548c).strokeRect(1, 1, 46, 18);
+      g.lineStyle(2, 0x141b30);
+      for (let x = 8; x < 48; x += 10) g.lineBetween(x, 4, x, 16);
+    });
+    make("fan", 48, 22, (g) => {
+      g.fillStyle(0x2a3350).fillRect(0, 10, 48, 12);
+      g.lineStyle(2, 0x59ff9c, 0.9).strokeRect(1, 11, 46, 10);
+      g.fillStyle(0x59ff9c, 0.9);
+      g.fillTriangle(24, 0, 16, 12, 32, 12);
+    });
+    make("roller", 42, 34, (g) => {
+      g.fillStyle(0x8a4a3a).fillRoundedRect(3, 2, 36, 22, 9);
+      g.lineStyle(2, 0xc4705a).strokeRoundedRect(3, 2, 36, 22, 9);
+      g.fillStyle(0xffe066).fillCircle(32, 12, 6); // big scanning eye
+      g.fillStyle(0x2a1810).fillCircle(34, 12, 2.6);
+      g.fillStyle(0x1a1420);
+      g.fillCircle(12, 28, 5.5); g.fillCircle(30, 28, 5.5); // wheels
+    });
+    make("warden", 42, 62, (g) => {
+      g.fillStyle(0x3a5e46).fillRoundedRect(5, 8, 32, 50, 7);
+      g.lineStyle(2, 0x59a06e).strokeRoundedRect(5, 8, 32, 50, 7);
+      g.fillStyle(0x142018).fillRoundedRect(20, 14, 16, 10, 4); // visor faces right
+      g.fillStyle(0xffe066).fillCircle(31, 19, 3);
+      g.fillStyle(0x59a06e).fillRect(9, 34, 24, 3);
+      g.fillStyle(0x1a2a20).fillRect(8, 58, 26, 4);
+    });
+    make("nozzle", 26, 16, (g) => {
+      g.fillStyle(0x4a5578).fillRect(2, 0, 22, 10);
+      g.fillStyle(0x8892b8).fillRect(7, 10, 12, 6);
+    });
+    make("icon_phase", 26, 26, (g) => {
+      g.fillStyle(0xc39dff, 0.5).fillRect(2, 2, 10, 22);
+      g.fillStyle(0xc39dff).fillCircle(17, 10, 6);
+      g.fillStyle(0xc39dff).fillRect(13, 14, 8, 9);
+    });
+    make("icon_tiny", 26, 26, (g) => {
+      g.fillStyle(0x9dffc4).fillRoundedRect(7, 12, 12, 10, 3);
+      g.fillStyle(0x142018).fillRect(9, 15, 8, 4);
+      g.lineStyle(2, 0x9dffc4).strokeRect(2, 2, 22, 22);
+    });
+
     // --- misc --------------------------------------------------------------
     make("reticle", 44, 44, (g) => {
       g.lineStyle(3, 0xffffff, 0.95).strokeCircle(22, 22, 15);

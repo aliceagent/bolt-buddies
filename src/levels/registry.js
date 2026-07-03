@@ -1,6 +1,9 @@
 import level1_1 from "./level1_1.js";
 import level1_2 from "./level1_2.js";
 import level1_3 from "./level1_3.js";
+import level2_1 from "./level2_1.js";
+import level2_2 from "./level2_2.js";
+import level2_3 from "./level2_3.js";
 
 export const WORLD_INFO = [
   { name: "Assembly Wing", emoji: "🔧", skills: "Grapple + Heavyweight" },
@@ -14,9 +17,9 @@ export const LEVELS = [
   level1_1,
   level1_2,
   level1_3,
-  { id: "2-1", name: "The Vents", world: 2, wip: true },
-  { id: "2-2", name: "Steam & Shadows", world: 2, wip: true },
-  { id: "2-3", name: "The Warden's Maze", world: 2, wip: true },
+  level2_1,
+  level2_2,
+  level2_3,
   { id: "3-1", name: "Attract Mode", world: 3, wip: true },
   { id: "3-2", name: "The Flooded Tank", world: 3, wip: true },
   { id: "3-3", name: "The Scrap Storm", world: 3, wip: true },

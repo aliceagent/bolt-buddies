@@ -59,4 +59,16 @@ export const SKILL_INFO = {
     card: "Big, strong, and VERY heavy.\nSmash, stomp, and stand your ground.",
     hint: "Jump + ACTION to STOMP. Cracks\nfloors, squishes bugs, holds plates.",
   },
+  phase: {
+    name: "PHASE-WALK",
+    color: 0xc39dff,
+    card: "Walk straight through shimmering\nwalls like a ghost!",
+    hint: "Walk into shimmer-walls to pass.\nStand close to escort your buddy through!",
+  },
+  tiny: {
+    name: "TINY",
+    color: 0x9dffc4,
+    card: "Small, quick, and squeezable — fit\nwhere no robot has fit before!",
+    hint: "Crawl through vents and under enemy\neyes. You fly FAR when thrown!",
+  },
 };

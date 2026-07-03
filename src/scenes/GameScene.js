@@ -58,7 +58,13 @@ export default class GameScene extends Phaser.Scene {
     this.crackies = this.physics.add.staticGroup();
     this.bridgeGroup = this.physics.add.staticGroup();
     this.doorGroup = this.physics.add.staticGroup();
+    this.phaseWalls = this.physics.add.staticGroup();
+    this.ducts = this.physics.add.staticGroup();
     this.bugs = this.physics.add.group();
+    this.rollers = [];
+    this.wardens = [];
+    this.jets = [];
+    this.fans = [];
 
     this.buildTerrain();
 
@@ -85,6 +91,15 @@ export default class GameScene extends Phaser.Scene {
     this.physics.add.collider(this.players, this.crackies);
     this.physics.add.collider(this.players, this.bridgeGroup);
     this.physics.add.collider(this.players, this.doorGroup);
+    this.physics.add.collider(this.players, this.ducts);
+    // phase-walls: the phase-walker ghosts through; a buddy within hand-holding
+    // range gets escorted through too
+    this.physics.add.collider(this.players, this.phaseWalls, null, (pl, wall) => {
+      if (pl.skill === "phase") return false;
+      const q = pl.partner;
+      if (q && !q.dead && q.skill === "phase" && Math.hypot(q.x - pl.x, q.y - pl.y) < 78) return false;
+      return true;
+    });
     if (this.lifts.length) this.physics.add.collider(this.players, this.lifts.map((l) => l.img), rideCb);
     this.physics.add.collider(this.bugs, this.solidObjs);
     this.physics.add.collider(this.bugs, this.crackies);
@@ -98,6 +113,8 @@ export default class GameScene extends Phaser.Scene {
     this.camPos = { x: this.players[0].x, y: this.players[0].y, zoom: 1 };
 
     this.rope = this.add.graphics().setDepth(DEPTH.rope);
+    this.beamGfx = this.add.graphics().setDepth(DEPTH.fx - 1);
+    this.wardens.forEach((w) => this.physics.add.collider(this.players, w.img));
     this.reticles = this.players.map(() => this.add.image(0, 0, "reticle").setDepth(DEPTH.reticle).setVisible(false));
 
     this.boom = this.add.particles(0, 0, "px", {
@@ -149,6 +166,14 @@ export default class GameScene extends Phaser.Scene {
         } else if (c === "^") {
           this.add.image(x * TILE + 24, y * TILE + 24, "hazard").setDepth(DEPTH.terrain);
           this.hazardZones.push(new Phaser.Geom.Rectangle(x * TILE + 2, y * TILE + 26, TILE - 4, TILE - 26));
+        } else if (c === "~") {
+          const img = this.phaseWalls.create(x * TILE + 24, y * TILE + 24, "phasewall");
+          img.setDepth(DEPTH.terrain);
+          this.tweens.add({ targets: img, alpha: { from: 0.55, to: 0.95 }, duration: 900, yoyo: true, repeat: -1 });
+        } else if (c === "d") {
+          // vent lip: blocks the top of the tile, leaving a crawl gap only Tiny fits
+          const img = this.ducts.create(x * TILE + 24, y * TILE + 10, "duct");
+          img.setDepth(DEPTH.terrain);
         }
       }
       flush(this.def.cols);
@@ -227,6 +252,7 @@ export default class GameScene extends Phaser.Scene {
         if (e.t === "exit") img.setTint(0x77ffb0);
         const door = {
           id: e.id || "exit", img, needs: e.needs || {}, latch: !!e.latch || e.t === "exit",
+          timer: e.timer || 0, closeAt: 0,
           open: false, isExit: e.t === "exit",
           zone: new Phaser.Geom.Rectangle(cx - TILE, e.y * TILE, TILE * 2, h),
           baseY: cy, h,
@@ -303,6 +329,57 @@ export default class GameScene extends Phaser.Scene {
           }).setOrigin(0.5).setDepth(DEPTH.entity),
         };
         this.lifts.push(lift);
+        break;
+      }
+      case "roller": {
+        const img = this.add.image(px, py + 7, "roller").setDepth(DEPTH.entity);
+        this.physics.add.existing(img);
+        img.body.setAllowGravity(true);
+        img.body.setSize(38, 30);
+        this.physics.add.collider(img, this.solidObjs);
+        this.rollers.push({
+          img, minX: e.min * TILE, maxX: (e.max + 1) * TILE, dir: 1,
+          state: "patrol", timer: 0, beamLen: e.beam || 140,
+        });
+        break;
+      }
+      case "warden": {
+        const img = this.add.image(px, e.y * TILE + 48 - 31, "warden").setDepth(DEPTH.entity);
+        img.setFlipX(e.facing === -1);
+        this.physics.add.existing(img, true);
+        this.wardens.push({ id: e.id, img, facing: e.facing || 1, defeated: false, x: px });
+        break;
+      }
+      case "jet": {
+        // steam jet firing downward; on/off on a timer until its valve lever latches
+        const img = this.add.image(px, e.y * TILE + 8, "nozzle").setDepth(DEPTH.entity);
+        const len = (e.len || 3) * TILE;
+        this.jets.push({
+          img, x: px, topY: e.y * TILE + 16, len,
+          period: e.period || 2600, on: e.on || 1200, offset: e.offset || 0,
+          disabledBy: e.disabledBy, active: false,
+          zone: new Phaser.Geom.Rectangle(px - 10, e.y * TILE + 16, 20, len),
+          gfx: this.add.graphics().setDepth(DEPTH.fx),
+        });
+        break;
+      }
+      case "fan": {
+        this.add.image(px, py + 13, "fan").setDepth(DEPTH.entity);
+        // updraft column reaches up to the first solid tile
+        let topRow = 0;
+        for (let ty = e.y - 1; ty >= 0; ty--) {
+          if (this.isSolidChar(this.grid[ty][e.x])) {
+            topRow = ty + 1;
+            break;
+          }
+        }
+        const zone = new Phaser.Geom.Rectangle(e.x * TILE + 4, topRow * TILE, TILE - 8, (e.y - topRow) * TILE + 24);
+        const puffs = this.add.particles(px, py + 16, "px", {
+          speedY: { min: -260, max: -160 }, speedX: { min: -20, max: 20 },
+          scale: { start: 0.5, end: 0 }, lifespan: { min: 400, max: 900 },
+          quantity: 1, frequency: 90, tint: 0x59ff9c, alpha: 0.5,
+        }).setDepth(DEPTH.fx);
+        this.fans.push({ zone, puffs });
         break;
       }
       case "crane": {
@@ -394,10 +471,14 @@ export default class GameScene extends Phaser.Scene {
     q.body.enable = true;
     q.body.reset(p.x + p.facing * 10, p.y - p.displayHeight / 2 - 20);
     const heavyThrower = p.skill === "heavy";
+    const flyBoost = q.skill === "tiny" ? 1.9 : 1; // Tiny is built to be luggage
     if (p.keys.jump.isDown) {
-      q.setVelocity(p.facing * 120, -PHYS.tossY); // high toss
+      q.setVelocity(p.facing * 120, -PHYS.tossY * (q.skill === "tiny" ? 1.08 : 1)); // high toss
     } else {
-      q.setVelocity(p.facing * (heavyThrower ? PHYS.heavyThrowX : PHYS.throwX), -(heavyThrower ? PHYS.heavyThrowY : PHYS.throwY));
+      q.setVelocity(
+        p.facing * (heavyThrower ? PHYS.heavyThrowX : PHYS.throwX) * flyBoost,
+        -(heavyThrower ? PHYS.heavyThrowY : PHYS.throwY)
+      );
     }
     q.pickupCd = 450;
     p.pickupCd = 450;
@@ -633,6 +714,7 @@ export default class GameScene extends Phaser.Scene {
     if (needs.keys && ((door && door.keysGiven) || 0) < needs.keys) return false;
     if (needs.opened && !needs.opened.every((id) => this.opened.has(id))) return false;
     if (needs.crane && !this.craneDefeated) return false;
+    if (needs.wardens && !needs.wardens.every((id) => this.wardens.find((w) => w.id === id)?.defeated)) return false;
     return true;
   }
 
@@ -658,6 +740,10 @@ export default class GameScene extends Phaser.Scene {
       if (p.dead) continue;
       if (J(p.keys.act)) this.handleAction(p);
       if (p.dead || p.carriedBy) continue;
+
+      // ghost shimmer while inside a phase-wall
+      p.inPhaseWall = this.tileAt(p.x, p.y) === "~";
+      if (p.invuln <= 0) p.setAlpha(p.inPhaseWall ? 0.55 : 1);
 
       // conveyor drift (Heavyweight stands his ground)
       if (p.skill !== "heavy" && p.grounded && !p.zip) {
@@ -772,6 +858,17 @@ export default class GameScene extends Phaser.Scene {
 
     // doors
     for (const d of this.doors) {
+      // timed doors re-arm: expire the window and pop their levers back out
+      if (d.open && d.timer && time > d.closeAt) {
+        (d.needs.levers || []).forEach((id) => {
+          const l = this.levers.find((v) => v.id === id);
+          if (l && l.on) {
+            l.on = false;
+            l.img.setFlipX(false);
+            l.img.clearTint();
+          }
+        });
+      }
       let shouldOpen = this.evalNeeds(d.needs, d);
       // key doors consume carried keys on approach
       if (!shouldOpen && d.needs.keys && this.keysHeld > 0) {
@@ -792,7 +889,8 @@ export default class GameScene extends Phaser.Scene {
       if (d.latch && d.openedOnce) shouldOpen = true;
       if (shouldOpen && !d.open) {
         d.open = true;
-        d.openedOnce = true;
+        if (d.timer) d.closeAt = time + d.timer;
+        else d.openedOnce = true;
         this.opened.add(d.id);
         d.img.body.enable = false;
         sfx.door();
@@ -940,6 +1038,7 @@ export default class GameScene extends Phaser.Scene {
     });
 
     this.updateCrane(delta);
+    this.updateWorld2(time, delta, dt);
 
     // ropes
     this.rope.clear();
@@ -977,6 +1076,112 @@ export default class GameScene extends Phaser.Scene {
 
     this.players.forEach((p) => (p.standingOn = null));
     this.updateCamera(dt);
+  }
+
+  // --- world 2: rollers, wardens, steam jets, fans -----------------------------
+  updateWorld2(time, delta, dt) {
+    const bodyRect = (p) => new Phaser.Geom.Rectangle(p.body.x, p.body.y, p.body.width, p.body.height);
+
+    this.beamGfx.clear();
+    for (const r of this.rollers) {
+      const img = r.img;
+      if (r.state === "patrol") {
+        img.body.setVelocityX(58 * r.dir);
+        if (img.body.blocked.left || img.x < r.minX + 20) r.dir = 1;
+        else if (img.body.blocked.right || img.x > r.maxX - 20) r.dir = -1;
+        img.setFlipX(r.dir === -1);
+      } else {
+        img.body.setVelocityX(0);
+      }
+      // vision beam: eye-level only, blocked by walls (and shimmer-walls)
+      const eyeY = img.y - 5;
+      let len = r.beamLen;
+      for (let s = 12; s <= r.beamLen; s += 12) {
+        const c = this.tileAt(img.x + r.dir * (22 + s), eyeY);
+        if (this.isSolidChar(c) || c === "~") {
+          len = s;
+          break;
+        }
+      }
+      const bx = img.x + r.dir * 22;
+      r.beamRect = new Phaser.Geom.Rectangle(r.dir === 1 ? bx : bx - len, eyeY - 13, len, 26);
+      const seen = this.players.find(
+        (p) => !p.dead && p.invuln <= 0 && !p.carriedBy && p.skill !== "tiny" &&
+          Phaser.Geom.Rectangle.Overlaps(r.beamRect, bodyRect(p))
+      );
+      if (r.state === "patrol" && seen) {
+        r.state = "alert";
+        r.timer = 500;
+        sfx.blip();
+      } else if (r.state === "alert") {
+        r.timer -= delta;
+        if (!seen) r.state = "patrol";
+        else if (r.timer <= 0) {
+          this.killPlayer(seen);
+          r.state = "cool";
+          r.timer = 900;
+        }
+      } else if (r.state === "cool") {
+        r.timer -= delta;
+        if (r.timer <= 0) r.state = "patrol";
+      }
+      this.beamGfx.fillStyle(r.state === "alert" ? 0xff5566 : 0xffe066, r.state === "alert" ? 0.4 : 0.16);
+      this.beamGfx.fillRect(r.beamRect.x, r.beamRect.y, r.beamRect.width, r.beamRect.height);
+    }
+
+    for (const w of this.wardens) {
+      if (w.defeated) continue;
+      if (w.shoveCd > 0) w.shoveCd -= delta;
+      for (const p of this.players) {
+        if (p.dead || p.carriedBy) continue;
+        const dx = p.x - w.img.x;
+        if (Math.abs(dx) > 48 || Math.abs(p.y - w.img.y) > 62) continue;
+        if (Math.sign(dx) === w.facing || dx === 0) {
+          if (w.shoveCd > 0 || Math.abs(dx) > 44) continue;
+          p.setVelocity(w.facing * 430, -230); // firm but polite shove
+          w.shoveCd = 500;
+          sfx.denied();
+          this.tweens.add({ targets: w.img, x: w.x + w.facing * 4, duration: 70, yoyo: true });
+        } else {
+          w.defeated = true;
+          this.boom.explode(16, w.img.x, w.img.y);
+          sfx.pop();
+          w.img.body.enable = false;
+          this.tweens.add({ targets: w.img, angle: -w.facing * 84, alpha: 0.25, y: w.img.y + 18, duration: 500 });
+          this.game.events.emit("bb:blip", "SPARK: WARDEN DOWN?! You went THROUGH the WALL?! That is CHEATING and also very clever.");
+        }
+        break;
+      }
+    }
+
+    for (const j of this.jets) {
+      if (j.disabledBy && this.levers.find((l) => l.id === j.disabledBy)?.on) {
+        if (j.active) {
+          j.active = false;
+          j.gfx.clear();
+        }
+        continue;
+      }
+      j.active = (time + j.offset) % j.period < j.on;
+      j.gfx.clear();
+      if (j.active) {
+        j.gfx.fillStyle(0xdfe8ff, 0.3 + 0.12 * Math.sin(time / 45));
+        j.gfx.fillRect(j.x - 9, j.topY, 18, j.len);
+        for (const p of this.players) {
+          if (!p.dead && p.invuln <= 0 && Phaser.Geom.Rectangle.Overlaps(j.zone, bodyRect(p))) this.killPlayer(p);
+        }
+      }
+    }
+
+    for (const f of this.fans) {
+      for (const p of this.players) {
+        if (p.dead || p.carriedBy || p.zip) continue;
+        if (Phaser.Geom.Rectangle.Overlaps(f.zone, bodyRect(p))) {
+          if (p.skill === "tiny") p.body.velocity.y = Math.max(p.body.velocity.y - 2100 * dt, -275);
+          else p.body.velocity.y -= 320 * dt; // too heavy to lift, just a breeze
+        }
+      }
+    }
   }
 
   finishLevel() {
