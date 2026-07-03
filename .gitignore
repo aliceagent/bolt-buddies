@@ -35,3 +35,6 @@ pnpm-debug.log*
 
 # playtest screenshots
 tools/shots
+
+# beat-kit failure artifacts
+tools/beat/failures
