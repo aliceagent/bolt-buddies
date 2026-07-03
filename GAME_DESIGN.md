@@ -1,6 +1,6 @@
 # Bolt Buddies (working title)
 
-**A 2-player couch co-op puzzle platformer.** Two little lab robots — **Beep** (P1, blue) and **Boop** (P2, orange) — chase through a neon robotics facility to rescue their robo-puppy **Bolt**, who was carried off by **SPARK**, the lab's glitchy, comically overdramatic security AI.
+**A 2-player couch co-op puzzle platformer.** Two little lab robots — **Beep** (P1, blue) and **Boop** (P2, orange) — chase through a neon robotics facility to rescue their robo-puppy **Bolt**, who was carried off by **KOBI** (K.O.B.I. — *Keeper Of Building Integrity*), the lab's glitchy, comically overdramatic security AI.
 
 ---
 
@@ -64,7 +64,7 @@ Each level presents exactly **two pedestals** with that world's pair. Each pedes
 - **Enemies: Scuttlebugs** — armored beetle-bots. Only Heavy's stomp cracks them. **Cranebots** hold key-cages; Grapple yanks the cage down.
 - **1-1 "First Day on the Job"** *(teach)* — Grapple crosses a belt gap and pulls a lever lowering a bridge for Heavy; Heavy breaks a cracked floor revealing the key; both must weigh down a see-saw lift to reach the exit.
 - **1-2 "The Crusher Line"** *(twist)* — Heavy safely walks under crushers that would flatten Grapple; Grapple zips along the ceiling over Scuttlebug swarms; anchor-swing sequence where Heavy stands as the anchor point.
-- **1-3 "Crane Chaos"** *(master)* — SPARK animates the big crane. Grapple disarms its shield-plates one by one while Heavy stomps the exposed cores; ends with Grapple reeling Heavy up the collapsing tower to the exit.
+- **1-3 "Crane Chaos"** *(master)* — KOBI animates the big crane. Grapple disarms its shield-plates one by one while Heavy stomps the exposed cores; ends with Grapple reeling Heavy up the collapsing tower to the exit.
 
 ### World 2 — Maintenance Tunnels 🌀 (Phase-Walk + Tiny)
 *Ducts, fans, steam pipes, shimmering phase-walls, tight crawlspaces.*
@@ -78,21 +78,21 @@ Each level presents exactly **two pedestals** with that world's pair. Each pedes
 - **Enemies: Zap-Jellies** — electric floaters; Bubble bounces them into sockets where they harmlessly power doors. **Junk-Chompers** — magnetic mouths; Magnet yanks their metal teeth out.
 - **3-1 "Attract Mode"** *(teach)* — Magnet drags crates into stair-steps and clings across a steel ceiling; Bubble floats over the electric floor to press the far switch that de-electrifies it.
 - **3-2 "The Flooded Tank"** *(twist)* — Bubble travels underwater carrying the key; Magnet redirects the current by moving metal baffles from above; partner-reel across the great tank.
-- **3-3 "The Scrap Storm"** *(master)* — SPARK reverses the lab's polarity: flying scrap fills the air. Magnet catches scrap as moving shields/platforms while Bubble ferries the three fuse-cores to their sockets.
+- **3-3 "The Scrap Storm"** *(master)* — KOBI reverses the lab's polarity: flying scrap fills the air. Magnet catches scrap as moving shields/platforms while Bubble ferries the three fuse-cores to their sockets.
 
 ### World 4 — The Dark Core 🌑 (Time-Freeze + Light-Beam)
-*Nearly black, lit only by neon and the Beam. Sweeping lasers, moving platforms, SPARK's inner sanctum. Mild timing pressure debuts here.*
+*Nearly black, lit only by neon and the Beam. Sweeping lasers, moving platforms, KOBI's inner sanctum. Mild timing pressure debuts here.*
 - **Enemies: Gloomies** — shadow-bots that flee from light into trap-pits. **Tickers** — patrol on precise loops; only Freeze lets you slip past.
 - **4-1 "Lights Out"** *(teach)* — Beam reveals invisible platforms and scares Gloomies off switches; Freeze stops the rotating bridge so both can cross.
 - **4-2 "The Laser Garden"** *(twist)* — Sweeping laser fields: Freeze stops them in safe positions while Beam melts the three ice-locked doors; each door's key is guarded by a Ticker.
-- **4-3 "SPARK's Heart"** *(master, finale)* — The confrontation. Beam blinds SPARK's eye to expose its three cooling cores; Freeze stops the defense turbines so the partner can reach each core. No violence — you're *unplugging his tantrum*. Bolt bounds out; SPARK, revealed to be lonely, is adopted by the family. Epilogue playground scene + credits.
+- **4-3 "KOBI's Heart"** *(master, finale)* — The confrontation. Beam blinds KOBI's eye to expose its three cooling cores; Freeze stops the defense turbines so the partner can reach each core. No violence — you're *unplugging his tantrum*. Bolt bounds out; KOBI, revealed to be lonely, is adopted by the family. Epilogue playground scene + credits.
 
 ## 6. Story Beats
 
-- **Intro (30s, skippable):** Beep, Boop and robo-puppy Bolt play fetch in the lab lobby. A claw snatches Bolt. SPARK's giant eye appears: *"NO PETS ALLOWED. Commencing... CONFISCATION."*
-- **Between worlds:** SPARK taunts via marquee screens — dramatic but never scary ("You'll NEVER get past my Maintenance Tunnels. I mopped them MYSELF.") Bolt is glimpsed at each wing's end, always one door ahead.
-- **Item cards** are written in SPARK's voice archive — the friendly lab-inventory system — which subtly foreshadows that SPARK isn't evil, just malfunctioning and lonely.
-- **Ending:** Bolt rescued, SPARK reformed and adopted. All-ages, reunion over punishment.
+- **Intro (30s, skippable):** Beep, Boop and robo-puppy Bolt play fetch in the lab lobby. A claw snatches Bolt. KOBI's giant eye appears: *"NO PETS ALLOWED. Commencing... CONFISCATION."*
+- **Between worlds:** KOBI taunts via marquee screens — dramatic but never scary ("You'll NEVER get past my Maintenance Tunnels. I mopped them MYSELF.") Bolt is glimpsed at each wing's end, always one door ahead.
+- **Item cards** are written in KOBI's voice archive — the friendly lab-inventory system — which subtly foreshadows that KOBI isn't evil, just malfunctioning and lonely.
+- **Ending:** Bolt rescued, KOBI reformed and adopted. All-ages, reunion over punishment.
 
 ## 7. Difficulty Curve
 
@@ -111,11 +111,11 @@ Target: World 1 levels ~5 min, World 4 levels ~10 min for a parent+child pair.
 2. **Vertical slice: Level 1-1** — pedestals + item cards, Grapple & Heavy fully working, doors/keys/plates, one enemy type, exit flow.
 3. **World 1 complete** — 3 levels, hub map, data-cores, save/unlock.
 4. **Worlds 2–4** — one skill pair at a time; each world reuses the door/key/enemy framework with new mechanics.
-5. **Story layer & polish** — intro/outro scenes, SPARK marquee lines, sound, particles, epilogue.
+5. **Story layer & polish** — intro/outro scenes, KOBI marquee lines, sound, particles, epilogue.
 6. **Deploy to Vercel**, playtest with the target audience (i.e., the kids).
 
 ### Open questions (decide during build)
 - Final title — *Bolt Buddies*, *Beep & Boop*, *Rescue Bolt!*?
 - Camera: one shared view with zoom vs. vertical split-screen when players separate far.
-- Sound: chiptune vs. synthwave; SPARK voice as text-blips vs. actual TTS.
+- Sound: chiptune vs. synthwave; KOBI voice as text-blips vs. actual TTS.
 - Whether a solo mode (one player tab-switching both robots) is worth adding post-launch.
