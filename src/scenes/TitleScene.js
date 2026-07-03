@@ -1,5 +1,6 @@
 import Phaser from "phaser";
-import { COLORS } from "../constants.js";
+import { COLORS, WORLD_THEMES } from "../constants.js";
+import { addGradient, addMotes } from "../backdrop.js";
 import { initAudio, sfx } from "../audio.js";
 
 const FONT = "'Courier New', monospace";
@@ -12,7 +13,9 @@ export default class TitleScene extends Phaser.Scene {
   create() {
     const W = this.scale.width;
     const H = this.scale.height;
-    this.add.tileSprite(0, 0, W, H, "bggrid").setOrigin(0).setAlpha(0.6);
+    addGradient(this, WORLD_THEMES[1]);
+    this.add.tileSprite(0, 0, W, H, "bggrid").setOrigin(0).setAlpha(0.22).setDepth(-8);
+    addMotes(this, WORLD_THEMES[1].accent2);
 
     this.add.text(W / 2, 96, "BOLT BUDDIES", {
       fontFamily: FONT, fontSize: "84px", fontStyle: "bold", color: "#35f0ff",

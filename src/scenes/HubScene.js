@@ -1,7 +1,8 @@
 import Phaser from "phaser";
-import { COLORS } from "../constants.js";
+import { COLORS, WORLD_THEMES } from "../constants.js";
 import { LEVELS, WORLD_INFO, KOBI_HUB_LINES } from "../levels/registry.js";
 import { loadSave, totalCores } from "../save.js";
+import { addGradient, addMotes } from "../backdrop.js";
 import { initAudio, sfx } from "../audio.js";
 
 const FONT = "'Courier New', monospace";
@@ -23,7 +24,9 @@ export default class HubScene extends Phaser.Scene {
     if (this.sel === null) this.sel = Math.min(this.save.unlocked - 1, LEVELS.length - 1);
     this.sel = Phaser.Math.Clamp(this.sel, 0, LEVELS.length - 1);
 
-    this.add.tileSprite(0, 0, W, H, "bggrid").setOrigin(0).setAlpha(0.6);
+    addGradient(this, WORLD_THEMES[1]);
+    this.add.tileSprite(0, 0, W, H, "bggrid").setOrigin(0).setAlpha(0.22).setDepth(-8);
+    addMotes(this, WORLD_THEMES[1].accent2);
     this.add.text(W / 2, 46, "DYNACORE LABS — SECTOR MAP", {
       fontFamily: FONT, fontSize: "34px", fontStyle: "bold", color: "#35f0ff",
     }).setOrigin(0.5);

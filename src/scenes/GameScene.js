@@ -1,9 +1,10 @@
 import Phaser from "phaser";
-import { TILE, COLORS, PHYS, DEPTH, SKILL_INFO } from "../constants.js";
+import { TILE, COLORS, PHYS, DEPTH, SKILL_INFO, WORLD_THEMES } from "../constants.js";
 import { LEVELS } from "../levels/registry.js";
 import { makeGrid } from "../levels/builder.js";
 import { completeLevel } from "../save.js";
 import { sfx } from "../audio.js";
+import { addGradient, addMotes } from "../backdrop.js";
 import Player from "../objects/Player.js";
 
 const FONT = "'Courier New', monospace";
@@ -28,7 +29,7 @@ export default class GameScene extends Phaser.Scene {
     this.worldH = def.rows * TILE;
     this.physics.world.setBounds(0, 0, this.worldW, this.worldH);
 
-    this.add.tileSprite(0, 0, this.worldW, this.worldH, "bggrid").setOrigin(0).setDepth(DEPTH.bg).setAlpha(0.5);
+    this.buildBackground();
 
     // level state
     this.solidObjs = [];
@@ -109,7 +110,7 @@ export default class GameScene extends Phaser.Scene {
     // camera
     const cam = this.cameras.main;
     cam.setBounds(0, 0, this.worldW, this.worldH);
-    cam.setBackgroundColor(COLORS.bg);
+    // camera background colour is the world's bgBottom, set in buildBackground()
     this.camPos = { x: this.players[0].x, y: this.players[0].y, zoom: 1 };
 
     this.rope = this.add.graphics().setDepth(DEPTH.rope);
@@ -129,6 +130,55 @@ export default class GameScene extends Phaser.Scene {
       window.__BB = window.__BB || {};
       window.__BB.scene = this;
     }
+  }
+
+  // --- background ----------------------------------------------------------
+  // Layered, world-themed backdrop (all below DEPTH.terrain): fixed gradient,
+  // two parallax grid layers, scattered additive glow blobs, and drifting motes.
+  buildBackground() {
+    const theme = WORLD_THEMES[this.def.world] || WORLD_THEMES[1];
+    this.theme = theme;
+    const W = this.scale.width;
+    const H = this.scale.height;
+
+    // (1) fixed vertical gradient, sized 2x viewport (see backdrop.js)
+    addGradient(this, theme);
+
+    // (2) far parallax grid — dim, larger tile scale to avoid moire with the near layer
+    this.add
+      .tileSprite(-2 * W, -2 * H, this.worldW + 4 * W, this.worldH + 4 * H, "bggrid")
+      .setOrigin(0)
+      .setScrollFactor(0.4)
+      .setTileScale(1.7)
+      .setAlpha(0.2)
+      .setDepth(DEPTH.bg - 9);
+
+    // (3) near parallax grid — brighter, world-tinted
+    this.add
+      .tileSprite(-2 * W, -2 * H, this.worldW + 4 * W, this.worldH + 4 * H, "bggrid")
+      .setOrigin(0)
+      .setScrollFactor(0.75)
+      .setAlpha(0.36)
+      .setTint(theme.accent2)
+      .setDepth(DEPTH.bg - 8);
+
+    // (4) scattered soft-glow blobs, additive, tinted the world glow colour
+    const n = 5;
+    for (let i = 0; i < n; i++) {
+      const bx = ((i + 0.5) / n) * this.worldW + (i % 2 ? -90 : 90);
+      const by = this.worldH * (0.24 + 0.46 * ((i * 0.37) % 1));
+      this.add
+        .image(bx, by, "glowBlob")
+        .setScrollFactor(0.85)
+        .setDepth(DEPTH.bg - 7)
+        .setTint(theme.glow)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setAlpha(0.18)
+        .setScale(1.2 + (i % 3) * 0.5);
+    }
+
+    // (5) ambient dust motes
+    addMotes(this, theme.accent2);
   }
 
   // --- terrain -------------------------------------------------------------

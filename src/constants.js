@@ -16,6 +16,17 @@ export const COLORS = {
   dark: 0x0b101f,
 };
 
+// Per-world background & mood palette (keyed by `def.world`, 1-4). Used to theme
+// the layered background: `bgTop`/`bgBottom` drive the fixed gradient, `glow`
+// tints the scattered soft-glow blobs, `accent`/`accent2` colour the near grid
+// and dust motes. Worlds 3-4 are picked tastefully now so later sprints inherit.
+export const WORLD_THEMES = {
+  1: { accent: 0xffb347, accent2: 0x35f0ff, bgTop: 0x14284d, bgBottom: 0x05080f, glow: 0x2f6fd6 },
+  2: { accent: 0xc39dff, accent2: 0x59ffb0, bgTop: 0x0c2b24, bgBottom: 0x04090a, glow: 0x2fae8f },
+  3: { accent: 0xffd24d, accent2: 0xff4dd2, bgTop: 0x2a1233, bgBottom: 0x0a0410, glow: 0xb84dff },
+  4: { accent: 0x35f0ff, accent2: 0xff5566, bgTop: 0x0e1430, bgBottom: 0x02030a, glow: 0x2a4bc4 },
+};
+
 export const PHYS = {
   grav: 1400,
   speed: 250,

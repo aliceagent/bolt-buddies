@@ -71,6 +71,20 @@ export default class BootScene extends Phaser.Scene {
         g.lineBetween(0, i, 96, i);
       }
     });
+    // Vertical alpha ramp: opaque white at top -> transparent at bottom. Tinting
+    // this by a world's bgTop over a bgBottom camera background yields a true
+    // two-colour gradient with no visible edge (uncovered area == bgBottom).
+    make("bgGradient", 64, 720, (g) => {
+      g.fillGradientStyle(0xffffff, 0xffffff, 0xffffff, 0xffffff, 1, 1, 0, 0);
+      g.fillRect(0, 0, 64, 720);
+    });
+    // Soft radial glow blob: concentric circles of rising alpha toward the centre.
+    make("glowBlob", 256, 256, (g) => {
+      for (let r = 128; r > 0; r -= 3) {
+        g.fillStyle(0xffffff, 0.03 * (1 - r / 128));
+        g.fillCircle(128, 128, r);
+      }
+    });
 
     // --- robots ------------------------------------------------------------
     const robot = (color, dark) => (g) => {
