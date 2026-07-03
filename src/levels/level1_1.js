@@ -51,8 +51,8 @@ export default {
     { t: "exit", x: 58, y: 7, h: 3, needs: { opened: ["door1"] } },
   ],
   blips: {
-    start: "SPARK: Welcome to MY Assembly Wing, little trespassers. Take those silly gadgets if you must. The puppy is CONFISCATED.",
-    skills: "SPARK: A grappling hook AND a heavy chassis? How QUAINT. The lift ahead needs SERIOUS weight, you know.",
-    clear: "SPARK: You cleared ONE chamber. I have ELEVEN more. I am not worried. NOT. WORRIED.",
+    start: "KOBI: Welcome to MY Assembly Wing, little trespassers. Take those silly gadgets if you must. The puppy is CONFISCATED.",
+    skills: "KOBI: A grappling hook AND a heavy chassis? How QUAINT. The lift ahead needs SERIOUS weight, you know.",
+    clear: "KOBI: You cleared ONE chamber. I have ELEVEN more. I am not worried. NOT. WORRIED.",
   },
 };

@@ -1,6 +1,6 @@
 # Bolt Buddies 🤖🤖🐶
 
-**A 2-player couch co-op puzzle platformer.** Two little lab robots — **Beep** (P1, blue) and **Boop** (P2, orange) — chase through a neon robotics facility to rescue their robo-puppy **Bolt**, who was carried off by **SPARK**, the lab's glitchy, comically overdramatic security AI.
+**A 2-player couch co-op puzzle platformer.** Two little lab robots — **Beep** (P1, blue) and **Boop** (P2, orange) — chase through a neon robotics facility to rescue their robo-puppy **Bolt**, who was carried off by **K.O.B.I.** — *Keeper Of Building Integrity* — the lab's glitchy, comically overdramatic security AI.
 
 Built with **Phaser 3 + Vite**, plain JavaScript, zero asset files (all art is generated at boot, all sound is WebAudio blips). Deploys as a static site.
 

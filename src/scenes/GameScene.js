@@ -594,7 +594,7 @@ export default class GameScene extends Phaser.Scene {
     const pod = this.add.image(podX, c.floorY - 20, "pod").setDepth(DEPTH.entity);
     this.tweens.add({ targets: pod, scale: { from: 1, to: 1.12 }, duration: 400, yoyo: true, repeat: -1 });
     this.pods.push(pod);
-    this.game.events.emit("bb:blip", "SPARK: A core is EXPOSED! Somebody STAND ON— no wait, STOMP it! No! DON'T!");
+    this.game.events.emit("bb:blip", "KOBI: A core is EXPOSED! Somebody STAND ON— no wait, STOMP it! No! DON'T!");
   }
 
   stompPod(pod) {
@@ -611,7 +611,7 @@ export default class GameScene extends Phaser.Scene {
       this.cameras.main.shake(400, 0.006);
       this.tweens.add({ targets: c.body, y: c.floorY - 40, angle: 8, duration: 900, ease: "bounce.out" });
       c.body.setTint(0x666a80);
-      this.game.events.emit("bb:blip", this.def.blips.craneDown || "SPARK: MY CRANE!");
+      this.game.events.emit("bb:blip", this.def.blips.craneDown || "KOBI: MY CRANE!");
     }
   }
 
@@ -1148,7 +1148,7 @@ export default class GameScene extends Phaser.Scene {
           sfx.pop();
           w.img.body.enable = false;
           this.tweens.add({ targets: w.img, angle: -w.facing * 84, alpha: 0.25, y: w.img.y + 18, duration: 500 });
-          this.game.events.emit("bb:blip", "SPARK: WARDEN DOWN?! You went THROUGH the WALL?! That is CHEATING and also very clever.");
+          this.game.events.emit("bb:blip", "KOBI: WARDEN DOWN?! You went THROUGH the WALL?! That is CHEATING and also very clever.");
         }
         break;
       }

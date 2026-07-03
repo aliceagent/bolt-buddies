@@ -1,5 +1,5 @@
 // 1-3 "Crane Chaos" (master)
-// SPARK animates the big crane. Grapple yanks its shield-plates while it rests low;
+// KOBI animates the big crane. Grapple yanks its shield-plates while it rests low;
 // Heavy stomps each exposed core pod. Then the tower: Grapple zips up the anchors
 // and reels Heavy up ledge by ledge to the exit.
 export default {
@@ -44,9 +44,9 @@ export default {
     { t: "exit", x: 53, y: 0, h: 3, needs: { opened: ["towerDoor"] } },
   ],
   blips: {
-    start: "SPARK: BEHOLD! My magnificent crane! It has FOUR STARS on LabReviews-dot-com. Say hello, crane. ...It says hello.",
-    skills: "SPARK: Its shield plates are UN-YANKABLE. Probably. Do not test that.",
-    craneDown: "SPARK: MY CRANE!! That is coming out of SOMEBODY'S paycheck!",
-    clear: "SPARK: Fine! FINE! Enjoy the Maintenance Tunnels, you little gremlins. I mopped them MYSELF.",
+    start: "KOBI: BEHOLD! My magnificent crane! It has FOUR STARS on LabReviews-dot-com. Say hello, crane. ...It says hello.",
+    skills: "KOBI: Its shield plates are UN-YANKABLE. Probably. Do not test that.",
+    craneDown: "KOBI: MY CRANE!! That is coming out of SOMEBODY'S paycheck!",
+    clear: "KOBI: Fine! FINE! Enjoy the Maintenance Tunnels, you little gremlins. I mopped them MYSELF.",
   },
 };

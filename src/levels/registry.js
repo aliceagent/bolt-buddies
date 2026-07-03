@@ -25,13 +25,13 @@ export const LEVELS = [
   { id: "3-3", name: "The Scrap Storm", world: 3, wip: true },
   { id: "4-1", name: "Lights Out", world: 4, wip: true },
   { id: "4-2", name: "The Laser Garden", world: 4, wip: true },
-  { id: "4-3", name: "SPARK's Heart", world: 4, wip: true },
+  { id: "4-3", name: "KOBI's Heart", world: 4, wip: true },
 ];
 
-export const SPARK_HUB_LINES = [
-  "SPARK: You will NEVER get past my Assembly Wing. The conveyor belts alone have won AWARDS.",
-  "SPARK: The puppy is FINE. He has a bowl. And a firewall.",
-  "SPARK: I am not lonely. I have 4,096 security cameras. We talk.",
-  "SPARK: NO PETS ALLOWED. It is rule one. It is also the ONLY rule I remember.",
-  "SPARK: Turn back now and I will only be MODERATELY dramatic about it.",
+export const KOBI_HUB_LINES = [
+  "KOBI: You will NEVER get past my Assembly Wing. The conveyor belts alone have won AWARDS.",
+  "KOBI: The puppy is FINE. He has a bowl. And a firewall.",
+  "KOBI: I am not lonely. I have 4,096 security cameras. We talk.",
+  "KOBI: NO PETS ALLOWED. It is rule one. It is also the ONLY rule I remember.",
+  "KOBI: Turn back now and I will only be MODERATELY dramatic about it.",
 ];

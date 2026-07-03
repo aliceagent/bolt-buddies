@@ -59,8 +59,8 @@ export default {
     { t: "exit", x: 55, y: 11, h: 3, needs: { plates: ["pl1"], levers: ["lvF"] } },
   ],
   blips: {
-    start: "SPARK: Steam! Shadows! Atmosphere! This chamber has EVERYTHING. Mostly steam.",
-    skills: "SPARK: Hold hands to walk through walls together? That is DISGUSTINGLY adorable.",
-    clear: "SPARK: Who turned off my steam?! That was LOAD-BEARING steam!",
+    start: "KOBI: Steam! Shadows! Atmosphere! This chamber has EVERYTHING. Mostly steam.",
+    skills: "KOBI: Hold hands to walk through walls together? That is DISGUSTINGLY adorable.",
+    clear: "KOBI: Who turned off my steam?! That was LOAD-BEARING steam!",
   },
 };

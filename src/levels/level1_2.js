@@ -60,8 +60,8 @@ export default {
     { t: "exit", x: 62, y: 11, h: 3, needs: { opened: ["d2"] } },
   ],
   blips: {
-    start: "SPARK: Ah, the Crusher Line! I flattened four hundred defective toasters here. It is my FAVORITE chamber.",
-    skills: "SPARK: The crushers only respect HEAVY machinery. Everyone else gets... recycled. Heehee.",
-    clear: "SPARK: IMPOSSIBLE. Those crushers were RECENTLY SERVICED!",
+    start: "KOBI: Ah, the Crusher Line! I flattened four hundred defective toasters here. It is my FAVORITE chamber.",
+    skills: "KOBI: The crushers only respect HEAVY machinery. Everyone else gets... recycled. Heehee.",
+    clear: "KOBI: IMPOSSIBLE. Those crushers were RECENTLY SERVICED!",
   },
 };

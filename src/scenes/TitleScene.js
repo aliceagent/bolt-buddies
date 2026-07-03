@@ -36,7 +36,7 @@ export default class TitleScene extends Phaser.Scene {
     this.tweens.add({ targets: bolt, angle: { from: -4, to: 4 }, duration: 500, yoyo: true, repeat: -1, ease: "sine.inOut" });
 
     this.add.text(W / 2, 330,
-      'SPARK the security AI grabbed your robo-puppy BOLT.\n"NO PETS ALLOWED. Commencing... CONFISCATION."\nChase him through the lab. Neither of you can do it alone.',
+      'K.O.B.I. — Keeper Of Building Integrity — grabbed your robo-puppy BOLT.\n"NO PETS ALLOWED. Commencing... CONFISCATION."\nChase him through the lab. Neither of you can do it alone.',
       { fontFamily: FONT, fontSize: "17px", color: "#c6d2f2", align: "center", lineSpacing: 8 }
     ).setOrigin(0.5);
 

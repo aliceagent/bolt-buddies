@@ -1,4 +1,4 @@
-// Tiny WebAudio chiptune-ish blips. No assets, no TTS — SPARK "speaks" in text.
+// Tiny WebAudio chiptune-ish blips. No assets, no TTS — KOBI "speaks" in text.
 let ctx = null;
 
 export function initAudio() {

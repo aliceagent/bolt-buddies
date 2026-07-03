@@ -28,7 +28,7 @@ export default class UIScene extends Phaser.Scene {
     this.keyIcon = this.add.image(W / 2 + 62, 48, "key").setScale(0.7).setVisible(false);
     this.keyText = this.add.text(W / 2 + 78, 40, "", { fontFamily: FONT, fontSize: "15px", color: "#ffd94d" });
 
-    // SPARK blip bar
+    // KOBI blip bar
     this.blipPanel = this.add.graphics().setVisible(false);
     this.blipPanel.fillStyle(0x0a0f1e, 0.88).fillRoundedRect(W / 2 - 460, H - 92, 920, 66, 10);
     this.blipPanel.lineStyle(2, COLORS.magenta, 0.7).strokeRoundedRect(W / 2 - 460, H - 92, 920, 66, 10);

@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { COLORS } from "../constants.js";
-import { LEVELS, WORLD_INFO, SPARK_HUB_LINES } from "../levels/registry.js";
+import { LEVELS, WORLD_INFO, KOBI_HUB_LINES } from "../levels/registry.js";
 import { loadSave, totalCores } from "../save.js";
 import { initAudio, sfx } from "../audio.js";
 
@@ -76,8 +76,8 @@ export default class HubScene extends Phaser.Scene {
       fontFamily: FONT, fontSize: "15px", color: "#ff9daa",
     }).setOrigin(0.5);
 
-    // SPARK marquee
-    const line = SPARK_HUB_LINES[Math.floor(Math.random() * SPARK_HUB_LINES.length)];
+    // KOBI marquee
+    const line = KOBI_HUB_LINES[Math.floor(Math.random() * KOBI_HUB_LINES.length)];
     this.add.text(W / 2, H - 24, line, {
       fontFamily: FONT, fontSize: "14px", fontStyle: "italic", color: "#ff4dd2",
     }).setOrigin(0.5).setAlpha(0.85);
@@ -133,12 +133,12 @@ export default class HubScene extends Phaser.Scene {
     const n = this.nodes[this.sel];
     if (!n.unlocked) {
       sfx.denied();
-      this.toastText.setText("SPARK: That wing is LOCKED. Doors are my whole THING.");
+      this.toastText.setText("KOBI: That wing is LOCKED. Doors are my whole THING.");
       return;
     }
     if (n.lvl.wip) {
       sfx.denied();
-      this.toastText.setText("SPARK: This wing is still under construction. Even I have limits. (coming soon)");
+      this.toastText.setText("KOBI: This wing is still under construction. Even I have limits. (coming soon)");
       return;
     }
     sfx.door();

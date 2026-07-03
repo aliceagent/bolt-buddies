@@ -66,8 +66,8 @@ export default {
     { t: "exit", x: 62, y: 11, h: 3, needs: { opened: ["br1"] } },
   ],
   blips: {
-    start: "SPARK: My Wall-Wardens guard this maze. They have ONE eye each and NO peripheral vision. It was a budget year.",
-    skills: "SPARK: The doors are on TIMERS. Coordinate! Or better yet — don't, and stay here forever with me.",
-    clear: "SPARK: You THREW your friend?! ...And they LIKED it?! Get out. GET OUT OF MY TUNNELS.",
+    start: "KOBI: My Wall-Wardens guard this maze. They have ONE eye each and NO peripheral vision. It was a budget year.",
+    skills: "KOBI: The doors are on TIMERS. Coordinate! Or better yet — don't, and stay here forever with me.",
+    clear: "KOBI: You THREW your friend?! ...And they LIKED it?! Get out. GET OUT OF MY TUNNELS.",
   },
 };

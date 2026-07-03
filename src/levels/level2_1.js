@@ -59,8 +59,8 @@ export default {
     { t: "exit", x: 57, y: 11, h: 3, needs: { levers: ["lvE"] } },
   ],
   blips: {
-    start: "SPARK: The Maintenance Tunnels! I mopped them MYSELF. Do NOT touch my beautiful Patrol Rollers.",
-    skills: "SPARK: One of you is now VERY small, and one walks through WALLS. I officially hate this wing.",
-    clear: "SPARK: Fine. FINE! But the vents get SMALLER. Probably. I have not checked.",
+    start: "KOBI: The Maintenance Tunnels! I mopped them MYSELF. Do NOT touch my beautiful Patrol Rollers.",
+    skills: "KOBI: One of you is now VERY small, and one walks through WALLS. I officially hate this wing.",
+    clear: "KOBI: Fine. FINE! But the vents get SMALLER. Probably. I have not checked.",
   },
 };
