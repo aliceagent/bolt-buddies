@@ -20,8 +20,8 @@ export default class UIScene extends Phaser.Scene {
     const H = this.scale.height;
     const lvl = LEVELS[this.levelIndex];
 
-    this.p1Text = this.add.text(16, 12, "P1 BEEP — no gadget", { fontFamily: FONT, fontSize: "17px", fontStyle: "bold", color: "#4dc9ff" });
-    this.p2Text = this.add.text(W - 16, 12, "P2 BOOP — no gadget", { fontFamily: FONT, fontSize: "17px", fontStyle: "bold", color: "#ffa14d" }).setOrigin(1, 0);
+    this.p1Text = this.add.text(16, 12, "P1 BEEP — action: E", { fontFamily: FONT, fontSize: "17px", fontStyle: "bold", color: "#4dc9ff" });
+    this.p2Text = this.add.text(W - 16, 12, "P2 BOOP — action: L", { fontFamily: FONT, fontSize: "17px", fontStyle: "bold", color: "#ffa14d" }).setOrigin(1, 0);
     this.add.text(W / 2, 14, `${lvl.id}  "${lvl.name.toUpperCase()}"`, { fontFamily: FONT, fontSize: "16px", color: "#8fa3d9" }).setOrigin(0.5, 0);
 
     this.corePips = [0, 1, 2].map((i) => this.add.image(W / 2 - 26 + i * 26, 48, "core").setScale(0.6).setAlpha(0.2));

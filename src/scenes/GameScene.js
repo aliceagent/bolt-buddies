@@ -118,6 +118,20 @@ export default class GameScene extends Phaser.Scene {
     this.wardens.forEach((w) => this.physics.add.collider(this.players, w.img));
     this.reticles = this.players.map(() => this.add.image(0, 0, "reticle").setDepth(DEPTH.reticle).setVisible(false));
 
+    // floating "E = ACTION" / "L = ACTION" key hints above each robot until
+    // that player first presses their action key — the button was unclear
+    this.actionHints = this.players.map((p) => {
+      const color = p.idx === 0 ? COLORS.beep : COLORS.boop;
+      const g = this.add.graphics();
+      g.fillStyle(0x0a0f1e, 0.92).fillRoundedRect(-56, -15, 112, 30, 8);
+      g.lineStyle(2, color).strokeRoundedRect(-56, -15, 112, 30, 8);
+      const t = this.add.text(0, 0, p.idx === 0 ? "E = ACTION" : "L = ACTION", {
+        fontFamily: FONT, fontSize: "15px", fontStyle: "bold",
+        color: p.idx === 0 ? "#4dc9ff" : "#ffa14d",
+      }).setOrigin(0.5);
+      return this.add.container(p.x, p.y - 64 - p.idx * 34, [g, t]).setDepth(DEPTH.fx);
+    });
+
     this.boom = this.add.particles(0, 0, "px", {
       speed: { min: 60, max: 260 }, scale: { start: 1, end: 0 }, lifespan: 450,
       gravityY: 600, emitting: false,
@@ -456,6 +470,10 @@ export default class GameScene extends Phaser.Scene {
 
   // --- actions ---------------------------------------------------------------
   handleAction(p) {
+    if (this.actionHints && this.actionHints[p.idx]) {
+      this.actionHints[p.idx].destroy();
+      this.actionHints[p.idx] = null;
+    }
     if (p.dead || p.carriedBy) return;
     if (p.carrying) {
       this.throwPartner(p);
@@ -790,6 +808,10 @@ export default class GameScene extends Phaser.Scene {
       if (p.dead) continue;
       if (J(p.keys.act)) this.handleAction(p);
       if (p.dead || p.carriedBy) continue;
+
+      // action-key hint follows its robot
+      const hint = this.actionHints[p.idx];
+      if (hint) hint.setPosition(p.x, p.y - 64 - p.idx * 34 + Math.sin(time / 300) * 4);
 
       // ghost shimmer while inside a phase-wall
       p.inPhaseWall = this.tileAt(p.x, p.y) === "~";
