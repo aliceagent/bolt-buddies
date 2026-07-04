@@ -1,15 +1,65 @@
 {
-  "when": "2026-07-04T18:08:30.498Z",
+  "when": "2026-07-04T18:19:18.615Z",
   "levels": [
+    "1-1",
+    "1-2",
     "1-3"
   ],
   "results": [
+    {
+      "id": "1-1",
+      "assignment": "A:P1=G",
+      "result": "PASS",
+      "complete": true,
+      "durationMs": 46740,
+      "deaths": 0,
+      "steps": 9,
+      "totalSteps": 9,
+      "failedStep": "",
+      "error": ""
+    },
+    {
+      "id": "1-1",
+      "assignment": "B:P1=H",
+      "result": "PASS",
+      "complete": true,
+      "durationMs": 46516,
+      "deaths": 0,
+      "steps": 9,
+      "totalSteps": 9,
+      "failedStep": "",
+      "error": ""
+    },
+    {
+      "id": "1-2",
+      "assignment": "A:P1=G",
+      "result": "FAIL",
+      "complete": false,
+      "durationMs": 43513,
+      "deaths": 0,
+      "steps": 5,
+      "totalSteps": 7,
+      "failedStep": "chasm relay: G crosses on the anchors, reels H over the pillar",
+      "error": "waitFor timed out: H reeled to the far floor"
+    },
+    {
+      "id": "1-2",
+      "assignment": "B:P1=H",
+      "result": "FAIL",
+      "complete": false,
+      "durationMs": 34875,
+      "deaths": 0,
+      "steps": 5,
+      "totalSteps": 7,
+      "failedStep": "chasm relay: G crosses on the anchors, reels H over the pillar",
+      "error": "waitFor timed out: H reeled to the far floor"
+    },
     {
       "id": "1-3",
       "assignment": "A:P1=G",
       "result": "PASS",
       "complete": true,
-      "durationMs": 62336,
+      "durationMs": 60424,
       "deaths": 0,
       "steps": 6,
       "totalSteps": 6,
@@ -21,7 +71,7 @@
       "assignment": "B:P1=H",
       "result": "PASS",
       "complete": true,
-      "durationMs": 61794,
+      "durationMs": 61178,
       "deaths": 0,
       "steps": 6,
       "totalSteps": 6,
