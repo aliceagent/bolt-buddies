@@ -907,7 +907,17 @@ export default class GameScene extends Phaser.Scene {
       const d = Math.hypot(dx, dy);
       if (d < 46 || p.body.blocked.left || p.body.blocked.right || p.body.blocked.up) {
         p.endReeled();
-        p.setVelocity(0, -180);
+        // FL-003 — "the rope always gets your buddy to you": arriving beside
+        // the reeler's ledge lip used to cancel dead and drop the buddy. Nudge
+        // up off the wall face first (contact zeroes vx otherwise), then arc
+        // toward the reeler to crest the lip.
+        if (d < 110) {
+          p.y -= 10;
+          p.body.reset(p.x, p.y);
+          p.setVelocity(Math.sign(dx) * 190, -260);
+        } else {
+          p.setVelocity(0, -180);
+        }
       } else {
         p.setVelocity((dx / d) * PHYS.reelSpeed, (dy / d) * PHYS.reelSpeed);
       }

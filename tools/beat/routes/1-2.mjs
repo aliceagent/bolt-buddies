@@ -58,6 +58,7 @@ export default [
       // anchors to the far floor and reels H across (roadmap 1-2 step 6).
       const hi = bb.idx("H");
       await bb.walkTo("G", 40, { tol: 12, timeout: 6000 });
+      await bb.face("G", "right"); // FL-002: the hook goes where you're looking
       await bb.zipTo("G"); // zip anchor (43,8)
       await bb.act("G"); // zip anchor (46,8)
       await bb.waitFor((s) => s.players[bb.idx("G")].zip && s.players[bb.idx("G")].zip.arrived, 3000, "zip2").catch(() => {});

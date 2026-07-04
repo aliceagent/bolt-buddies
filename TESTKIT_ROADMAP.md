@@ -356,6 +356,26 @@ A red beat run is never just reported — it enters a fix loop until green:
   for real kids, escalate a forgiveness tweak (reel pop-over on block) as
   FL-003; not needed while the matrix is green.
 
+### FL-003 — Reel arrival lacks lip forgiveness (blocks 1-3's tower)
+
+- **Triage class:** (b) gameplay bug, probe-verified (`tools/beat/_reelprobe`):
+  reeling Heavy from ledge1 to a grappler standing on ledge2 pulls him to
+  exactly the ledge's side face (body right edge = tile edge, `blocked.right`),
+  the reel cancels 32px short, and he falls to the shaft floor. The design
+  doc's signature 1-3 finale ("Grapple reeling Heavy up the tower") fails for
+  any player, every time, with a wide-bodied buddy.
+- **Root cause:** GameScene's reel update ends on `blocked.left/right/up` or
+  `d < 46` and just restores gravity — no consideration that the buddy is
+  hanging beside the reeler's ledge lip.
+- **Fix (kid rule: "the rope always gets your buddy to you"):** when a reel
+  ends within 110px of the reeler, launch the buddy on an assist arc toward
+  them (vx ≈ 170 toward the reeler, vy ≈ −240) instead of a dead vertical hop —
+  enough to crest a lip from beside it, harmless when they're already beside
+  each other on flat ground. Ends farther than 110px keep the old behavior.
+- **Also fixed in the kit:** 1-2's chasm zips now `face("right")` first —
+  post-FL-002 the hook honors facing, and walkTo's final correction can leave
+  the grappler facing left (it then picked the yard anchor behind him).
+
 ## Maintenance rule (add to both other roadmaps' ground rules)
 
 From T2 onward, **every sprint (UI or sound) must leave the 12-run beat
