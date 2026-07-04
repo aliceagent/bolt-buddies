@@ -18,7 +18,7 @@ export default {
     g.rect(41, 0, 41, 10, "#"); // arena/tower divider (door below)
     // FL-006: ledges widened one tile each — the beat matrix showed 3-tile
     // ledges make reel landings flaky even for a frame-perfect robot player
-    g.rect(43, 12, 46, 12, "#"); // tower ledge 1
+    g.rect(44, 12, 47, 12, "#"); // tower ledge 1 (widened RIGHT — left would roof the corridor at x43)
     g.rect(49, 9, 52, 9, "#"); // tower ledge 2
     g.rect(44, 6, 47, 6, "#"); // tower ledge 3
     g.rect(48, 3, 55, 3, "#"); // tower top floor

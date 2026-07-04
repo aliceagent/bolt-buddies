@@ -1,5 +1,5 @@
 {
-  "when": "2026-07-04T17:55:42.233Z",
+  "when": "2026-07-04T17:58:26.570Z",
   "levels": [
     "1-3"
   ],
@@ -9,24 +9,24 @@
       "assignment": "A:P1=G",
       "result": "FAIL",
       "complete": false,
-      "durationMs": 63789,
+      "durationMs": 45494,
       "deaths": 0,
-      "steps": 4,
+      "steps": 3,
       "totalSteps": 6,
-      "failedStep": "tower: G zips up the anchors and reels H up ledge by ledge",
-      "error": "waitFor timed out: H up to top floor"
+      "failedStep": "H clears the arena bugs, both cross to the tower base (x43)",
+      "error": "walkTo H -> tile 43 timed out"
     },
     {
       "id": "1-3",
       "assignment": "B:P1=H",
       "result": "FAIL",
       "complete": false,
-      "durationMs": 67165,
+      "durationMs": 46577,
       "deaths": 0,
-      "steps": 5,
+      "steps": 3,
       "totalSteps": 6,
-      "failedStep": "both reach the exit -> complete",
-      "error": "waitFor timed out: level complete"
+      "failedStep": "H clears the arena bugs, both cross to the tower base (x43)",
+      "error": "walkTo H -> tile 43 timed out"
     }
   ],
   "pageErrors": []
