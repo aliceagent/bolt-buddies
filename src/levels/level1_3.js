@@ -19,8 +19,8 @@ export default {
     // FL-006: ledges widened one tile each — the beat matrix showed 3-tile
     // ledges make reel landings flaky even for a frame-perfect robot player
     g.rect(44, 12, 47, 12, "#"); // tower ledge 1 (widened RIGHT — left would roof the corridor at x43)
-    g.rect(49, 9, 52, 9, "#"); // tower ledge 2
-    g.rect(44, 6, 47, 6, "#"); // tower ledge 3
+    g.rect(50, 9, 52, 9, "#"); // tower ledge 2 (NOT widened left: tile 49,9 blocks the ledge1->anchor(51,7) zip line)
+    g.rect(44, 6, 46, 6, "#"); // tower ledge 3 (NOT widened right: tile 47,6 blocks the ledge2->anchor(45,4) zip line)
     g.rect(48, 3, 55, 3, "#"); // tower top floor
     g.rect(55, 0, 55, 17, "#"); // right wall
   },
