@@ -1,5 +1,5 @@
 {
-  "when": "2026-07-04T18:01:01.706Z",
+  "when": "2026-07-04T18:08:30.498Z",
   "levels": [
     "1-3"
   ],
@@ -7,26 +7,26 @@
     {
       "id": "1-3",
       "assignment": "A:P1=G",
-      "result": "FAIL",
-      "complete": false,
-      "durationMs": 51364,
+      "result": "PASS",
+      "complete": true,
+      "durationMs": 62336,
       "deaths": 0,
-      "steps": 4,
+      "steps": 6,
       "totalSteps": 6,
-      "failedStep": "tower: G zips up the anchors and reels H up ledge by ledge",
-      "error": "waitFor timed out: G zip arrived"
+      "failedStep": "",
+      "error": ""
     },
     {
       "id": "1-3",
       "assignment": "B:P1=H",
-      "result": "FAIL",
-      "complete": false,
-      "durationMs": 50776,
+      "result": "PASS",
+      "complete": true,
+      "durationMs": 61794,
       "deaths": 0,
-      "steps": 4,
+      "steps": 6,
       "totalSteps": 6,
-      "failedStep": "tower: G zips up the anchors and reels H up ledge by ledge",
-      "error": "waitFor timed out: G zip arrived"
+      "failedStep": "",
+      "error": ""
     }
   ],
   "pageErrors": []
