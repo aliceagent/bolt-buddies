@@ -65,7 +65,9 @@ export default [
       await bb.page.waitForTimeout(600);
       await bb.reelPartner("G", { partnerRole: "H" });
       await bb.waitFor((s) => s.players[hi].tx > 45, 4000, "H reeled onto the pillar");
-      // second hop: G anchors (52,8) over the far floor, drops, reels H across
+      // second hop: face right so the hook picks the FAR anchor (52,8), not the
+      // one overhead (FL-002: the hook goes where you're looking)
+      await bb.face("G", "right");
       await bb.zipTo("G");
       await bb.zipRelease("G", "jump");
       await bb.page.waitForTimeout(700);

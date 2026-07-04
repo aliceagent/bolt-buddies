@@ -40,22 +40,30 @@ export default [
       // ledge at x44, or the pre-jump run carries the robot under the lip
       await bb.mountLedge("G", 41.7, "right", { stayTile: 45, ledgeTy: 12.6 });
       await bb.mountLedge("H", 41.7, "right", { stayTile: 45, ledgeTy: 12.6, runupMs: 300 });
+      // Reels are fired from each ledge's NEAR edge — from mid-ledge the rope
+      // clips the ledge's own lip and drops the buddy (see FL-002 kit notes).
       // ledge1 -> ledge2: G zips anchor(51,7), drops to ledge2, reels H up
+      await bb.face("G", "right");
       await bb.zipTo("G");
       await bb.zipRelease("G", "jump");
       await bb.page.waitForTimeout(600);
+      await bb.walkTo("G", 50.3, { tol: 8, timeout: 4000 });
       await bb.reelPartner("G", { partnerRole: "H" });
       await bb.waitFor((s) => s.players[hi].ty < 10, 4000, "H up to ledge2");
-      // ledge2 -> ledge3
+      // ledge2 -> ledge3 (leftward zip: face left so the hook goes left)
+      await bb.face("G", "left");
       await bb.zipTo("G");
       await bb.zipRelease("G", "jump");
       await bb.page.waitForTimeout(600);
+      await bb.walkTo("G", 46.6, { tol: 8, timeout: 4000 });
       await bb.reelPartner("G", { partnerRole: "H" });
       await bb.waitFor((s) => s.players[hi].ty < 7, 4000, "H up to ledge3");
       // ledge3 -> top floor
+      await bb.face("G", "right");
       await bb.zipTo("G");
       await bb.zipRelease("G", "jump");
       await bb.page.waitForTimeout(600);
+      await bb.walkTo("G", 48.3, { tol: 8, timeout: 4000 });
       await bb.reelPartner("G", { partnerRole: "H" });
       await bb.waitFor((s) => s.players[hi].ty < 4, 4000, "H up to top floor");
     },

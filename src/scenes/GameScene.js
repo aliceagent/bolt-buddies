@@ -602,19 +602,26 @@ export default class GameScene extends Phaser.Scene {
     }
     // FL-001 rev2: the partner is never a plain-ACTION candidate — the buddy
     // rope lives on the DOWN+ACTION chord (see handleAction).
-    let best = null;
-    let bestScore = Infinity;
+    // FL-002: the hook goes where you're looking — when any valid target lies
+    // in the facing direction, targets behind are ignored; near-vertical ones
+    // count as neutral (reachable only when nothing is ahead).
+    let bestAhead = null, bestAheadScore = Infinity;
+    let bestAny = null, bestAnyScore = Infinity;
     for (const c of cands) {
       const d = Math.hypot(c.x - p.x, c.y - p.y);
       if (d > PHYS.grappleRange || d < 30) continue;
       if (!this.hasLOS(p.x, p.y, c.x, c.y)) continue;
       const score = d - (c.y < p.y - 20 ? 50 : 0) - c.bias;
-      if (score < bestScore) {
-        bestScore = score;
-        best = c;
+      if (score < bestAnyScore) {
+        bestAnyScore = score;
+        bestAny = c;
+      }
+      if (Math.abs(c.x - p.x) > 24 && Math.sign(c.x - p.x) === p.facing && score < bestAheadScore) {
+        bestAheadScore = score;
+        bestAhead = c;
       }
     }
-    return best;
+    return bestAhead || bestAny;
   }
 
   fireGrapple(p, tgt) {

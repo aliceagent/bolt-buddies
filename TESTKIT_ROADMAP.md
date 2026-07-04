@@ -334,6 +334,28 @@ A red beat run is never just reported — it enters a fix loop until green:
     tests updated: reel check holds S while pressing E; airborne-zip check
     holds S mid-jump. Item-card hint text updated to teach the chord.
 
+### FL-002 — Anchor selection ignores aim (blocks 1-2's far crossing)
+
+- **Triage class:** (b) gameplay bug, found by the matrix after FL-001 rev2.
+- **Symptom:** on the 1-2 pillar, plain ACTION always zips to the overhead
+  anchor (46,8) (nearest), and from that hang the only nearer anchor is
+  (43,8) — backwards. The far-floor anchor (52,8) is unselectable from
+  anywhere on the pillar, so the crossing dead-ends for any player.
+- **Root cause:** `findGrappleTarget` scores by distance only; facing never
+  matters for world targets.
+- **Fix (kid-intuitive):** "the hook goes where you're looking" — compute the
+  best candidate ahead (sign(dx) === facing, |dx| > 24) and the best overall;
+  return the ahead-best when one exists, else the overall best (so overhead/
+  behind targets stay reachable when nothing is ahead). Verified against every
+  existing zip in Worlds 1 routes (1-1 belt edge, 1-2 entry + sky chain +
+  chasm, 1-3 tower including the leftward ledge3 zip, crane plates).
+- **Kit techniques added with it:** explicit `face` before direction-critical
+  zips, and reels are fired from the ledge's NEAR edge — reeling from mid-ledge
+  clips the buddy on the ledge's own lip (LOS-verified standing positions:
+  ledge2 x50.3, ledge3 x46.6, top x48.3). If edge-standing proves too finicky
+  for real kids, escalate a forgiveness tweak (reel pop-over on block) as
+  FL-003; not needed while the matrix is green.
+
 ## Maintenance rule (add to both other roadmaps' ground rules)
 
 From T2 onward, **every sprint (UI or sound) must leave the 12-run beat
