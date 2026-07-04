@@ -55,7 +55,7 @@ export default [
       await bb.zipTo("G");
       await bb.zipRelease("G", "jump");
       await bb.page.waitForTimeout(600);
-      await bb.walkTo("G", 46.6, { tol: 8, timeout: 4000 });
+      await bb.walkTo("G", 46.3, { tol: 8, timeout: 4000 }); // stay ON ledge3 (ends at x46)
       await bb.reelPartner("G", { partnerRole: "H" });
       await bb.waitFor((s) => s.players[hi].ty < 7, 4000, "H up to ledge3");
       // ledge3 -> top floor
