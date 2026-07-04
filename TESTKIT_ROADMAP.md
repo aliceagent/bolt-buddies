@@ -368,10 +368,12 @@ A red beat run is never just reported — it enters a fix loop until green:
   `d < 46` and just restores gravity — no consideration that the buddy is
   hanging beside the reeler's ledge lip.
 - **Fix (kid rule: "the rope always gets your buddy to you"):** when a reel
-  ends within 110px of the reeler, launch the buddy on an assist arc toward
-  them (vx ≈ 170 toward the reeler, vy ≈ −240) instead of a dead vertical hop —
-  enough to crest a lip from beside it, harmless when they're already beside
-  each other on flat ground. Ends farther than 110px keep the old behavior.
+  ends within 110px of the reeler, pop the buddy level with the reeler —
+  LOS-checked at that height so the rope can never pull through a wall — then
+  arc them toward the reeler onto the ledge. (Rev: a fixed-size nudge+arc only
+  worked when the buddy happened to arrive near the lip; impact height varies
+  run to run, so the assist is geometric.) Ends farther than 110px keep the
+  old gentle-hop behavior.
 - **Also fixed in the kit:** 1-2's chasm zips now `face("right")` first —
   post-FL-002 the hook honors facing, and walkTo's final correction can leave
   the grappler facing left (it then picked the yard anchor behind him).
