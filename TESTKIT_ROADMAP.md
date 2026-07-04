@@ -392,6 +392,23 @@ A red beat run is never just reported — it enters a fix loop until green:
   rightward to drift onto it (route: zipRelease "right"). Climb sequence and
   design intent unchanged; two-tile move in `src/levels/level1_3.js`.
 
+### FL-005 — Buddy-chord LOS demands pixel-perfect edge-standing
+
+- **Triage class:** (b) gameplay bug. Reeling a buddy who is below the floor
+  you stand on (1-3's final tower reel, and any future same-shape moment)
+  only initiated when the reeler stood within ~15px of the lip — the direct
+  center-to-center sightline clips the floor's own corner tile anywhere
+  farther back. FL-003 already forgives the flight; initiation was the last
+  fragile link.
+- **Fix:** the DOWN+ACTION chord accepts the direct line OR a head-to-head
+  line (reeler head at −44px, buddy head at −24px) — the rope arcs over the
+  lip, which is physically sensible for a thrown rope and kid-forgiving.
+- **Related (same session):** UP+ACTION added as the third grapple modifier
+  (zip to the anchor almost directly above) after near-vertical anchors lost
+  plain-ACTION scoring contests by untrustably thin margins (an 11px stance
+  shift flipped the tower zip). The modifier language is now complete and
+  discrete: plain = ahead, UP = above, DOWN = buddy.
+
 ## Maintenance rule (add to both other roadmaps' ground rules)
 
 From T2 onward, **every sprint (UI or sound) must leave the 12-run beat

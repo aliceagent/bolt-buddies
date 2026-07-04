@@ -529,7 +529,10 @@ export default class GameScene extends Phaser.Scene {
           q && !q.dead && !q.carriedBy && !q.zip && !q.reeled &&
           Math.hypot(q.x - p.x, q.y - p.y) > 72 &&
           Math.hypot(q.x - p.x, q.y - p.y) <= PHYS.grappleRange &&
-          this.hasLOS(p.x, p.y, q.x, q.y)
+          // FL-005: the rope may arc over a ledge lip — accept the direct line
+          // OR a head-to-head line (reeling a buddy below your floor otherwise
+          // demands pixel-perfect edge-standing)
+          (this.hasLOS(p.x, p.y, q.x, q.y) || this.hasLOS(p.x, p.y - 44, q.x, q.y - 24))
         ) {
           this.fireGrapple(p, { kind: "partner", x: q.x, y: q.y, obj: q });
         } else {
