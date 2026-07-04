@@ -409,6 +409,18 @@ A red beat run is never just reported — it enters a fix loop until green:
   shift flipped the tower zip). The modifier language is now complete and
   discrete: plain = ahead, UP = above, DOWN = buddy.
 
+### FL-006 — 1-3 tower ledges too narrow for reliable reel landings
+
+- **Triage class:** (c) level design. With FL-001..005 in place the tower is
+  traversable (run B completed it end-to-end), but reel landings on 3-tile
+  ledges remain variance-sensitive — a frame-perfect robot player still
+  flakes, so kid pairs certainly would. Kid-friendly pillar: "generous,
+  forgiving".
+- **Fix:** each tower ledge widened by one tile (ledge1 43-46, ledge2 49-52,
+  ledge3 44-47). No route coordinates change; every landing/stance/LOS margin
+  fattens. Assist-radius raised 110→150 in the same series (the reel measures
+  to the reeler's head; a lip-block sat at 114.5px).
+
 ## Maintenance rule (add to both other roadmaps' ground rules)
 
 From T2 onward, **every sprint (UI or sound) must leave the 12-run beat

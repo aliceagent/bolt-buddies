@@ -72,9 +72,11 @@ export default [
   {
     name: "both reach the exit -> complete",
     fn: async (bb) => {
-      await bb.walkTo("H", 54, { timeout: 6000 });
-      await bb.walkTo("G", 54, { timeout: 6000 });
-      await bb.waitFor((s) => s.complete, 5000, "level complete");
+      // 53.5, not 54 — tile 54 is the exit zone's exact right boundary and
+      // rectangle-contains excludes the edge
+      await bb.walkTo("H", 53.5, { tol: 10, timeout: 6000 });
+      await bb.walkTo("G", 53.5, { tol: 10, timeout: 6000 });
+      await bb.waitFor((s) => s.complete, 6000, "level complete");
     },
   },
 ];
