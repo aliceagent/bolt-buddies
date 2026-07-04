@@ -38,3 +38,6 @@ tools/shots
 
 # beat-kit failure artifacts
 tools/beat/failures
+
+# bisect/debug scratch harnesses
+tools/_*.mjs
