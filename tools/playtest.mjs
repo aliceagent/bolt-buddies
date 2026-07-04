@@ -221,6 +221,7 @@ await shot("10-lift");
 await tp(0, 44, 13);
 await tp(1, 40, 13);
 await page.waitForTimeout(250);
+await tap("KeyA"); // FL-001: aim at the buddy first — the rope goes where you point
 await tap("KeyE"); // grounded grapple reels heavy in
 await page.waitForTimeout(900);
 const reeled = await st();

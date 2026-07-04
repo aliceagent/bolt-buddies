@@ -454,6 +454,8 @@ export class Driver {
     const i = this.idx(role);
     const partnerRole = opts.partnerRole;
     this.log(`reelPartner ${role}`);
+    // FL-001: the rope only goes to the buddy when AIMED at them
+    if (partnerRole) await this.faceBuddy(role, partnerRole);
     await this.act(role);
     if (partnerRole) {
       const j = this.idx(partnerRole);
