@@ -469,11 +469,18 @@ export class Driver {
         const pj = this.idx(partnerRole);
         await this.waitFor((s) => s.players[pj].grounded, 2500, `${partnerRole} settled for reel`).catch(() => {});
       }
-      // FL-001 rev2: DOWN+ACTION is the buddy-rope chord
+      // FL-001 rev2: DOWN+ACTION is the buddy-rope chord. Hold DOWN a beat
+      // longer — a race where act lands before DOWN registers turns the press
+      // into a plain zip and strands the grappler.
+      const before = (await this.state()).players[i];
       await this.down(k.down);
-      await sleep(60);
+      await sleep(120);
       await this.act(role);
       await this.up(k.down);
+      const after = (await this.state()).players[i];
+      if (Math.hypot(after.x - before.x, after.y - before.y) > 40 || after.zip) {
+        throw new BeatError(`reelPartner ${role}: grappler moved/zipped instead of reeling (chord race?)`);
+      }
       if (!partnerRole) {
         await sleep(200);
         return;

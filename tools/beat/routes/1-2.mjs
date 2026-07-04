@@ -72,7 +72,7 @@ export default [
       await bb.zipTo("G");
       await bb.zipRelease("G", "jump");
       await bb.page.waitForTimeout(700);
-      await bb.walkTo("G", 52.8, { tol: 8, timeout: 6000 }); // rope range: 54 was 398px from H, past the 360px max
+      await bb.walkTo("G", 52.4, { tol: 6, timeout: 6000 }); // stance: keep the buddy well inside rope range even when they landed far-left on the pillar
       await bb.reelPartner("G", { partnerRole: "H" });
       await bb.waitFor((s) => s.players[hi].tx > 51 && s.players[hi].grounded, 5000, "H reeled to the far floor");
     },

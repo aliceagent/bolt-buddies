@@ -421,6 +421,20 @@ A red beat run is never just reported — it enters a fix loop until green:
   fattens. Assist-radius raised 110→150 in the same series (the reel measures
   to the reeler's head; a lip-block sat at 114.5px).
 
+### FL-007 — Rope range 360 leaves sub-robot-width margins (1-2 far reel)
+
+- **Triage class:** (b) gameplay tuning. The full-matrix gate caught 1-2's
+  far-floor reel failing on a 2.5px range excess: the geometry of that
+  crossing leaves ~16px of stance margin at range 360, thinner than a robot's
+  body — an unreasonable precision demand (the failed run ended with both
+  robots comically stacked on the pillar after chord-race fallout).
+- **Fix:** `PHYS.grappleRange` 360 → 380 (kid-forgiving; no unintended new
+  targets come into range at +20px on any World-1 sightline). Kit hardening
+  in the same pass: reel stance 52.4 with tol 6, chord DOWN-hold 60→120ms
+  (a race let act land before DOWN registered → plain zip stranded the
+  grappler), and reelPartner now fails fast if the grappler moves/zips
+  instead of reeling.
+
 ## Maintenance rule (add to both other roadmaps' ground rules)
 
 From T2 onward, **every sprint (UI or sound) must leave the 12-run beat

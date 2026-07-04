@@ -40,7 +40,7 @@ export const PHYS = {
   throwY: 400,
   heavyThrowY: 460,
   tossY: 820,
-  grappleRange: 360,
+  grappleRange: 380, // FL-007: 360 left range margins thinner than a robot body at 1-2's far reel
   zipSpeed: 760,
   reelSpeed: 640,
 };
