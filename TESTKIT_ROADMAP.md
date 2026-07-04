@@ -314,6 +314,26 @@ A red beat run is never just reported — it enters a fix loop until green:
      press so P0 aims at the buddy. The "airborne grapple zips to heavy partner"
      check is unaffected (airborne path unchanged).
 
+- **REVISION 2 (Fable, after matrix evidence) — facing gate → DOWN+ACTION chord.**
+  The facing gate un-deadlocked the reels but the matrix caught its ambiguity:
+  in 1-2, the grappler on the entry ledge aims right at BOTH the sky-route
+  anchor and the distant buddy on the plate; the 500-bias reel wins and yanks
+  the buddy off the plate (route fails at "sky route", step 2/7, both
+  assignments). Any rule that scores world-targets against the buddy on the
+  same button will have such collisions somewhere. Final design: give the
+  partner-verb its own input — the currently unused DOWN key:
+  - **ACTION** = world targets only (anchors, levers, crane plates). Partner is
+    never a candidate. Pre-FL-001 behavior for everything except the buddy.
+  - **DOWN + ACTION** (S for P1, ↓ for P2) = buddy only: grounded grappler →
+    reel buddy in; airborne grappler → zip to buddy. Requires range + LOS as
+    before; fizzles otherwise. Kid-teachable: "point the rope DOWN the line to
+    your buddy."
+  - Adjacent pickup (<72px) stays on plain ACTION (design doc: "standing beside
+    your partner: pick up").
+  - Kit: reelPartner holds the chord (faceBuddy no longer needed); mechanics
+    tests updated: reel check holds S while pressing E; airborne-zip check
+    holds S mid-jump. Item-card hint text updated to teach the chord.
+
 ## Maintenance rule (add to both other roadmaps' ground rules)
 
 From T2 onward, **every sprint (UI or sound) must leave the 12-run beat

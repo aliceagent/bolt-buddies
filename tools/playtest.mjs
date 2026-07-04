@@ -221,8 +221,9 @@ await shot("10-lift");
 await tp(0, 44, 13);
 await tp(1, 40, 13);
 await page.waitForTimeout(250);
-await tap("KeyA"); // FL-001: aim at the buddy first — the rope goes where you point
-await tap("KeyE"); // grounded grapple reels heavy in
+await page.keyboard.down("KeyS"); // FL-001 rev2: DOWN+ACTION = rope your buddy
+await tap("KeyE");
+await page.keyboard.up("KeyS");
 await page.waitForTimeout(900);
 const reeled = await st();
 check("grapple reels heavy to them", Math.abs(reeled.p[0].x - reeled.p[1].x) < 90, JSON.stringify(reeled.p));
@@ -352,7 +353,9 @@ await page.waitForTimeout(250);
 await page.keyboard.down("KeyW");
 await page.waitForTimeout(120);
 await page.keyboard.up("KeyW");
+await page.keyboard.down("KeyS"); // FL-001 rev2 chord: buddy-rope
 await tap("KeyE"); // airborne: zip toward heavy
+await page.keyboard.up("KeyS");
 await page.waitForTimeout(700);
 const zipUp = await st();
 check("airborne grapple zips to heavy partner", zipUp.p[0].y < 13 * 48 - 20, `y=${zipUp.p[0].y}`);

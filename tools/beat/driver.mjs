@@ -19,8 +19,8 @@ export const FAIL_DIR = "tools/beat/failures";
 
 // Playwright key codes per player index. P1 = A/D/W/E, P2 = arrows/L.
 export const KEYS = [
-  { left: "KeyA", right: "KeyD", jump: "KeyW", act: "KeyE" },
-  { left: "ArrowLeft", right: "ArrowRight", jump: "ArrowUp", act: "KeyL" },
+  { left: "KeyA", right: "KeyD", jump: "KeyW", act: "KeyE", down: "KeyS" },
+  { left: "ArrowLeft", right: "ArrowRight", jump: "ArrowUp", act: "KeyL", down: "ArrowDown" },
 ];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -454,9 +454,12 @@ export class Driver {
     const i = this.idx(role);
     const partnerRole = opts.partnerRole;
     this.log(`reelPartner ${role}`);
-    // FL-001: the rope only goes to the buddy when AIMED at them
-    if (partnerRole) await this.faceBuddy(role, partnerRole);
+    // FL-001 rev2: DOWN+ACTION is the buddy-rope chord
+    const k = this.keysFor(role);
+    await this.down(k.down);
+    await sleep(60);
     await this.act(role);
+    await this.up(k.down);
     if (partnerRole) {
       const j = this.idx(partnerRole);
       // wait until the partner is done being reeled (reeled clears near arrival)

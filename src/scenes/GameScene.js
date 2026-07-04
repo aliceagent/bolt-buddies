@@ -76,8 +76,8 @@ export default class GameScene extends Phaser.Scene {
       return p;
     });
     const kb = this.input.keyboard;
-    this.players[0].keys = kb.addKeys({ left: "A", right: "D", jump: "W", act: "E" });
-    this.players[1].keys = kb.addKeys({ left: "LEFT", right: "RIGHT", jump: "UP", act: "L" });
+    this.players[0].keys = kb.addKeys({ left: "A", right: "D", jump: "W", act: "E", down: "S" });
+    this.players[1].keys = kb.addKeys({ left: "LEFT", right: "RIGHT", jump: "UP", act: "L", down: "DOWN" });
     this.escKey = kb.addKey("ESC");
     this.rKey = kb.addKey("R");
     this.cpPos = def.spawns.map(([tx, ty]) => ({ x: tx * TILE + 24, y: ty * TILE + 24 }));
@@ -501,6 +501,22 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
     if (p.skill === "grapple") {
+      // FL-001 rev2: DOWN+ACTION is the buddy-rope chord — partner only,
+      // no world-target ambiguity. Plain ACTION never targets the buddy.
+      if (p.keys.down.isDown) {
+        const q = p.partner;
+        if (
+          q && !q.dead && !q.carriedBy && !q.zip && !q.reeled &&
+          Math.hypot(q.x - p.x, q.y - p.y) > 72 &&
+          Math.hypot(q.x - p.x, q.y - p.y) <= PHYS.grappleRange &&
+          this.hasLOS(p.x, p.y, q.x, q.y)
+        ) {
+          this.fireGrapple(p, { kind: "partner", x: q.x, y: q.y, obj: q });
+        } else {
+          sfx.denied();
+        }
+        return;
+      }
       const tgt = this.findGrappleTarget(p);
       if (tgt) {
         this.fireGrapple(p, tgt);
@@ -584,19 +600,8 @@ export default class GameScene extends Phaser.Scene {
         if (pl.attached) cands.push({ kind: "plate", x: pl.img.x, y: pl.img.y, obj: pl, bias: 90 });
       }
     }
-    const q = p.partner;
-    if (
-      q && !q.dead && !q.carriedBy && !q.zip && !q.reeled &&
-      Math.hypot(q.x - p.x, q.y - p.y) > 72 &&
-      Math.sign(q.x - p.x) === p.facing // partner is a candidate ONLY when aimed at (GAME_DESIGN.md §2)
-    ) {
-      // A grounded grappler (not mid-zip) aiming at a grounded buddy always throws
-      // the rope to the buddy: decisive priority (bias 500) so the reel-across is
-      // reachable right next to anchors. Airborne stays bias 0 so anchors keep
-      // priority and zip-to-partner is unchanged.
-      const reelReady = p.grounded && !p.zip && q.grounded;
-      cands.push({ kind: "partner", x: q.x, y: q.y, obj: q, bias: reelReady ? 500 : 0 });
-    }
+    // FL-001 rev2: the partner is never a plain-ACTION candidate — the buddy
+    // rope lives on the DOWN+ACTION chord (see handleAction).
     let best = null;
     let bestScore = Infinity;
     for (const c of cands) {

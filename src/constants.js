@@ -62,7 +62,7 @@ export const SKILL_INFO = {
     name: "GRAPPLING HOOK",
     color: 0x35f0ff,
     card: "Zip across gaps and yank far-away\nthings — including your buddy!",
-    hint: "ACTION: zip to rings, pull levers,\nreel your buddy over gaps.",
+    hint: "ACTION: zip to rings & pull levers.\nDOWN + ACTION: rope your buddy!",
   },
   heavy: {
     name: "HEAVYWEIGHT",

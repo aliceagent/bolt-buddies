@@ -1,65 +1,15 @@
 {
-  "when": "2026-07-03T12:57:39.273Z",
+  "when": "2026-07-04T16:55:38.074Z",
   "levels": [
-    "1-1",
-    "1-2",
     "1-3"
   ],
   "results": [
-    {
-      "id": "1-1",
-      "assignment": "A:P1=G",
-      "result": "PASS",
-      "complete": true,
-      "durationMs": 46949,
-      "deaths": 0,
-      "steps": 9,
-      "totalSteps": 9,
-      "failedStep": "",
-      "error": ""
-    },
-    {
-      "id": "1-1",
-      "assignment": "B:P1=H",
-      "result": "PASS",
-      "complete": true,
-      "durationMs": 46384,
-      "deaths": 0,
-      "steps": 9,
-      "totalSteps": 9,
-      "failedStep": "",
-      "error": ""
-    },
-    {
-      "id": "1-2",
-      "assignment": "A:P1=G",
-      "result": "FAIL",
-      "complete": false,
-      "durationMs": 35961,
-      "deaths": 0,
-      "steps": 5,
-      "totalSteps": 7,
-      "failedStep": "chasm relay: G crosses on the anchors, reels H over the pillar",
-      "error": "waitFor timed out: H reeled onto the pillar"
-    },
-    {
-      "id": "1-2",
-      "assignment": "B:P1=H",
-      "result": "FAIL",
-      "complete": false,
-      "durationMs": 31844,
-      "deaths": 0,
-      "steps": 5,
-      "totalSteps": 7,
-      "failedStep": "chasm relay: G crosses on the anchors, reels H over the pillar",
-      "error": "waitFor timed out: H reeled onto the pillar"
-    },
     {
       "id": "1-3",
       "assignment": "A:P1=G",
       "result": "FAIL",
       "complete": false,
-      "durationMs": 62586,
+      "durationMs": 65097,
       "deaths": 0,
       "steps": 4,
       "totalSteps": 6,
@@ -71,7 +21,7 @@
       "assignment": "B:P1=H",
       "result": "FAIL",
       "complete": false,
-      "durationMs": 61371,
+      "durationMs": 62353,
       "deaths": 0,
       "steps": 4,
       "totalSteps": 6,
