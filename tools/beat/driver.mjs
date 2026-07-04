@@ -384,6 +384,28 @@ export class Driver {
     await sleep(120);
   }
 
+  // --- face ------------------------------------------------------------------
+  // Set a role's facing by briefly holding a direction key (~50ms = a few frames
+  // — enough for Player.update to flip `facing` — without meaningful movement).
+  // Partner-targeting skills only fire at the buddy when the grappler AIMS at it,
+  // so routes call this toward the buddy before a reel `act`.
+  async face(role, dir) {
+    const k = this.keysFor(role);
+    const key = dir === "right" ? k.right : k.left;
+    await this.up(dir === "right" ? k.left : k.right);
+    await this.tap(key, 50);
+    this.log(`face ${role} ${dir}`);
+    await sleep(80);
+  }
+
+  // Face the grappler toward its partner based on live x positions.
+  async faceBuddy(role, partnerRole) {
+    const st = await this.state();
+    const p = st.players[this.idx(role)];
+    const q = st.players[this.idx(partnerRole)];
+    await this.face(role, q.x < p.x ? "left" : "right");
+  }
+
   // --- equip -----------------------------------------------------------------
   async equip(role, pedestalTileX) {
     this.log(`equip ${role} @ pedestal ${pedestalTileX}`);

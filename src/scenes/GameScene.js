@@ -585,8 +585,17 @@ export default class GameScene extends Phaser.Scene {
       }
     }
     const q = p.partner;
-    if (q && !q.dead && !q.carriedBy && !q.zip && !q.reeled && Math.hypot(q.x - p.x, q.y - p.y) > 72) {
-      cands.push({ kind: "partner", x: q.x, y: q.y, obj: q, bias: 0 });
+    if (
+      q && !q.dead && !q.carriedBy && !q.zip && !q.reeled &&
+      Math.hypot(q.x - p.x, q.y - p.y) > 72 &&
+      Math.sign(q.x - p.x) === p.facing // partner is a candidate ONLY when aimed at (GAME_DESIGN.md §2)
+    ) {
+      // A grounded grappler (not mid-zip) aiming at a grounded buddy always throws
+      // the rope to the buddy: decisive priority (bias 500) so the reel-across is
+      // reachable right next to anchors. Airborne stays bias 0 so anchors keep
+      // priority and zip-to-partner is unchanged.
+      const reelReady = p.grounded && !p.zip && q.grounded;
+      cands.push({ kind: "partner", x: q.x, y: q.y, obj: q, bias: reelReady ? 500 : 0 });
     }
     let best = null;
     let bestScore = Infinity;
