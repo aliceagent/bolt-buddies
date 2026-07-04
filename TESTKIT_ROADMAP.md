@@ -378,6 +378,20 @@ A red beat run is never just reported — it enters a fix loop until green:
   post-FL-002 the hook honors facing, and walkTo's final correction can leave
   the grappler facing left (it then picked the yard anchor behind him).
 
+### FL-004 — 1-3's final tower anchor is LOS-shadowed by the top floor
+
+- **Triage class:** (c) level-design flaw (first one!). Anchor (49,1) hangs
+  above the top-floor slab's left edge (slab cols 48-55, row 3). From ledge3 —
+  the only place a grappler can stand for the final zip — the sightline to it
+  clips tile (48,3): LOS blocked, the anchor is excluded, and the "ahead" hook
+  picks the ledge2 anchor below instead, zipping the grappler back DOWN the
+  tower. Deterministic in both assignments; my original design math only
+  cleared from a single borderline column.
+- **Fix:** move the anchor to (47,1) — one column clear of the slab, visible
+  from all of ledge3. The grappler hangs beside the floor's edge and releases
+  rightward to drift onto it (route: zipRelease "right"). Climb sequence and
+  design intent unchanged; two-tile move in `src/levels/level1_3.js`.
+
 ## Maintenance rule (add to both other roadmaps' ground rules)
 
 From T2 onward, **every sprint (UI or sound) must leave the 12-run beat

@@ -39,7 +39,7 @@ export default {
     { t: "checkpoint", x: 43, y: 13 },
     { t: "anchor", x: 51, y: 7 },
     { t: "anchor", x: 45, y: 4 },
-    { t: "anchor", x: 49, y: 1 },
+    { t: "anchor", x: 47, y: 1 }, // FL-004: (49,1) was LOS-shadowed by the top floor from ledge3
     { t: "core", x: 43, y: 5 },
     { t: "exit", x: 53, y: 0, h: 3, needs: { opened: ["towerDoor"] } },
   ],
