@@ -53,14 +53,9 @@ export default [
   {
     name: "chasm relay: G crosses on the anchors, reels H over the pillar",
     fn: async (bb) => {
-      // NOTE (documented blocker): the roadmap crosses H with a partner-reel from
-      // the pillar/right floor. In the current GameScene, grapple targeting favors
-      // anchors (bias -60, plus -50 when above), so anywhere near the chasm G's
-      // action zips to an anchor instead of reeling H — verified by an exhaustive
-      // scan and a live act test. Heavy cannot jump the 5/4-tile gaps, and pickup
-      // (for a carry/throw) is likewise pre-empted by the same anchors. The chasm
-      // is therefore uncrossable for Heavy input-only. The transcribed sequence is
-      // below; it reaches the pillar and then cannot move H across (fails here).
+      // Fixed by FL-001 rev2: DOWN+ACTION reels the buddy with no anchor
+      // ambiguity. Full crossing: G anchors to the pillar, reels H up, then
+      // anchors to the far floor and reels H across (roadmap 1-2 step 6).
       const hi = bb.idx("H");
       await bb.walkTo("G", 40, { tol: 12, timeout: 6000 });
       await bb.zipTo("G"); // zip anchor (43,8)
@@ -68,15 +63,20 @@ export default [
       await bb.waitFor((s) => s.players[bb.idx("G")].zip && s.players[bb.idx("G")].zip.arrived, 3000, "zip2").catch(() => {});
       await bb.zipRelease("G", "jump"); // drop onto the pillar (46-47,r11)
       await bb.page.waitForTimeout(600);
-      // reel H across (blocked by anchor targeting)
       await bb.reelPartner("G", { partnerRole: "H" });
       await bb.waitFor((s) => s.players[hi].tx > 45, 4000, "H reeled onto the pillar");
+      // second hop: G anchors (52,8) over the far floor, drops, reels H across
+      await bb.zipTo("G");
+      await bb.zipRelease("G", "jump");
+      await bb.page.waitForTimeout(700);
+      await bb.walkTo("G", 54, { tol: 12, timeout: 6000 });
+      await bb.reelPartner("G", { partnerRole: "H" });
+      await bb.waitFor((s) => s.players[hi].tx > 51, 4000, "H reeled to the far floor");
     },
   },
   {
     name: "lever lv2 + plate pl2 open door d2; both exit",
     fn: async (bb) => {
-      await bb.walkTo("G", 52, { tol: 14, timeout: 8000 });
       await bb.walkTo("G", 55, { timeout: 6000 });
       await bb.act("G"); // lever lv2
       await bb.walkTo("H", 57, { tol: 22, timeout: 10000 }); // plate pl2

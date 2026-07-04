@@ -36,9 +36,10 @@ export default [
     name: "tower: G zips up the anchors and reels H up ledge by ledge",
     fn: async (bb) => {
       const hi = bb.idx("H");
-      // both hop onto ledge1 (44-46,r12)
-      await bb.mountLedge("G", 43, "right", { stayTile: 45, ledgeTy: 12.6 });
-      await bb.mountLedge("H", 43, "right", { stayTile: 45, ledgeTy: 12.6 });
+      // both hop onto ledge1 (44-46,r12) — run-up must START well left of the
+      // ledge at x44, or the pre-jump run carries the robot under the lip
+      await bb.mountLedge("G", 41.7, "right", { stayTile: 45, ledgeTy: 12.6 });
+      await bb.mountLedge("H", 41.7, "right", { stayTile: 45, ledgeTy: 12.6, runupMs: 300 });
       // ledge1 -> ledge2: G zips anchor(51,7), drops to ledge2, reels H up
       await bb.zipTo("G");
       await bb.zipRelease("G", "jump");
