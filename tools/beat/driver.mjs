@@ -458,8 +458,14 @@ export class Driver {
     const k = this.keysFor(role);
     for (let attempt = 0; attempt < retries; attempt++) {
       // an airborne chord zips the grappler TO the buddy — wait until we're
-      // planted (walkTo can return while still falling from a zip release)
+      // planted (walkTo can return while still falling from a zip release),
+      // and the buddy must be settled too (a mid-assist-arc buddy from the
+      // previous reel isn't a stable reel target)
       await this.waitFor((s) => s.players[i].grounded && !s.players[i].zip, 2500, `${role} grounded for reel`).catch(() => {});
+      if (partnerRole) {
+        const pj = this.idx(partnerRole);
+        await this.waitFor((s) => s.players[pj].grounded, 2500, `${partnerRole} settled for reel`).catch(() => {});
+      }
       // FL-001 rev2: DOWN+ACTION is the buddy-rope chord
       await this.down(k.down);
       await sleep(60);

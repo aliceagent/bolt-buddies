@@ -49,7 +49,7 @@ export default [
       await bb.page.waitForTimeout(600);
       await bb.walkTo("G", 50.3, { tol: 8, timeout: 4000 });
       await bb.reelPartner("G", { partnerRole: "H" });
-      await bb.waitFor((s) => s.players[hi].ty < 10, 4000, "H up to ledge2");
+      await bb.waitFor((s) => s.players[hi].ty < 10 && s.players[hi].grounded, 5000, "H up to ledge2");
       // ledge2 -> ledge3 (leftward zip: face left so the hook goes left)
       await bb.face("G", "left");
       await bb.zipTo("G");
@@ -57,7 +57,7 @@ export default [
       await bb.page.waitForTimeout(600);
       await bb.walkTo("G", 46.3, { tol: 8, timeout: 4000 }); // stay ON ledge3 (ends at x46)
       await bb.reelPartner("G", { partnerRole: "H" });
-      await bb.waitFor((s) => s.players[hi].ty < 7, 4000, "H up to ledge3");
+      await bb.waitFor((s) => s.players[hi].ty < 7 && s.players[hi].grounded, 5000, "H up to ledge3");
       // ledge3 -> top floor
       await bb.face("G", "right");
       await bb.zipTo("G");
@@ -65,7 +65,7 @@ export default [
       await bb.page.waitForTimeout(600);
       await bb.walkTo("G", 48.3, { tol: 8, timeout: 4000 });
       await bb.reelPartner("G", { partnerRole: "H" });
-      await bb.waitFor((s) => s.players[hi].ty < 4, 4000, "H up to top floor");
+      await bb.waitFor((s) => s.players[hi].ty < 4 && s.players[hi].grounded, 5000, "H up to top floor");
     },
   },
   {
