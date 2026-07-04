@@ -453,25 +453,40 @@ export class Driver {
   async reelPartner(role, opts = {}) {
     const i = this.idx(role);
     const partnerRole = opts.partnerRole;
+    const retries = opts.retries ?? 3;
     this.log(`reelPartner ${role}`);
-    // FL-001 rev2: DOWN+ACTION is the buddy-rope chord
     const k = this.keysFor(role);
-    await this.down(k.down);
-    await sleep(60);
-    await this.act(role);
-    await this.up(k.down);
-    if (partnerRole) {
-      const j = this.idx(partnerRole);
-      // wait until the partner is done being reeled (reeled clears near arrival)
-      await sleep(300);
-      const end = now() + 3000;
-      while (now() < end) {
-        const st = await this.state();
-        if (!st.players[j].reeled) break;
-        await sleep(60);
+    for (let attempt = 0; attempt < retries; attempt++) {
+      // an airborne chord zips the grappler TO the buddy — wait until we're
+      // planted (walkTo can return while still falling from a zip release)
+      await this.waitFor((s) => s.players[i].grounded && !s.players[i].zip, 2500, `${role} grounded for reel`).catch(() => {});
+      // FL-001 rev2: DOWN+ACTION is the buddy-rope chord
+      await this.down(k.down);
+      await sleep(60);
+      await this.act(role);
+      await this.up(k.down);
+      if (!partnerRole) {
+        await sleep(200);
+        return;
       }
+      const j = this.idx(partnerRole);
+      const took = await this.waitFor((s) => s.players[j].reeled, 700, "reel took")
+        .then(() => true)
+        .catch(() => false);
+      if (took || attempt === retries - 1) {
+        // wait until the partner is done being reeled (clears near arrival)
+        const end = now() + 3500;
+        while (now() < end) {
+          const st = await this.state();
+          if (!st.players[j].reeled) break;
+          await sleep(60);
+        }
+        await sleep(250);
+        return;
+      }
+      this.log(`reelPartner ${role} attempt ${attempt + 1} didn't take; retrying`);
+      await sleep(300);
     }
-    await sleep(200);
   }
 
   // Read the x of the live bug nearest a given player index.

@@ -1,5 +1,5 @@
 {
-  "when": "2026-07-04T17:21:51.539Z",
+  "when": "2026-07-04T17:26:25.455Z",
   "levels": [
     "1-3"
   ],
@@ -9,19 +9,19 @@
       "assignment": "A:P1=G",
       "result": "FAIL",
       "complete": false,
-      "durationMs": 57336,
+      "durationMs": 60325,
       "deaths": 0,
       "steps": 4,
       "totalSteps": 6,
       "failedStep": "tower: G zips up the anchors and reels H up ledge by ledge",
-      "error": "waitFor timed out: H up to ledge3"
+      "error": "waitFor timed out: H up to top floor"
     },
     {
       "id": "1-3",
       "assignment": "B:P1=H",
       "result": "FAIL",
       "complete": false,
-      "durationMs": 57475,
+      "durationMs": 57859,
       "deaths": 0,
       "steps": 4,
       "totalSteps": 6,
