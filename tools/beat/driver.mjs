@@ -431,7 +431,10 @@ export class Driver {
   async zipTo(role, opts = {}) {
     const i = this.idx(role);
     const timeout = opts.timeout ?? 3500;
+    const k = this.keysFor(role);
+    if (opts.up) await this.down(k.jump); // UP+ACTION: zip to the anchor above
     await this.act(role); // fire grapple
+    if (opts.up) await this.up(k.jump);
     await this.waitFor(
       (s) => s.players[i].zip && s.players[i].zip.arrived,
       timeout,

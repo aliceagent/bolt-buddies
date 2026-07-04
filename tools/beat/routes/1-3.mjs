@@ -59,9 +59,9 @@ export default [
       await bb.reelPartner("G", { partnerRole: "H" });
       await bb.waitFor((s) => s.players[hi].ty < 7 && s.players[hi].grounded, 5000, "H up to ledge3");
       // ledge3 -> top floor: anchor (47,1) hangs beside the floor's left edge
-      // (FL-004) — release rightward to drift onto the slab
-      await bb.face("G", "right");
-      await bb.zipTo("G");
+      // (FL-004) — UP+ACTION zips to it deterministically; release rightward
+      // to drift onto the slab
+      await bb.zipTo("G", { up: true });
       await bb.zipRelease("G", "right");
       await bb.page.waitForTimeout(600);
       await bb.walkTo("G", 48.3, { tol: 8, timeout: 4000 });

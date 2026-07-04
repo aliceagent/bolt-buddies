@@ -501,6 +501,26 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
     if (p.skill === "grapple") {
+      // FL-004 rev: UP+ACTION zips to the best target almost directly above —
+      // completing the modifier language (UP = up, DOWN = buddy, plain =
+      // where you're looking). Near-vertical anchors lose plain-ACTION
+      // contests by margins too thin to trust.
+      if (p.keys.jump.isDown && !p.keys.down.isDown) {
+        let best = null, bestD = Infinity;
+        for (const a of this.anchors) {
+          const d = Math.hypot(a.x - p.x, a.y - p.y);
+          if (Math.abs(a.x - p.x) > 130 || a.y > p.y - 40) continue;
+          if (d > PHYS.grappleRange || d < 30) continue;
+          if (!this.hasLOS(p.x, p.y, a.x, a.y)) continue;
+          if (d < bestD) {
+            bestD = d;
+            best = a;
+          }
+        }
+        if (best) this.fireGrapple(p, { kind: "anchor", x: best.x, y: best.y });
+        else sfx.denied();
+        return;
+      }
       // FL-001 rev2: DOWN+ACTION is the buddy-rope chord — partner only,
       // no world-target ambiguity. Plain ACTION never targets the buddy.
       if (p.keys.down.isDown) {
