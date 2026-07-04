@@ -935,7 +935,7 @@ export default class GameScene extends Phaser.Scene {
         // fixed-size hop only worked near the lip. Pop the buddy level with the
         // reeler (LOS-checked at that height so the rope can't pull through
         // walls), then arc them onto the ledge.
-        if (d < 110 && this.hasLOS(p.x, r.y - 6, r.x, r.y - 6)) {
+        if (d < 150 && this.hasLOS(p.x, r.y - 6, r.x, r.y - 6)) {
           p.body.reset(p.x, r.y - 6);
           p.setVelocity(Math.sign(dx) * 180, -170);
         } else {
