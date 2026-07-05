@@ -157,6 +157,33 @@ export default class GameScene extends Phaser.Scene {
       lifespan: 380, gravityY: -30, tint: 0xb8c2dc, emitting: false,
     }).setDepth(DEPTH.fx - 2);
 
+    // pooled purple shell-shards flung when a scuttlebug is squished (pre-coloured
+    // "shard" texture — particle tint is unreliable under the Canvas renderer)
+    this.shards = this.add.particles(0, 0, "shard", {
+      speed: { min: 90, max: 260 }, angle: { min: 200, max: 340 },
+      scale: { start: 1, end: 0.2 }, rotate: { start: 0, end: 360 },
+      lifespan: 520, gravityY: 620, emitting: false,
+    }).setDepth(DEPTH.fx);
+
+    // pooled crane smoke puffs on defeat (grey, drifts up)
+    this.craneSmoke = this.add.particles(0, 0, "px", {
+      speed: { min: 30, max: 90 }, angle: { min: 250, max: 290 },
+      scale: { start: 2.4, end: 0 }, alpha: { start: 0.5, end: 0 },
+      lifespan: { min: 700, max: 1300 }, gravityY: -40, tint: 0x9aa0b4,
+      emitting: false,
+    }).setDepth(DEPTH.fx);
+
+    // pooled star sprites, recycled for warden shove-impacts and the ring of
+    // dizzy-stars circling a toppled warden (no per-event image allocation)
+    this._starHead = 0;
+    this.starPool = [];
+    for (let i = 0; i < 10; i++) {
+      this.starPool.push(this.add.image(0, 0, "star").setDepth(DEPTH.fx).setVisible(false));
+    }
+    // single reusable shockwave ring for the crane slam impact
+    this.slamRing = this.add.image(0, 0, "shockring").setDepth(DEPTH.fx - 1)
+      .setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
+
     // pooled phase-walk afterimages: a fixed ring of ghost sprites recycled and
     // faded manually (no per-frame allocation). One head index cycles the pool.
     this.ghosts = [];
@@ -500,6 +527,9 @@ export default class GameScene extends Phaser.Scene {
         bug.setVelocityX(60);
         bug.minX = e.min * TILE;
         bug.maxX = (e.max + 1) * TILE;
+        // additive eye-glow overlay: alpha ramps up when a player is within ~200px
+        bug.glow = this.add.image(bug.x, bug.y, "bug_glow").setDepth(DEPTH.entity + 1)
+          .setBlendMode(Phaser.BlendModes.ADD).setAlpha(0);
         break;
       }
       case "crusher": {
@@ -548,17 +578,33 @@ export default class GameScene extends Phaser.Scene {
         img.body.setAllowGravity(true);
         img.body.setSize(38, 30);
         this.physics.add.collider(img, this.solidObjs);
+        // sliding pupil overlay, two spinning spoke-dot wheels, and a pooled "!"
+        // alert popup (all bounded per-roller — no per-frame allocation).
+        const pupil = this.add.image(img.x, img.y, "roller_pupil").setDepth(DEPTH.entity + 1);
+        const wheels = [
+          this.add.image(0, 0, "roller_wheel").setDepth(DEPTH.entity + 1),
+          this.add.image(0, 0, "roller_wheel").setDepth(DEPTH.entity + 1),
+        ];
+        const excl = this.add.image(img.x, img.y - 34, "excl").setDepth(DEPTH.fx).setVisible(false);
         this.rollers.push({
           img, minX: e.min * TILE, maxX: (e.max + 1) * TILE, dir: 1,
           state: "patrol", timer: 0, beamLen: e.beam || 140,
+          pupil, wheels, excl, wheelAngle: 0,
         });
         break;
       }
       case "warden": {
         const img = this.add.image(px, e.y * TILE + 48 - 31, "warden").setDepth(DEPTH.entity);
+        const facing = e.facing || 1;
         img.setFlipX(e.facing === -1);
         this.physics.add.existing(img, true);
-        this.wardens.push({ id: e.id, img, facing: e.facing || 1, defeated: false, x: px });
+        // visor glow (additive; static warden so positioned once) with a soft pulse
+        const glow = this.add.image(img.x + facing * 9, img.y - 12, "glowBlob").setDepth(DEPTH.entity - 1)
+          .setBlendMode(Phaser.BlendModes.ADD).setScale(0.13).setAlpha(0.4);
+        this.tweens.add({ targets: glow, alpha: { from: 0.28, to: 0.6 }, duration: 1200, yoyo: true, repeat: -1, ease: "sine.inOut" });
+        // idle sway ±2°
+        const sway = this.tweens.add({ targets: img, angle: { from: -2, to: 2 }, duration: 1600, yoyo: true, repeat: -1, ease: "sine.inOut" });
+        this.wardens.push({ id: e.id, img, facing, defeated: false, x: px, glow, sway });
         break;
       }
       case "jet": {
@@ -603,14 +649,21 @@ export default class GameScene extends Phaser.Scene {
         }
         const hoverY = e.y * TILE + 24;
         const body = this.add.image((e.minX + e.maxX) / 2 * TILE, hoverY, "crane").setDepth(DEPTH.entity);
+        // magenta pulse-glow behind each plate (rest-state yankable cue), and a
+        // trolley clamped to the rail with a shared-Graphics cable down to the body.
+        const mkGlow = () => this.add.image(0, 0, "plate_glow").setDepth(DEPTH.entity)
+          .setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
         const plates = [
-          { off: { x: -44, y: 0 }, img: this.add.image(0, 0, "crane_plate").setDepth(DEPTH.entity + 1), attached: true },
-          { off: { x: 0, y: 18 }, img: this.add.image(0, 0, "crane_plate").setDepth(DEPTH.entity + 1), attached: true },
-          { off: { x: 44, y: 0 }, img: this.add.image(0, 0, "crane_plate").setDepth(DEPTH.entity + 1), attached: true },
+          { off: { x: -44, y: 0 }, img: this.add.image(0, 0, "crane_plate").setDepth(DEPTH.entity + 1), glow: mkGlow(), attached: true },
+          { off: { x: 0, y: 18 }, img: this.add.image(0, 0, "crane_plate").setDepth(DEPTH.entity + 1), glow: mkGlow(), attached: true },
+          { off: { x: 44, y: 0 }, img: this.add.image(0, 0, "crane_plate").setDepth(DEPTH.entity + 1), glow: mkGlow(), attached: true },
         ];
+        const trolley = this.add.image(body.x, railY, "trolley").setDepth(DEPTH.terrain + 1);
+        this.craneGfx = this.add.graphics().setDepth(DEPTH.entity - 1); // cable + telegraph stripes
         this.crane = {
           body, plates, hoverY, minX: e.minX * TILE + 60, maxX: e.maxX * TILE - 60,
           floorY: 14 * TILE, state: "patrol", timer: 2000, podsStomped: 0,
+          trolley, railY, railMin: (e.minX - 1) * TILE + 24, railMax: (e.maxX + 1) * TILE + 24,
           hpText: this.add.text(body.x, hoverY - 60, "", { fontFamily: FONT, fontSize: "14px", fontStyle: "bold", color: "#ff9daa" }).setOrigin(0.5).setDepth(DEPTH.fx),
         };
         break;
@@ -877,8 +930,10 @@ export default class GameScene extends Phaser.Scene {
   }
 
   squishBug(bug) {
-    this.boom.explode(12, bug.x, bug.y);
+    this.boom.explode(12, bug.x, bug.y); // keep the purple pop
+    this.shards.explode(9, bug.x, bug.y); // + flung shell-shards
     sfx.squish(bug.x, bug.y);
+    if (bug.glow) bug.glow.destroy();
     bug.destroy();
   }
 
@@ -897,6 +952,41 @@ export default class GameScene extends Phaser.Scene {
     g.img.setAlpha(0.4).setVisible(true);
   }
 
+  // Next pooled star sprite (cycles a fixed ring — no per-event allocation).
+  takeStar() {
+    const s = this.starPool[this._starHead];
+    this._starHead = (this._starHead + 1) % this.starPool.length;
+    this.tweens.killTweensOf(s);
+    return s;
+  }
+
+  // A single star popping at a contact point (warden shove impact).
+  popStar(x, y) {
+    const s = this.takeStar().setPosition(x, y).setAlpha(1).setScale(0.3).setAngle(0).setVisible(true);
+    this.tweens.add({
+      targets: s, scale: 1.1, angle: 40, alpha: 0, duration: 340,
+      ease: "quad.out", onComplete: () => s.setVisible(false),
+    });
+  }
+
+  // A ring of dizzy-stars orbiting a fallen warden for ~1s (one proxy tween
+  // repositions three pooled stars — no per-frame allocation).
+  dizzyStars(x, y) {
+    const stars = [this.takeStar(), this.takeStar(), this.takeStar()];
+    stars.forEach((s) => s.setVisible(true).setAlpha(0.95).setScale(0.7));
+    const spin = { a: 0 };
+    this.tweens.add({
+      targets: spin, a: Math.PI * 4, duration: 1000, ease: "linear",
+      onUpdate: () => {
+        stars.forEach((s, i) => {
+          const ang = spin.a + (i * Math.PI * 2) / 3;
+          s.setPosition(x + Math.cos(ang) * 20, y - 20 + Math.sin(ang) * 7);
+        });
+      },
+      onComplete: () => stars.forEach((s) => s.setVisible(false)),
+    });
+  }
+
   // --- crane fight ---------------------------------------------------------------
   yankCranePlate(plate) {
     plate.attached = false;
@@ -909,6 +999,10 @@ export default class GameScene extends Phaser.Scene {
     const podX = Phaser.Math.Clamp(c.body.x + Phaser.Math.Between(-80, 80), c.minX, c.maxX);
     const pod = this.add.image(podX, c.floorY - 20, "pod").setDepth(DEPTH.entity);
     this.tweens.add({ targets: pod, scale: { from: 1, to: 1.12 }, duration: 400, yoyo: true, repeat: -1 });
+    // concentric warning pulse-rings radiating from the exposed pod
+    const ring = this.add.image(pod.x, pod.y, "pod_ring").setDepth(DEPTH.entity - 1).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({ targets: ring, scale: { from: 0.5, to: 1.8 }, alpha: { from: 0.75, to: 0 }, duration: 900, repeat: -1 });
+    pod.ring = ring;
     this.pods.push(pod);
     this.game.events.emit("bb:blip", "KOBI: A core is EXPOSED! Somebody STAND ON— no wait, STOMP it! No! DON'T!");
   }
@@ -916,6 +1010,7 @@ export default class GameScene extends Phaser.Scene {
   stompPod(pod) {
     this.boom.explode(18, pod.x, pod.y);
     sfx.podCrunch(pod.x, pod.y);
+    if (pod.ring) pod.ring.destroy();
     pod.destroy();
     const c = this.crane;
     c.podsStomped++;
@@ -927,23 +1022,50 @@ export default class GameScene extends Phaser.Scene {
       sfx.craneDefeat(c.body.x, c.body.y);
       this.cameras.main.shake(400, 0.006);
       this.tweens.add({ targets: c.body, y: c.floorY - 40, angle: 8, duration: 900, ease: "bounce.out" });
-      c.body.setTint(0x666a80);
+      // grey-out via texture swap (setTint no-ops on Canvas) + smoke + sparks
+      c.body.setTexture("crane_dead");
+      c.plates.forEach((pl) => pl.glow.setVisible(false));
+      this.craneSmoke.explode(22, c.body.x, c.body.y);
+      this.sparks.explode(26, c.body.x, c.body.y);
       this.game.events.emit("bb:blip", { text: this.def.blips.craneDown || "KOBI: MY CRANE!", mood: "angry" });
     }
   }
 
   updateCrane(delta) {
     const c = this.crane;
-    if (!c || c.state === "dead") return;
+    if (!c) return;
     const dt = delta / 1000;
     const b = c.body;
+    const g = this.craneGfx;
+    g.clear();
+    // trolley clamped to the rail above the body + a 1-segment cable down to it
+    const tx = Phaser.Math.Clamp(b.x, c.railMin + 20, c.railMax - 20);
+    c.trolley.setPosition(tx, c.railY);
+    g.lineStyle(4, 0x2a3350).lineBetween(tx, c.railY + 7, b.x, b.y - 30);
+    g.lineStyle(1.5, 0x6b78a8, 0.85).lineBetween(tx, c.railY + 7, b.x, b.y - 30);
+    if (c.state === "dead") { c.plates.forEach((pl) => pl.glow.setVisible(false)); return; }
     c.plates.forEach((pl) => {
       if (pl.attached) pl.img.setPosition(b.x + pl.off.x, b.y + pl.off.y);
+      // magenta pulse behind yankable plates while the crane rests (canvas-safe)
+      if (pl.attached && c.state === "rest") {
+        const a = 0.35 + 0.35 * Math.sin(this.time.now / 130);
+        pl.glow.setPosition(pl.img.x, pl.img.y).setAlpha(a).setVisible(true);
+      } else pl.glow.setVisible(false);
     });
     c.hpText.setPosition(b.x, b.y - 58);
     c.hpText.setText(c.state === "rest" ? "YANK A PLATE!" : "");
     // an exposed core pod pulses a warning alarm until it's crunched
     if (this.pods.some((p) => p.active)) sfx.podAlarm(b.x, c.floorY);
+    // telegraph/slam: project a hazard warning-stripe column onto the floor
+    if (c.state === "telegraph" || c.state === "slam") {
+      const zw = 124, top = b.y + 36, h = c.floorY - top;
+      if (h > 0) {
+        for (let sx = b.x - zw / 2; sx < b.x + zw / 2; sx += 16) {
+          g.fillStyle(COLORS.hazard, 0.16).fillRect(sx, top, 8, h);
+        }
+        g.lineStyle(2, COLORS.hazard, 0.5).strokeRect(b.x - zw / 2, top, zw, h);
+      }
+    }
     c.timer -= delta;
     switch (c.state) {
       case "patrol": {
@@ -981,6 +1103,15 @@ export default class GameScene extends Phaser.Scene {
           c.timer = 2600;
           sfx.craneSlam(b.x, c.floorY);
           this.cameras.main.shake(120, 0.004);
+          // impact shockwave ring + dust burst at the floor
+          this.slamRing.setPosition(b.x, c.floorY).setScale(0.2).setAlpha(0.9).setVisible(true);
+          this.tweens.killTweensOf(this.slamRing);
+          this.tweens.add({
+            targets: this.slamRing, scale: 1.7, alpha: 0, duration: 420, ease: "quad.out",
+            onComplete: () => this.slamRing.setVisible(false),
+          });
+          this.boom.explode(14, b.x, c.floorY);
+          this.dust.explode(10, b.x, c.floorY);
         }
         break;
       }
@@ -1460,6 +1591,13 @@ export default class GameScene extends Phaser.Scene {
       else if (bug.body.blocked.right || bug.x > bug.maxX) bug.setVelocityX(-60);
       else if (!floorAhead && bug.body.blocked.down) bug.setVelocityX(-dir * 60);
       bug.setFlipX(bug.body.velocity.x < 0);
+      // leg wiggle: alternate the two leg-splay frames every ~130ms while moving
+      const legFrame = Math.abs(bug.body.velocity.x) > 5 && (time % 260) < 130;
+      if (bug._lf !== legFrame) { bug._lf = legFrame; bug.setTexture(legFrame ? "bug_step" : "bug"); }
+      // eyes glow brighter as the nearest player closes to ~200px
+      const near = this.players.reduce((m, p) => p.dead ? m : Math.min(m, Math.hypot(p.x - bug.x, p.y - bug.y)), Infinity);
+      const glowA = near < 200 ? Phaser.Math.Clamp((200 - near) / 150, 0, 1) : 0;
+      bug.glow.setPosition(bug.x, bug.y).setAlpha(glowA);
       // idle skitter chitter when a player is nearby (rate-limited + proximity)
       if (this.players.some((p) => !p.dead && Math.abs(p.x - bug.x) < 160 && Math.abs(p.y - bug.y) < 120)) {
         sfx.bugSkitter(bug.x, bug.y);
@@ -1615,8 +1753,34 @@ export default class GameScene extends Phaser.Scene {
         r.timer -= delta;
         if (r.timer <= 0) r.state = "patrol";
       }
-      this.beamGfx.fillStyle(r.state === "alert" ? 0xff5566 : 0xffe066, r.state === "alert" ? 0.4 : 0.16);
-      this.beamGfx.fillRect(r.beamRect.x, r.beamRect.y, r.beamRect.width, r.beamRect.height);
+      // beam as a gradient wedge: bright/wide at the eye, fading + narrowing out
+      // (3 stacked alpha rects). Red when alert, warning-yellow otherwise.
+      const bright = r.state === "alert" ? 0xff5566 : 0xffe066;
+      const baseA = r.state === "alert" ? 0.5 : 0.26;
+      const seg = len / 3;
+      for (let i = 0; i < 3; i++) {
+        const h = 26 - i * 5;
+        this.beamGfx.fillStyle(bright, baseA * (1 - i * 0.34));
+        const sx = r.dir === 1 ? bx + i * seg : bx - (i + 1) * seg;
+        this.beamGfx.fillRect(sx, eyeY - h / 2, seg, h);
+      }
+      // pupil slides toward the patrol direction; wheels spin with travel
+      r.pupil.setPosition(img.x + r.dir * 14, img.y - 5);
+      if (r.state === "patrol") r.wheelAngle += r.dir * 320 * dt;
+      r.wheels[0].setPosition(img.x - 9, img.y + 11).setAngle(r.wheelAngle);
+      r.wheels[1].setPosition(img.x + 9, img.y + 11).setAngle(r.wheelAngle);
+      // alert = red flash (texture swap; setTint no-ops on Canvas) + "!" popup
+      const wantTex = r.state === "alert" ? ((time % 200) < 100 ? "roller_alert" : "roller") : "roller";
+      if (r._tex !== wantTex) { r._tex = wantTex; img.setTexture(wantTex); }
+      if (r.state === "alert") {
+        if (!r.excl.visible) {
+          r.excl.setVisible(true).setScale(0.4).setAlpha(1);
+          this.tweens.add({ targets: r.excl, scale: 1, duration: 160, ease: "back.out" });
+        }
+        r.excl.setPosition(img.x, img.y - 34);
+      } else if (r.excl.visible) {
+        r.excl.setVisible(false);
+      }
     }
 
     for (const w of this.wardens) {
@@ -1631,13 +1795,17 @@ export default class GameScene extends Phaser.Scene {
           p.setVelocity(w.facing * 430, -230); // firm but polite shove
           w.shoveCd = 500;
           sfx.wardenShove(w.img.x, w.img.y); // thud + comic HMPH buzz
+          this.popStar(w.img.x + w.facing * 22, p.y); // impact star at contact
           this.tweens.add({ targets: w.img, x: w.x + w.facing * 4, duration: 70, yoyo: true });
         } else {
           w.defeated = true;
           this.boom.explode(16, w.img.x, w.img.y);
           sfx.wardenTopple(w.img.x, w.img.y); // descending slide-whistle topple
           w.img.body.enable = false;
+          if (w.sway) w.sway.stop(); // stop idle sway so the topple reads cleanly
+          if (w.glow) { this.tweens.killTweensOf(w.glow); w.glow.setVisible(false); }
           this.tweens.add({ targets: w.img, angle: -w.facing * 84, alpha: 0.25, y: w.img.y + 18, duration: 500 });
+          this.dizzyStars(w.img.x, w.img.y); // stars circle the fallen body ~1s
           this.game.events.emit("bb:blip", "KOBI: WARDEN DOWN?! You went THROUGH the WALL?! That is CHEATING and also very clever.");
         }
         break;

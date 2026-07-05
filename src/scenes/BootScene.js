@@ -328,14 +328,38 @@ export default class BootScene extends Phaser.Scene {
     });
 
     // --- enemies & set pieces ----------------------------------------------
-    make("bug", 44, 28, (g) => {
+    // Scuttlebug: shell sheen highlight (static) + two leg frames swapped in
+    // GameScene for a wiggle. `legs` picks the leg x-splay; glow pass is a
+    // separate additive overlay (eyes brighten near a player) drawn in-game.
+    const bug = (legs) => (g) => {
       g.fillStyle(0x6d3fa8).fillRoundedRect(2, 4, 40, 20, { tl: 18, tr: 18, bl: 4, br: 4 });
       g.lineStyle(2, 0x9a6fd4).strokeRoundedRect(2, 4, 40, 20, { tl: 18, tr: 18, bl: 4, br: 4 });
       g.lineStyle(2, 0x9a6fd4).lineBetween(22, 4, 22, 22);
+      // shell sheen: soft highlight arc on the top-left of the carapace
+      g.fillStyle(0xb79ae0, 0.5).fillEllipse(15, 11, 16, 7);
+      g.fillStyle(0xe4d6f7, 0.8).fillEllipse(13, 9.5, 6, 3);
       g.fillStyle(0xffe066);
       g.fillCircle(10, 14, 3); g.fillCircle(34, 14, 3); // eyes
       g.fillStyle(0x2a1840);
-      [8, 16, 28, 36].forEach((x) => g.fillRect(x, 24, 4, 4)); // legs
+      legs.forEach((x) => g.fillRect(x, 24, 4, 4)); // legs
+    };
+    make("bug", 44, 28, bug([8, 16, 28, 36]));
+    make("bug_step", 44, 28, bug([6, 18, 26, 38]));
+    // additive eye-glow overlay: brightens the scuttlebug's eyes when a player
+    // is within ~200px (tint no-ops on Canvas, so this is a baked yellow blob).
+    make("bug_glow", 48, 24, (g) => {
+      [10, 34].forEach((cx) => {
+        for (let r = 9; r > 0; r -= 1.5) {
+          g.fillStyle(0xffe066, 0.09 * (1 - r / 9));
+          g.fillCircle(cx + 2, 14, r);
+        }
+      });
+    });
+    // purple shell-shards flung when a scuttlebug is squished (pre-coloured so no
+    // per-particle tint is needed under the Canvas renderer).
+    make("shard", 10, 10, (g) => {
+      g.fillStyle(0x9a6fd4).fillTriangle(1, 8, 5, 0, 9, 8);
+      g.fillStyle(0x6d3fa8).fillTriangle(2, 9, 5, 3, 8, 9);
     });
     make("crusher", 84, 60, (g) => {
       g.fillStyle(0x39415e).fillRect(30, 0, 24, 14); // piston
@@ -349,15 +373,52 @@ export default class BootScene extends Phaser.Scene {
         g.fillPath();
       }
     });
-    make("crane", 132, 76, (g) => {
-      g.fillStyle(0x39415e).fillRoundedRect(6, 6, 120, 44, 8);
-      g.lineStyle(3, 0x6b78a8).strokeRoundedRect(6, 6, 120, 44, 8);
-      g.fillStyle(COLORS.hazard).fillCircle(66, 28, 13); // eye
-      g.fillStyle(0xffffff).fillCircle(66, 28, 5);
-      g.lineStyle(5, 0x4a5578); // claw
+    const craneBody = (dead) => (g) => {
+      g.fillStyle(dead ? 0x3a3d49 : 0x39415e).fillRoundedRect(6, 6, 120, 44, 8);
+      g.lineStyle(3, dead ? 0x555a6a : 0x6b78a8).strokeRoundedRect(6, 6, 120, 44, 8);
+      if (dead) {
+        // powered-down: dim grey eye with an X (reads without tint under Canvas)
+        g.fillStyle(0x4a4d5c).fillCircle(66, 28, 13);
+        g.lineStyle(3, 0x22242c);
+        g.lineBetween(60, 22, 72, 34);
+        g.lineBetween(72, 22, 60, 34);
+        g.lineStyle(5, 0x3f434f);
+      } else {
+        g.fillStyle(COLORS.hazard).fillCircle(66, 28, 13); // eye
+        g.fillStyle(0xffffff).fillCircle(66, 28, 5);
+        g.lineStyle(5, 0x4a5578);
+      }
+      // claw
       g.lineBetween(46, 50, 38, 72);
       g.lineBetween(86, 50, 94, 72);
       g.lineBetween(66, 50, 66, 70);
+    };
+    make("crane", 132, 76, craneBody(false));
+    make("crane_dead", 132, 76, craneBody(true)); // grey-out swap on defeat
+    // rail trolley the crane hangs from — clamped to the rail, cable drawn in-game
+    make("trolley", 40, 20, (g) => {
+      g.fillStyle(0x2a3350).fillCircle(9, 5, 4); g.fillCircle(31, 5, 4); // rail wheels
+      g.fillStyle(0x39415e).fillRoundedRect(4, 6, 32, 12, 4);
+      g.lineStyle(2, 0x6b78a8).strokeRoundedRect(4, 6, 32, 12, 4);
+      g.fillStyle(COLORS.amber, 0.85).fillRect(10, 9, 20, 3);
+    });
+    // magenta pulse glow behind a yankable crane plate (rest state) — baked
+    // colour, alpha-pulsed in-game (tint no-ops on Canvas).
+    make("plate_glow", 56, 56, (g) => {
+      for (let r = 28; r > 0; r -= 2) {
+        g.fillStyle(COLORS.magenta, 0.06 * (1 - r / 28));
+        g.fillCircle(28, 28, r);
+      }
+    });
+    // concentric pulse ring for exposed core pods (orange, expands+fades in-game)
+    make("pod_ring", 48, 48, (g) => {
+      g.lineStyle(3, 0xff8855).strokeCircle(24, 24, 20);
+      g.lineStyle(1.5, 0xffd9a0, 0.7).strokeCircle(24, 24, 16);
+    });
+    // white shockwave ring for the crane slam impact (scale+fade pooled image)
+    make("shockring", 72, 72, (g) => {
+      g.lineStyle(5, 0xffffff, 0.95).strokeCircle(36, 36, 30);
+      g.lineStyle(2, 0xffd9a0, 0.8).strokeCircle(36, 36, 24);
     });
     make("crane_plate", 40, 40, (g) => {
       g.fillStyle(0x8892b8).fillRoundedRect(3, 3, 34, 34, 8);
@@ -402,13 +463,53 @@ export default class BootScene extends Phaser.Scene {
       g.fillStyle(0x59ff9c, 0.9);
       g.fillTriangle(24, 0, 16, 12, 32, 12);
     });
-    make("roller", 42, 34, (g) => {
-      g.fillStyle(0x8a4a3a).fillRoundedRect(3, 2, 36, 22, 9);
-      g.lineStyle(2, 0xc4705a).strokeRoundedRect(3, 2, 36, 22, 9);
-      g.fillStyle(0xffe066).fillCircle(32, 12, 6); // big scanning eye
-      g.fillStyle(0x2a1810).fillCircle(34, 12, 2.6);
+    // Roller: `alert` bakes a red eye/shell flush so the alert state reads under
+    // Canvas (tint no-ops). The pupil is a SEPARATE `roller_pupil` overlay that
+    // slides toward the patrol direction, and the wheels get `roller_wheel`
+    // spoke-dot overlays that spin — so the base eye here has no baked pupil.
+    const roller = (alert) => (g) => {
+      g.fillStyle(alert ? 0xa83a2e : 0x8a4a3a).fillRoundedRect(3, 2, 36, 22, 9);
+      g.lineStyle(2, alert ? 0xff6a52 : 0xc4705a).strokeRoundedRect(3, 2, 36, 22, 9);
+      if (alert) {
+        g.fillStyle(COLORS.hazard, 0.4).fillCircle(32, 12, 9); // red alarm glow
+        g.fillStyle(0xff5566).fillCircle(32, 12, 6);
+      } else {
+        g.fillStyle(0xffe066).fillCircle(32, 12, 6); // big scanning eye
+      }
       g.fillStyle(0x1a1420);
-      g.fillCircle(12, 28, 5.5); g.fillCircle(30, 28, 5.5); // wheels
+      g.fillCircle(12, 28, 5.5); g.fillCircle(30, 28, 5.5); // wheel hubs
+    };
+    make("roller", 42, 34, roller(false));
+    make("roller_alert", 42, 34, roller(true));
+    make("roller_pupil", 8, 8, (g) => {
+      g.fillStyle(0x2a1810).fillCircle(4, 4, 2.6);
+      g.fillStyle(0x6a4030, 0.7).fillCircle(3.2, 3.2, 1);
+    });
+    // spoke-dot wheel overlay: off-centre dots so rotation reads as rolling
+    make("roller_wheel", 14, 14, (g) => {
+      g.fillStyle(0x3a2a24).fillCircle(7, 7, 6);
+      g.fillStyle(0xc4705a);
+      g.fillCircle(7, 2.5, 1.6); g.fillCircle(7, 11.5, 1.6);
+      g.fillCircle(2.5, 7, 1.6); g.fillCircle(11.5, 7, 1.6);
+      g.fillStyle(0x8a4a3a).fillCircle(7, 7, 1.8);
+    });
+    // pooled "!" alert popup shown above an alerted roller (not per-frame alloc)
+    make("excl", 22, 30, (g) => {
+      g.fillStyle(0x1a0f14, 0.92).fillRoundedRect(1, 1, 20, 28, 6);
+      g.lineStyle(2, COLORS.hazard).strokeRoundedRect(1, 1, 20, 28, 6);
+      g.fillStyle(0xff5566).fillRoundedRect(9, 6, 4, 12, 2);
+      g.fillCircle(11, 22, 2.6);
+    });
+    // 4-point sparkle: warden shove-impact star + dizzy stars circling a topple
+    make("star", 20, 20, (g) => {
+      const pts = [];
+      for (let i = 0; i < 8; i++) {
+        const a = (Math.PI / 4) * i - Math.PI / 2;
+        const rad = i % 2 === 0 ? 9 : 3.2;
+        pts.push({ x: 10 + Math.cos(a) * rad, y: 10 + Math.sin(a) * rad });
+      }
+      g.fillStyle(0xffe066).fillPoints(pts, true);
+      g.fillStyle(0xfff6c2).fillCircle(10, 10, 2);
     });
     make("warden", 42, 62, (g) => {
       g.fillStyle(0x3a5e46).fillRoundedRect(5, 8, 32, 50, 7);
