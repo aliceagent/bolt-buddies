@@ -90,21 +90,44 @@ export default class UIScene extends Phaser.Scene {
     this.blipQueue = [];
     this.blipActive = null;
 
-    // --- level-complete overlay (hidden until bb:complete) ---------------------
-    this.overlay = this.add.container(0, 0).setVisible(false);
-    const dim = this.add.rectangle(W / 2, H / 2, W, H, 0x02040a, 0.75);
-    const panel = this.add.graphics();
-    panel.fillStyle(COLORS.panel, 0.97).fillRoundedRect(W / 2 - 300, H / 2 - 150, 600, 300, 16);
-    panel.lineStyle(3, COLORS.neon).strokeRoundedRect(W / 2 - 300, H / 2 - 150, 600, 300, 16);
-    this.winTitle = this.add.text(W / 2, H / 2 - 95, "CHAMBER CLEAR!", {
+    // --- level-clear overlay (hidden until bb:complete) ------------------------
+    // Redesigned: dark iris-in, world-accent panel that pops in, "CHAMBER CLEAR!"
+    // headline pop, cores that reveal one-by-one, a "progress saved" tag and a
+    // pulsing continue prompt. `this.completed` is still set synchronously in the
+    // bb:complete handler (before any animation) so the continue keys stay instant.
+    const accentHex = "#" + this.accent.toString(16).padStart(6, "0");
+    this.overlay = this.add.container(0, 0).setVisible(false).setDepth(100);
+    this.winDim = this.add.rectangle(W / 2, H / 2, W, H, 0x02040a, 0.85).setAlpha(0);
+    const pw = 620, ph = 320;
+    const pg = this.add.graphics();
+    pg.fillStyle(COLORS.panel, 0.97).fillRoundedRect(-pw / 2, -ph / 2, pw, ph, 18);
+    pg.lineStyle(3, this.accent, 1).strokeRoundedRect(-pw / 2, -ph / 2, pw, ph, 18);
+    pg.lineStyle(7, this.accent, 0.16).strokeRoundedRect(-pw / 2 - 4, -ph / 2 - 4, pw + 8, ph + 8, 21);
+    this.winTitle = this.add.text(0, -108, "CHAMBER CLEAR!", {
       fontFamily: FONT, fontSize: "44px", fontStyle: "bold", color: "#59ff9c",
     }).setOrigin(0.5);
-    this.winSub = this.add.text(W / 2, H / 2 - 45, "", { fontFamily: FONT, fontSize: "18px", color: "#c6d2f2" }).setOrigin(0.5);
-    this.winCores = [0, 1, 2].map((i) => this.add.image(W / 2 - 40 + i * 40, H / 2 + 15, "core").setAlpha(0.2));
-    this.winPrompt = this.add.text(W / 2, H / 2 + 95, "press SPACE or L to continue", {
+    this.winSub = this.add.text(0, -58, "", { fontFamily: FONT, fontSize: "18px", color: "#c6d2f2" }).setOrigin(0.5);
+    // three core slots: dim ring + "?" until revealed, then a core pops into place
+    this.winCores = [];
+    this.winCoreQ = [];
+    const slots = this.add.graphics();
+    [0, 1, 2].forEach((i) => {
+      const cx = -80 + i * 80, cy = 4;
+      slots.fillStyle(0x0a0f1e, 0.6).fillCircle(cx, cy, 27);
+      slots.lineStyle(2, this.accent, 0.4).strokeCircle(cx, cy, 27);
+      const q = this.add.text(cx, cy, "?", { fontFamily: FONT, fontSize: "24px", fontStyle: "bold", color: "#4a5578" }).setOrigin(0.5);
+      const img = this.add.image(cx, cy, "core").setAlpha(0).setScale(0);
+      this.winCoreQ.push(q);
+      this.winCores.push(img);
+    });
+    this.savedTag = this.add.text(0, 74, "◇ PROGRESS SAVED", {
+      fontFamily: FONT, fontSize: "15px", fontStyle: "bold", color: accentHex,
+    }).setOrigin(0.5).setAlpha(0);
+    this.winPrompt = this.add.text(0, 116, "press SPACE or L to continue", {
       fontFamily: FONT, fontSize: "20px", color: "#8fa3d9",
     }).setOrigin(0.5);
-    this.overlay.add([dim, panel, this.winTitle, this.winSub, ...this.winCores, this.winPrompt]);
+    this.winPanel = this.add.container(W / 2, H / 2, [pg, this.winTitle, this.winSub, slots, ...this.winCoreQ, ...this.winCores, this.savedTag, this.winPrompt]);
+    this.overlay.add([this.winDim, this.winPanel]);
     this.completed = null;
 
     // --- bottom hint keycap chips (corner, subtle) -----------------------------
@@ -163,10 +186,32 @@ export default class UIScene extends Phaser.Scene {
         this.blipQueue.push({ text, mood });
       },
       complete: (info) => {
-        this.completed = info;
+        this.completed = info; // set synchronously (before animation) — continue stays instant
         this.overlay.setVisible(true);
         this.winSub.setText(`"${info.name}" — data-cores found:`);
-        info.cores.forEach((v, i) => this.winCores[i].setAlpha(v ? 1 : 0.2));
+        // reset animation state
+        this.winDim.setAlpha(0);
+        this.winPanel.setScale(0.6).setAlpha(0);
+        this.winTitle.setScale(0.2);
+        this.savedTag.setAlpha(0);
+        this.winCores.forEach((img, i) => { img.setAlpha(0).setScale(0); this.winCoreQ[i].setAlpha(1); });
+        // dark iris-in + panel pop + headline pop
+        this.tweens.add({ targets: this.winDim, alpha: 0.85, duration: 220 });
+        this.tweens.add({ targets: this.winPanel, scale: 1, alpha: 1, duration: 260, ease: "back.out" });
+        this.tweens.add({ targets: this.winTitle, scale: 1, duration: 340, ease: "back.out", delay: 120 });
+        // cores reveal one-by-one: collected pop + chime, uncollected stay dim "?"
+        info.cores.forEach((got, i) => {
+          this.time.delayedCall(420 + i * 240, () => {
+            if (got) {
+              this.winCoreQ[i].setAlpha(0);
+              this.winCores[i].setAlpha(1).setScale(1.7);
+              this.tweens.add({ targets: this.winCores[i], scale: 1, duration: 300, ease: "back.out" });
+              sfx.core();
+            }
+          });
+        });
+        // "progress saved" tag after the last core, then the pulsing prompt
+        this.time.delayedCall(420 + 3 * 240, () => { this.savedTag.setAlpha(1); sfx.saveTick(); });
         this.tweens.add({ targets: this.winPrompt, alpha: 0.3, duration: 500, yoyo: true, repeat: -1 });
       },
     };
@@ -180,13 +225,21 @@ export default class UIScene extends Phaser.Scene {
     // here, not in GameScene, so the camera zoom never scales it)
     installMute(this);
 
+    this.continuing = false; // guards the fade so a second key can't double-start
     this.input.keyboard.on("keydown", (ev) => {
-      if (this.completed && ["Space", "KeyE", "KeyL", "Enter"].includes(ev.code)) {
+      if (this.completed && !this.continuing && ["Space", "KeyE", "KeyL", "Enter"].includes(ev.code)) {
+        this.continuing = true;
         const next = this.completed.index + 1;
+        const unlock = this.completed.newlyUnlocked;
         duckMusic(false); // drop any lingering blip duck on the way out
-        this.scene.stop("Game");
-        this.scene.start("Hub", { sel: next, unlock: this.completed.newlyUnlocked });
-        this.scene.stop();
+        // the UI camera fade paints fullscreen black over both scenes (UI renders
+        // above Game), so this reads as a clean 250ms fade to the Hub.
+        this.cameras.main.fadeOut(250, 4, 6, 20);
+        this.cameras.main.once("camerafadeoutcomplete", () => {
+          this.scene.stop("Game");
+          this.scene.start("Hub", { sel: next, unlock });
+          this.scene.stop();
+        });
       }
     });
   }

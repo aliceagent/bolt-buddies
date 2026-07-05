@@ -55,6 +55,7 @@ export default class GameScene extends Phaser.Scene {
     this.coresGot = [false, false, false];
     this.coreIdx = 0;
     this.complete = false;
+    this.leaving = false; // guards ESC/R fades so input during a fade can't double-trigger
 
     this.crackies = this.physics.add.staticGroup();
     this.bridgeGroup = this.physics.add.staticGroup();
@@ -117,6 +118,9 @@ export default class GameScene extends Phaser.Scene {
     cam.setBounds(0, 0, this.worldW, this.worldH);
     // camera background colour is the world's bgBottom, set in buildBackground()
     this.camPos = { x: this.players[0].x, y: this.players[0].y, zoom: 1 };
+    // 250ms fade-in on every entry (unifies title/hub/game transitions). Visual
+    // only — never blocks input, so the beat runner + suites drive immediately.
+    cam.fadeIn(250, 4, 6, 20);
 
     this.rope = this.add.graphics().setDepth(DEPTH.rope);
     this.beamGfx = this.add.graphics().setDepth(DEPTH.fx - 1);
@@ -264,12 +268,63 @@ export default class GameScene extends Phaser.Scene {
     playTrack(trackForLevel(def.id));
 
     this.scene.launch("UI", { levelIndex: this.levelIndex });
-    this.time.delayedCall(400, () => this.game.events.emit("bb:blip", def.blips.start));
 
+    // __BB.scene must be available synchronously — the beat runner + suites read
+    // it right after scene.start, so nothing below may gate it.
     if (typeof window !== "undefined") {
       window.__BB = window.__BB || {};
       window.__BB.scene = this;
     }
+
+    // Level intro card slides over the top third, holds ~1.6s, slides out. KOBI's
+    // start blip fires AFTER the banner leaves (was a flat 400ms delay). The banner
+    // is purely visual (setScrollFactor(0), no input capture) so players can move
+    // under it and the test suites never wait on it.
+    this.showIntroBanner();
+  }
+
+  showIntroBanner() {
+    const def = this.def;
+    const W = this.scale.width;
+    const theme = this.theme || WORLD_THEMES[1];
+    const accent = theme.accent;
+    const accentHex = "#" + accent.toString(16).padStart(6, "0");
+    const bw = 560, bh = 88;
+    const restY = 132, offY = -70;
+
+    const c = this.add.container(W / 2, offY).setScrollFactor(0).setDepth(DEPTH.fx + 50);
+    const g = this.add.graphics();
+    g.fillStyle(0x0a0f1e, 0.94).fillRoundedRect(-bw / 2, -bh / 2, bw, bh, 14);
+    g.lineStyle(3, accent, 1).strokeRoundedRect(-bw / 2, -bh / 2, bw, bh, 14);
+    // accent end caps
+    g.fillStyle(accent, 0.9).fillRoundedRect(-bw / 2, -bh / 2, 7, bh, { tl: 14, bl: 14, tr: 0, br: 0 });
+    g.fillStyle(accent, 0.9).fillRoundedRect(bw / 2 - 7, -bh / 2, 7, bh, { tr: 14, br: 14, tl: 0, bl: 0 });
+
+    const head = this.add.text(0, -15, `CHAMBER ${def.id} — ${def.name.toUpperCase()}`, {
+      fontFamily: FONT, fontSize: "25px", fontStyle: "bold", color: "#eaf2ff",
+    }).setOrigin(0.5);
+    const pair = (def.skills || []).map((k) => (SKILL_INFO[k] ? SKILL_INFO[k].name : k.toUpperCase())).join("   +   ");
+    const sub = this.add.text(0, 18, pair, {
+      fontFamily: FONT, fontSize: "15px", fontStyle: "bold", color: accentHex,
+    }).setOrigin(0.5);
+    c.add([g, head, sub]);
+    this.introBanner = c;
+
+    this.tweens.add({
+      targets: c, y: restY, duration: 240, ease: "back.out",
+      onComplete: () => {
+        this.time.delayedCall(1600, () => {
+          this.tweens.add({
+            targets: c, y: offY, duration: 240, ease: "back.in",
+            onComplete: () => {
+              c.destroy();
+              this.introBanner = null;
+              if (def.blips && def.blips.start) this.game.events.emit("bb:blip", def.blips.start);
+            },
+          });
+        });
+      },
+    });
   }
 
   // --- background ----------------------------------------------------------
@@ -1341,14 +1396,22 @@ export default class GameScene extends Phaser.Scene {
     if (this.paused) return;
     const dt = delta / 1000;
 
-    if (J(this.escKey)) {
-      this.scene.stop("UI");
-      this.scene.start("Hub", { sel: this.levelIndex });
+    if (J(this.escKey) && !this.leaving) {
+      this.leaving = true; // fade out, then hand off — guard blocks a double ESC
+      this.cameras.main.fadeOut(250, 4, 6, 20);
+      this.cameras.main.once("camerafadeoutcomplete", () => {
+        this.scene.stop("UI");
+        this.scene.start("Hub", { sel: this.levelIndex });
+      });
       return;
     }
-    if (J(this.rKey)) {
-      this.scene.stop("UI");
-      this.scene.restart({ levelIndex: this.levelIndex });
+    if (J(this.rKey) && !this.leaving) {
+      this.leaving = true;
+      this.cameras.main.fadeOut(250, 4, 6, 20);
+      this.cameras.main.once("camerafadeoutcomplete", () => {
+        this.scene.stop("UI");
+        this.scene.restart({ levelIndex: this.levelIndex });
+      });
       return;
     }
 

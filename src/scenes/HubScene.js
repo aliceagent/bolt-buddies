@@ -29,6 +29,7 @@ export default class HubScene extends Phaser.Scene {
     addGradient(this, 1);
     this.add.tileSprite(0, 0, W, H, "bggrid").setOrigin(0).setAlpha(0.22).setDepth(-8);
     addMotes(this, WORLD_THEMES[1].accent2);
+    this.cameras.main.fadeIn(250, 4, 6, 20); // 250ms fade-in on entry
     this.add.text(W / 2, 46, "DYNACORE LABS — SECTOR MAP", {
       fontFamily: FONT, fontSize: "34px", fontStyle: "bold", color: "#35f0ff",
     }).setOrigin(0.5);
@@ -118,6 +119,9 @@ export default class HubScene extends Phaser.Scene {
     if (this.justUnlocked) {
       sfx.saveTick(); // progress-saved toast tick
       this.time.delayedCall(350, () => playJingle("jingle_unlock"));
+      // ring burst + lock fade on the freshly unlocked node (selected on arrival)
+      const node = this.nodes[this.sel];
+      if (node) this.time.delayedCall(300, () => this.playUnlockAnim(node));
     }
 
     this.input.keyboard.addCapture("SPACE"); // keep Space from scrolling the page
@@ -151,6 +155,29 @@ export default class HubScene extends Phaser.Scene {
     this.tweens.add({
       targets: t, x: -t.width - 40, duration: dist * 12, repeat: -1, ease: "linear",
       onRepeat: () => t.setX(W),
+    });
+  }
+
+  // Freshly unlocked node: a padlock fades up-and-out while two accent rings
+  // burst outward. Purely cosmetic — the node was already drawn unlocked.
+  playUnlockAnim(n) {
+    // a temporary padlock (matches the locked-node glyph) that pops off
+    const lock = this.add.graphics({ x: n.x, y: n.y }).setDepth(7);
+    lock.fillStyle(0x48547a).fillRect(-8, -6, 16, 12);
+    lock.lineStyle(3, 0x48547a).strokeCircle(0, -10, 6);
+    this.tweens.add({
+      targets: lock, alpha: 0, y: n.y - 22, duration: 460, delay: 240, ease: "cubic.in",
+      onComplete: () => lock.destroy(),
+    });
+    sfx.menuSelect();
+    [0, 130].forEach((delay, i) => {
+      const ring = this.add.image(n.x, n.y, "reticle").setTint(n.accent)
+        .setScale(0.5).setDepth(7).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: ring, scale: 3.4 - i * 0.6, alpha: { from: 0.9, to: 0 },
+        duration: 640, delay, ease: "cubic.out",
+        onComplete: () => ring.destroy(),
+      });
     });
   }
 

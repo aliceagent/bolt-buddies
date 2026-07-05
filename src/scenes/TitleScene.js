@@ -18,6 +18,8 @@ export default class TitleScene extends Phaser.Scene {
     addGradient(this, 1);
     this.add.tileSprite(0, 0, W, H, "bggrid").setOrigin(0).setAlpha(0.22).setDepth(-8);
     addMotes(this, WORLD_THEMES[1].accent2);
+    this.cameras.main.fadeIn(250, 4, 6, 20); // 250ms fade-in on entry
+    this.leaving = false; // guards the fade-out so a second Enter can't double-start
 
     this.buildLogo(W, 92);
     this.buildSubtitle(W, 152);
@@ -235,16 +237,25 @@ export default class TitleScene extends Phaser.Scene {
     }
   }
 
+  // Guarded fade-out to the Hub (250ms), matching every other scene transition.
+  gotoHub() {
+    if (this.leaving) return;
+    this.leaving = true;
+    this.cameras.main.fadeOut(250, 4, 6, 20);
+    this.cameras.main.once("camerafadeoutcomplete", () => this.scene.start("Hub"));
+  }
+
   activate() {
+    if (this.leaving) return;
     const it = this.menuItems[this.sel];
     if (!it) return;
     if (it.id === "continue") {
       sfx.menuSelect();
-      this.scene.start("Hub");
+      this.gotoHub();
     } else if (it.id === "new") {
       if (!this.hasSave) {
         sfx.menuSelect();
-        this.scene.start("Hub");
+        this.gotoHub();
         return;
       }
       if (!this.eraseArmed) {
@@ -262,7 +273,7 @@ export default class TitleScene extends Phaser.Scene {
         sfx.menuSelect();
         this.resetErase();
         storeSave({ unlocked: 1, cores: {} });
-        this.scene.start("Hub");
+        this.gotoHub();
       }
     } else if (it.id === "tutorial") {
       // Sprint 10 replaces this toast with the real tutorial start.
