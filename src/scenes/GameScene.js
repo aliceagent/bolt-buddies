@@ -1308,8 +1308,19 @@ export default class GameScene extends Phaser.Scene {
       for (const p of this.players) {
         if (p.dead || p.carriedBy || p.zip) continue;
         if (Phaser.Geom.Rectangle.Overlaps(f.zone, bodyRect(p))) {
-          if (p.skill === "tiny") p.body.velocity.y = Math.max(p.body.velocity.y - 2100 * dt, -275);
-          else p.body.velocity.y -= 320 * dt; // too heavy to lift, just a breeze
+          if (p.skill === "tiny") {
+            p.body.velocity.y = Math.max(p.body.velocity.y - 2100 * dt, -275);
+            // FL-010: gentle keyless centering — airborne momentum never decays,
+            // so without this, riding the one-tile draft demands frame-perfect
+            // zigzagging (the roadmap's intent is "floats up"). Steering keys
+            // always win: only applied while neither direction is held.
+            if (!p.grounded && !p.keys.left.isDown && !p.keys.right.isDown) {
+              const pull = Phaser.Math.Clamp((f.zone.centerX - p.x) * 3, -120, 120);
+              p.body.velocity.x = Phaser.Math.Linear(p.body.velocity.x, pull, 0.12);
+            }
+          } else {
+            p.body.velocity.y -= 320 * dt; // too heavy to lift, just a breeze
+          }
         }
       }
     }

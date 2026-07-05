@@ -27,33 +27,20 @@ export default [
     fn: async (bb) => {
       const ti = bb.idx("T");
       const kT = bb.keysFor("T");
-      // Physics: airborne vx is either ±full-speed (key held) or FROZEN at its
-      // entry value (keyless momentum persists) — there is no standing still in
-      // the draft. The only stable ride is a position-feedback zigzag around
-      // the column center (x≈696, tx 14.5); the 40px zone tolerates ~±28px of
-      // body-center wander, and a ~120ms control loop stays within ~±20px.
+      // FL-010 gives the draft gentle keyless centering, so the ride is what
+      // the walkthrough promised: walk in, let go, float up.
       let up = false;
       for (let attempt = 0; attempt < 3 && !up; attempt++) {
-        await bb.walkTo("T", 13.3, { tol: 8, timeout: 5000 }).catch(() => {});
-        await bb.waitFor((s) => s.players[ti].grounded, 3000, "T settled").catch(() => {});
+        await bb.walkTo("T", 13.4, { tol: 8, timeout: 5000 }).catch(() => {});
         await bb.page.waitForTimeout(250);
-        await bb.down(kT.right); // carry into the column
-        await bb.waitFor((s) => s.players[ti].tx >= 14.3, 3000, "T over the column").catch(() => {});
-        const t0 = Date.now();
-        while (Date.now() - t0 < 9000) {
-          const T = await bb.player("T");
-          if (T.y < 4.6 * 48) { up = true; break; } // deck height reached
-          if (T.grounded && T.y > 11 * 48) break; // fell out — retry entry
-          const goRight = T.tx < 14.5;
-          await bb.down(goRight ? kT.right : kT.left);
-          await bb.up(goRight ? kT.left : kT.right);
-          await bb.page.waitForTimeout(50);
-        }
-        await bb.up(kT.left);
-        await bb.up(kT.right);
-        if (!up) bb.log(`fan ride attempt ${attempt + 1} fell out; re-entering`);
+        await bb.down(kT.right); // step into the column
+        await bb.waitFor((s) => s.players[ti].tx >= 14.15 || !s.players[ti].grounded, 3000, "into the draft").catch(() => {});
+        await bb.up(kT.right); // release — centering holds T in the column
+        up = await bb.waitFor((s) => s.players[ti].y < 5 * 48, 8000, "T rising")
+          .then(() => true).catch(() => false);
+        if (!up) bb.log(`fan ride attempt ${attempt + 1} didn't lift; re-entering`);
       }
-      await bb.waitFor((s) => s.players[ti].y < 5 * 48, 3000, "T lifted to deck height");
+      if (!up) throw new Error("T never rode the fan to deck height");
       // drift right at the apex to land on the deck (r4, starts x15)
       await bb.down(kT.right);
       await bb.waitFor((s) => s.players[ti].grounded && s.players[ti].ty < 4.2 && s.players[ti].tx >= 15, 6000, "T on the deck")

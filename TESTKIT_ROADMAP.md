@@ -504,6 +504,26 @@ A red beat run is never just reported — it enters a fix loop until green:
   instead of walking through at full speed (game behavior is correct — a kid
   who stands on the fan lifts; FL-008 fixed the standing-height zone).
 
+### FL-010 — Fan draft demands frame-perfect zigzag (2-2 ride unstable)
+
+- **Triage class:** (b) gameplay tuning, forced by the T2 final gate (2-2
+  assignment A failed identically in both matrix passes; B and isolated runs
+  were lucky). Physics: airborne horizontal velocity is either ±full-speed
+  (key held) or FROZEN at its entry value — it never decays. Riding the
+  one-tile draft therefore requires zigzag corrections faster than even the
+  kit's 50ms control loop could reliably deliver (one slow cycle → drift out
+  of the ±28px overlap band → fall; one failed run had Tiny fall back out
+  LEFT through the escort wall and get stranded on the wrong side). Two kids
+  on a couch have no chance. The roadmap walkthrough's own words are the
+  spec: "T walkTo 13.5 (fan column) → floats up" — a stable centered rise.
+- **Fix:** while a tiny robot is airborne in a fan zone with NEITHER
+  direction key held, its vx lerps gently toward the column center
+  (clamp((centerX-x)*3, ±120), lerp 0.12/frame). Steering keys always win —
+  the pull only applies keyless, so deliberate exits (drifting onto the deck
+  at the apex) are unchanged.
+- Route simplification: the 2-2 ride is now walk in → release → float up
+  (3-attempt retry loop retained as insurance).
+
 ## Maintenance rule (add to both other roadmaps' ground rules)
 
 From T2 onward, **every sprint (UI or sound) must leave the 12-run beat
