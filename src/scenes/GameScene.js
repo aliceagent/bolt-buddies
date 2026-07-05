@@ -451,7 +451,7 @@ export default class GameScene extends Phaser.Scene {
         this.doors.push(door);
         if (door.isExit) {
           this.exitDoor = door;
-          // EXIT light panel above the door with a soft glow pulse
+          // EXIT light panel above the door with a soft glow pulse (Sprint 4 sign)
           const ly = top - 20;
           const glow = this.add.image(cx, ly, "glowBlob").setDepth(DEPTH.entity - 1)
             .setBlendMode(Phaser.BlendModes.ADD).setScale(0.5).setAlpha(0.3);
@@ -459,9 +459,29 @@ export default class GameScene extends Phaser.Scene {
           const panel = this.add.graphics().setDepth(DEPTH.entity);
           panel.fillStyle(0x0a1f16, 0.95).fillRoundedRect(cx - 34, ly - 13, 68, 26, 7);
           panel.lineStyle(2, COLORS.green).strokeRoundedRect(cx - 34, ly - 13, 68, 26, 7);
-          this.exitLabel = this.add.text(cx, ly, "EXIT", {
+          this.add.text(cx, ly, "EXIT", {
             fontFamily: FONT, fontSize: "14px", fontStyle: "bold", color: "#59ff9c",
           }).setOrigin(0.5).setDepth(DEPTH.entity + 1);
+
+          // "waiting for buddy" bubble floating above the EXIT sign — shows the
+          // missing buddy's icon + a pulsing down-arrow while one player waits.
+          // exitLabel is now this container (kept non-null for the update logic).
+          const by = top - 60;
+          this.exitLabel = this.add.container(cx, by).setDepth(DEPTH.entity + 2).setVisible(false);
+          const bbg = this.add.graphics();
+          bbg.fillStyle(0x0a0f1e, 0.92).fillRoundedRect(-34, -28, 68, 40, 9);
+          bbg.lineStyle(2, 0xffffff, 0.55).strokeRoundedRect(-34, -28, 68, 40, 9);
+          const bIcon = this.add.image(0, -8, "robot_b").setScale(0.5).setVisible(false);
+          const oIcon = this.add.image(0, -8, "robot_o").setScale(0.5).setVisible(false);
+          const arrow = this.add.graphics();
+          arrow.fillStyle(0xffffff, 0.95).fillTriangle(-8, 16, 8, 16, 0, 30);
+          this.exitLabel.add([bbg, bIcon, oIcon, arrow]);
+          this.exitLabel.buddyIcons = [bIcon, oIcon];
+          this.exitLabel.waitIdx = -1;
+          this.exitLabel.pulse = this.tweens.add({
+            targets: arrow, y: 5, alpha: { from: 1, to: 0.35 },
+            duration: 520, yoyo: true, repeat: -1, ease: "sine.inOut", paused: true,
+          });
         }
         break;
       }
@@ -1649,13 +1669,15 @@ export default class GameScene extends Phaser.Scene {
 
     // exit: both buddies through the open door
     if (this.exitDoor && this.exitDoor.open) {
-      const inZone = this.players.filter(
+      const inState = this.players.map(
         (p) => !p.dead && Phaser.Geom.Rectangle.Contains(this.exitDoor.zone, p.x, p.y)
-      ).length;
-      const bothIn = this.players.every(
-        (p) => !p.dead && (Phaser.Geom.Rectangle.Contains(this.exitDoor.zone, p.x, p.y) || (p.carriedBy && Phaser.Geom.Rectangle.Contains(this.exitDoor.zone, p.carriedBy.x, p.carriedBy.y)))
       );
-      this.exitLabel.setText(inZone === 1 ? "WAITING FOR BUDDY..." : "EXIT");
+      const inZone = inState.filter(Boolean).length;
+      const bothIn = this.players.every(
+        (p, i) => !p.dead && (inState[i] || (p.carriedBy && Phaser.Geom.Rectangle.Contains(this.exitDoor.zone, p.carriedBy.x, p.carriedBy.y)))
+      );
+      if (inZone === 1) this.showExitWaiting(inState.findIndex((v) => !v));
+      else this.hideExitWaiting();
       if (bothIn) this.finishLevel();
     }
 
@@ -1852,6 +1874,23 @@ export default class GameScene extends Phaser.Scene {
         }
       }
     }
+  }
+
+  showExitWaiting(idx) {
+    const c = this.exitLabel;
+    if (idx < 0 || c.waitIdx === idx) return;
+    c.waitIdx = idx;
+    c.setVisible(true);
+    c.buddyIcons.forEach((ic, i) => ic.setVisible(i === idx));
+    c.pulse.restart();
+  }
+
+  hideExitWaiting() {
+    const c = this.exitLabel;
+    if (!c || c.waitIdx === -1) return;
+    c.waitIdx = -1;
+    c.setVisible(false);
+    c.pulse.pause();
   }
 
   finishLevel() {
