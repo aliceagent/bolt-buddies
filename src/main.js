@@ -4,6 +4,8 @@ import TitleScene from "./scenes/TitleScene.js";
 import HubScene from "./scenes/HubScene.js";
 import GameScene from "./scenes/GameScene.js";
 import UIScene from "./scenes/UIScene.js";
+import PauseScene from "./scenes/PauseScene.js";
+import SettingsScene from "./scenes/SettingsScene.js";
 import { engineState } from "./audio/engine.js";
 import { musicState } from "./audio/music.js";
 import { sfx, sfxCounts, resetSfxCounts, kobi } from "./audio/sfx.js";
@@ -26,7 +28,7 @@ const game = new Phaser.Game({
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [BootScene, TitleScene, HubScene, GameScene, UIScene],
+  scene: [BootScene, TitleScene, HubScene, GameScene, UIScene, PauseScene, SettingsScene],
 });
 
 // handle used by the automated playtest harness (tools/playtest.mjs)

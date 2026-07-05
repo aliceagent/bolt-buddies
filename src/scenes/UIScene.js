@@ -65,7 +65,7 @@ export default class UIScene extends Phaser.Scene {
     this.completed = null;
 
     // pause hint
-    this.add.text(16, H - 24, "ESC map · R restart chamber", { fontFamily: FONT, fontSize: "13px", color: "#48547a" });
+    this.add.text(16, H - 24, "ESC map · R restart · P pause", { fontFamily: FONT, fontSize: "13px", color: "#48547a" });
 
     const E = this.game.events;
     this.h = {

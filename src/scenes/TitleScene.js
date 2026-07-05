@@ -58,6 +58,10 @@ export default class TitleScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.tweens.add({ targets: prompt, alpha: 0.25, duration: 600, yoyo: true, repeat: -1 });
 
+    this.add.text(W / 2, 660, "S — sound settings", {
+      fontFamily: FONT, fontSize: "16px", color: "#8fa3d9",
+    }).setOrigin(0.5);
+
     this.add.text(W / 2, 690, "grab a buddy — this game needs two players on one keyboard", {
       fontFamily: FONT, fontSize: "15px", color: "#5a6a94",
     }).setOrigin(0.5);
@@ -70,7 +74,10 @@ export default class TitleScene extends Phaser.Scene {
     this.input.keyboard.addCapture("SPACE"); // keep Space from scrolling the page
     this.input.keyboard.on("keydown", (ev) => {
       initAudio();
-      if (["Space", "KeyE", "KeyL", "Enter"].includes(ev.code)) {
+      if (ev.code === "KeyS") {
+        sfx.menuSelect();
+        this.scene.start("Settings", { returnTo: "Title" });
+      } else if (["Space", "KeyE", "KeyL", "Enter"].includes(ev.code)) {
         sfx.menuSelect();
         this.scene.start("Hub");
       }

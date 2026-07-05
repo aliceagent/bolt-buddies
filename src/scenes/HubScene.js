@@ -86,7 +86,7 @@ export default class HubScene extends Phaser.Scene {
       fontFamily: FONT, fontSize: "14px", fontStyle: "italic", color: "#ff4dd2",
     }).setOrigin(0.5).setAlpha(0.85);
 
-    this.add.text(W / 2, 108, "move: A/D or ←/→ (worlds: W/S or ↑/↓) · enter: SPACE or L · title: ESC", {
+    this.add.text(W / 2, 108, "move: A/D or ←/→ (worlds: W/S or ↑/↓) · enter: SPACE or L · O sound settings · title: ESC", {
       fontFamily: FONT, fontSize: "13px", color: "#5a6a94",
     }).setOrigin(0.5);
 
@@ -111,6 +111,8 @@ export default class HubScene extends Phaser.Scene {
       else if (c === "KeyW" || c === "ArrowUp") this.move(-3);
       else if (c === "KeyS" || c === "ArrowDown") this.move(3);
       else if (c === "Space" || c === "KeyE" || c === "KeyL" || c === "Enter") this.enter();
+      // S is world-row navigation on the hub, so sound settings open with O.
+      else if (c === "KeyO") { sfx.menuSelect(); this.scene.start("Settings", { returnTo: "Hub" }); }
       else if (c === "Escape") this.scene.start("Title");
     });
   }

@@ -23,6 +23,7 @@ export {
   toggleMute,
   getAudioSettings,
   duckMusic,
+  pauseDuck,
   engineState,
 } from "./audio/engine.js";
 

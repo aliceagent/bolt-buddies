@@ -22,6 +22,10 @@ let masterGain = null;
 let musicBus = null;
 let sfxBus = null;
 let ducked = false;
+// Dedicated pause duck (S4): the in-game pause overlay drops the music bus to
+// 0.5x while paused WITHOUT touching the saved music volume. Independent of the
+// KOBI-blip `ducked` flag so the two can stack cleanly.
+let pauseDucked = false;
 let settings = loadSettings();
 
 function loadSettings() {
@@ -55,7 +59,7 @@ function applySettings() {
   if (!ctx) return;
   const t = ctx.currentTime;
   masterGain.gain.setTargetAtTime(settings.muted ? 0 : 1, t, 0.008);
-  musicBus.gain.setTargetAtTime(settings.music * (ducked ? 0.7 : 1), t, 0.02);
+  musicBus.gain.setTargetAtTime(settings.music * (ducked ? 0.7 : 1) * (pauseDucked ? 0.5 : 1), t, 0.02);
   sfxBus.gain.setTargetAtTime(settings.sfx, t, 0.02);
 }
 
@@ -71,7 +75,7 @@ export function initAudio() {
       masterGain.connect(ctx.destination);
       // set gains immediately (no ramp) so the very first note is at the right level
       masterGain.gain.value = settings.muted ? 0 : 1;
-      musicBus.gain.value = settings.music * (ducked ? 0.7 : 1);
+      musicBus.gain.value = settings.music * (ducked ? 0.7 : 1) * (pauseDucked ? 0.5 : 1);
       sfxBus.gain.value = settings.sfx;
     } catch (e) {
       ctx = null; // audio unsupported — game stays silent
@@ -116,6 +120,13 @@ export function getAudioSettings() {
 }
 export function duckMusic(on) {
   ducked = !!on;
+  applySettings();
+}
+// Pause duck (S4): halve the music bus while the in-game pause overlay is up.
+// Leaves the saved `settings.music` untouched, so resuming restores exactly the
+// player's chosen level.
+export function pauseDuck(on) {
+  pauseDucked = !!on;
   applySettings();
 }
 

@@ -3,7 +3,7 @@ import { TILE, COLORS, PHYS, DEPTH, SKILL_INFO, WORLD_THEMES } from "../constant
 import { LEVELS } from "../levels/registry.js";
 import { makeGrid } from "../levels/builder.js";
 import { completeLevel, loadSave } from "../save.js";
-import { sfx, installMute, playTrack, setMusicLayer, playJingle, trackForLevel, setListener, clearListener, proximity, setLoop, stopLoops } from "../audio.js";
+import { sfx, installMute, playTrack, setMusicLayer, playJingle, trackForLevel, setListener, clearListener, proximity, setLoop, stopLoops, pauseDuck } from "../audio.js";
 import { addGradient, addMotes } from "../backdrop.js";
 import Player from "../objects/Player.js";
 
@@ -81,6 +81,8 @@ export default class GameScene extends Phaser.Scene {
     this.players[1].keys = kb.addKeys({ left: "LEFT", right: "RIGHT", jump: "UP", act: "L", down: "DOWN" });
     this.escKey = kb.addKey("ESC");
     this.rKey = kb.addKey("R");
+    this.pKey = kb.addKey("P"); // S4: in-game pause overlay
+    this.paused = false;
     this.cpPos = def.spawns.map(([tx, ty]) => ({ x: tx * TILE + 24, y: ty * TILE + 24 }));
 
     def.entities.forEach((e) => this.spawnEntity(e));
@@ -143,7 +145,7 @@ export default class GameScene extends Phaser.Scene {
     // overlay (unzoomed), so this scene only wires the key.
     installMute(this, { icon: false });
     // tear down ambience loops + the proximity listener when the level unloads
-    this.events.once("shutdown", () => { stopLoops(); clearListener(); });
+    this.events.once("shutdown", () => { stopLoops(); clearListener(); pauseDuck(false); });
 
     // per-level music: requested in create (crossfades from the hub track). A
     // no-op if this track is already playing, so death/respawn never restart it.
@@ -857,9 +859,44 @@ export default class GameScene extends Phaser.Scene {
     return true;
   }
 
+  // --- pause (S4) ----------------------------------------------------------------
+  // P toggles the pause overlay. `physics.pause()` freezes bodies; the update
+  // guard below freezes all game logic (handleAction/lifts/enemies/crane). The M
+  // mute key keeps working (it lives on a keydown listener, not in update). NOTE:
+  // time.delayedCall timers (e.g. the respawn beam-in) keep running while paused —
+  // acceptable, a respawn landing during a pause is harmless. Pause is impossible
+  // during the clear overlay because update() early-returns on this.complete
+  // before it ever reads the P key.
+  togglePause() {
+    if (this.paused) this.resumeGame();
+    else this.pauseGame();
+  }
+
+  pauseGame() {
+    if (this.paused || this.complete) return;
+    this.paused = true;
+    this.physics.pause();
+    pauseDuck(true); // music continues at 0.5x; saved volume untouched
+    sfx.menuSelect();
+    this.scene.launch("Pause", { levelIndex: this.levelIndex });
+    this.scene.bringToTop("Pause");
+  }
+
+  resumeGame() {
+    if (!this.paused) return;
+    this.paused = false;
+    this.physics.resume();
+    pauseDuck(false);
+    this.scene.stop("Pause");
+  }
+
   // --- main loop -----------------------------------------------------------------
   update(time, delta) {
     if (this.complete) return;
+    // P pauses/resumes. Handled before the pause guard so a paused game can still
+    // catch P to resume (physics.pause() freezes bodies, not the scene's update()).
+    if (J(this.pKey)) this.togglePause();
+    if (this.paused) return;
     const dt = delta / 1000;
 
     if (J(this.escKey)) {

@@ -153,6 +153,43 @@ check(
   JSON.stringify(moodCounts)
 );
 
+// --- check 5: Settings — open with S from title, arrow-adjust music volume,   -
+// value changes AND persists after a page reload (localStorage) ---------------
+await page.reload({ waitUntil: "networkidle" });
+await page.waitForTimeout(1000);
+check("check5: title active after reload", await active("Title"));
+await tap("KeyS"); // Title's S opens the settings page (also unlocks audio)
+await page.waitForTimeout(300);
+check("check5: S from title opens Settings", await active("Settings"));
+const musBefore = await scene(() => window.__BB.audio.engine().music);
+await tap("ArrowRight");
+await tap("ArrowRight");
+await page.waitForTimeout(120);
+const musAfter = await scene(() => window.__BB.audio.engine().music);
+check("check5: arrow adjusts music volume", musAfter !== musBefore, `before=${musBefore} after=${musAfter}`);
+// reload: engine loads settings from localStorage at module-init, so the value
+// survives even before the next keypress.
+await page.reload({ waitUntil: "networkidle" });
+await page.waitForTimeout(900);
+const musPersist = await scene(() => window.__BB.audio.engine().music);
+check("check5: music volume persists across reload", musPersist === musAfter, `reloaded=${musPersist} expected=${musAfter}`);
+
+// --- check 6: Pause — P sets physics.world.isPaused true + panel visible, P    -
+// resumes ---------------------------------------------------------------------
+await page.reload({ waitUntil: "networkidle" });
+await page.waitForTimeout(900);
+await tap("KeyZ"); // unlock the AudioContext on the title
+await startLevel(0); // into 1-1
+await tap("KeyP");
+await page.waitForTimeout(200);
+const pausedState = await scene(() => window.__BB.scene.physics.world.isPaused);
+check("check6: P sets physics.world.isPaused true", pausedState === true, `isPaused=${pausedState}`);
+check("check6: pause panel visible (Pause scene active)", await active("Pause"));
+await tap("KeyP");
+await page.waitForTimeout(200);
+const resumedState = await scene(() => window.__BB.scene.physics.world.isPaused);
+check("check6: P resumes (isPaused false, panel gone)", resumedState === false && !(await active("Pause")), `isPaused=${resumedState}`);
+
 const fails = results.filter((r) => !r.ok);
 console.log(`\n${results.length - fails.length}/${results.length} checks passed`);
 await browser.close();
