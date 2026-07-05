@@ -1,6 +1,13 @@
 import Phaser from "phaser";
-import { PHYS, DEPTH } from "../constants.js";
+import { PHYS, DEPTH, SKILL_INFO } from "../constants.js";
 import { sfx } from "../audio.js";
+
+// The one true collision box, in unscaled texture pixels: 30x42 at offset
+// (7,6). Gameplay was tuned around this box (at the skill base scale) — it
+// must NEVER drift. Arcade derives body width/height from sourceWidth*scale
+// and body position from offset*scale, so the visual squash multipliers are
+// divided back out of both in _syncBody() every frame.
+const BODY = { w: 30, h: 42, ox: 7, oy: 6 };
 
 export default class Player extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, idx) {
@@ -10,7 +17,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
     this.setDepth(DEPTH.player);
-    this.body.setSize(30, 42).setOffset(7, 6);
+    this.body.setSize(BODY.w, BODY.h).setOffset(BODY.ox, BODY.oy);
     this.setMaxVelocity(1000, PHYS.maxFall);
 
     this.skill = null;
@@ -29,6 +36,21 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.lastVy = 0;
     this.standingOn = null;
     this.badge = null;
+
+    // --- presentation state (Sprint 3) -------------------------------------
+    this.baseKey = idx === 0 ? "robot_b" : "robot_o";
+    // squash & stretch is a MULTIPLIER on the skill base scale so heavy/tiny and
+    // squash compose without ever hardcoding 1.0 or touching the physics body
+    this.baseScaleX = 1;
+    this.baseScaleY = 1;
+    this.sqX = 1; // live squash multipliers, animated by tweens
+    this.sqY = 1;
+    this._sqTween = null;
+    this.tilt = 0; // lerped sprite lean (degrees)
+    this.blinkTimer = Phaser.Math.Between(3000, 5000); // next blink
+    this.blinking = 0; // ms remaining of the current blink
+    this.dustCd = 0; // throttles run-dust puffs
+    this.ghostCd = 0; // throttles phase afterimages
   }
 
   get partner() {
@@ -48,13 +70,106 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.skill = skill;
     if (skill === "heavy" || skill === "tiny") {
       // keep the feet planted: rescaling the body around the sprite centre
-      // would embed it in the floor beyond what arcade separation can resolve
+      // would embed it in the floor beyond what arcade separation can resolve.
+      // The skill scale becomes the stored baseScale that squash multiplies.
+      // Kill any in-flight squash first so the reset sees clean geometry.
+      if (this._sqTween) this._sqTween.stop();
+      this.sqX = this.sqY = 1;
       const feet = this.body.bottom;
-      this.setScale(skill === "heavy" ? 1.22 : 0.55);
+      this.baseScaleX = this.baseScaleY = skill === "heavy" ? 1.22 : 0.55;
+      this.setScale(this.baseScaleX, this.baseScaleY);
+      this._syncBody();
       this.body.reset(this.x, feet - this.displayHeight / 2);
     }
+    // heavy dress-up: darker plate tint over the existing scale (WebGL renderer)
+    if (skill === "heavy") this.setTint(0xc59a63);
+    else this.clearTint();
+    // skill badge above head: a rounded chip — icon on a dark pill with a
+    // skill-coloured border (rebuilt on equip only, never per frame)
     if (this.badge) this.badge.destroy();
-    this.badge = this.scene.add.image(this.x, this.y - 40, `icon_${skill}`).setDepth(DEPTH.badge).setScale(0.8);
+    const color = (SKILL_INFO[skill] && SKILL_INFO[skill].color) || 0xffffff;
+    const pill = this.scene.add.graphics();
+    pill.fillStyle(0x0a0f1e, 0.92).fillRoundedRect(-16, -13, 32, 26, 8);
+    pill.lineStyle(2, color).strokeRoundedRect(-16, -13, 32, 26, 8);
+    const ic = this.scene.add.image(0, 0, `icon_${skill}`).setScale(0.68);
+    this.badge = this.scene.add.container(this.x, this.y - 40, [pill, ic]).setDepth(DEPTH.badge);
+  }
+
+  // Jump-start stretch: tall & thin, tweened back to the skill base scale.
+  jumpStretch() {
+    if (this._sqTween) this._sqTween.stop();
+    this.sqX = 0.9;
+    this.sqY = 1.12;
+    this._sqTween = this.scene.tweens.add({
+      targets: this, sqX: 1, sqY: 1, duration: 220, ease: "back.out",
+    });
+  }
+
+  // Landing squash: short & wide, 90ms yoyo back to the base scale.
+  landSquash() {
+    if (this._sqTween) this._sqTween.stop();
+    this.sqX = 1;
+    this.sqY = 1;
+    this._sqTween = this.scene.tweens.add({
+      targets: this, sqX: 1.1, sqY: 0.85, duration: 90, yoyo: true, ease: "quad.out",
+      onComplete: () => { this.sqX = 1; this.sqY = 1; },
+    });
+  }
+
+  // CRITICAL physics-drift guard: the squash multipliers are visual-only. The
+  // sprite's scale includes them, but Arcade computes the body's width/height
+  // as sourceWidth*scale and its position as x + scale*(offset-displayOrigin),
+  // so both are counter-scaled here — the collision box stays exactly BODY at
+  // the skill baseScale no matter what the squash tweens do. Runs in preUpdate
+  // (scene PRE_UPDATE), i.e. before the physics world steps this frame, and
+  // always in the same frame as the scale write so the pair is never split.
+  _syncBody() {
+    const b = this.body;
+    if (!b) return;
+    b.setSize(BODY.w / this.sqX, BODY.h / this.sqY, false);
+    b.setOffset(
+      this.displayOriginX + (BODY.ox - this.displayOriginX) / this.sqX,
+      this.displayOriginY + (BODY.oy - this.displayOriginY) / this.sqY
+    );
+  }
+
+  // Blink, sprite lean, carried wiggle, and the squash/skill scale compose here —
+  // called every frame regardless of movement state. The physics body is
+  // re-asserted via _syncBody so none of it leaks into collision geometry.
+  present(time, delta) {
+    // blink: swap to the eyes-closed texture for 120ms every 3-5s, respecting
+    // the current flip/scale (setTexture keeps both). Frozen while dead.
+    if (!this.dead && !this.carriedBy) {
+      if (this.blinking > 0) {
+        this.blinking -= delta;
+        if (this.blinking <= 0) {
+          this.setTexture(this.baseKey);
+          this.blinkTimer = Phaser.Math.Between(3000, 5000);
+        }
+      } else {
+        this.blinkTimer -= delta;
+        if (this.blinkTimer <= 0) {
+          this.blinking = 120;
+          this.setTexture(`${this.baseKey}_blink`);
+        }
+      }
+    } else if (this.texture.key !== this.baseKey) {
+      this.setTexture(this.baseKey);
+    }
+
+    // sprite lean: carried buddies tilt 10deg and wiggle; walkers lean toward
+    // travel; everyone else lerps back upright
+    let target = 0;
+    if (this.carriedBy) target = 10 + Math.sin(time / 110) * 4;
+    else if (this.grounded && Math.abs(this.body.velocity.x) > 40) target = this.facing * 4;
+    this.tilt = Phaser.Math.Linear(this.tilt, target, Math.min(1, (delta / 1000) * 10));
+    this.setAngle(this.tilt);
+
+    // compose squash onto the skill base scale (flip is independent of scale)
+    // and immediately counter-scale the body so collision geometry never moves
+    this.scaleX = this.baseScaleX * this.sqX;
+    this.scaleY = this.baseScaleY * this.sqY;
+    this._syncBody();
   }
 
   beginZip(x, y, hang) {
@@ -134,6 +249,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       this.invuln -= delta;
       this.setAlpha(this.invuln > 0 ? (Math.floor(time / 80) % 2 ? 0.35 : 0.9) : 1);
     }
+    this.present(time, delta);
     if (this.badge) {
       this.badge.setPosition(this.x, this.y - this.displayHeight / 2 - 12);
       this.badge.setVisible(this.visible && !this.dead && !this.carriedBy);
@@ -178,6 +294,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     if (onGround && !this.wasGround) {
       if (this.skill === "heavy" && (this.stomping || this.lastVy > 700)) this.scene.heavyImpact(this, this.stomping);
       else if (this.lastVy > 480) sfx.land(this.x, this.y);
+      if (this.lastVy > 260) this.landSquash(); // squash on any real landing
       this.stomping = false;
     }
     this.wasGround = onGround;
@@ -193,6 +310,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       this.jumpBuf = 0;
       this.coyote = 0;
       sfx.jump();
+      this.jumpStretch();
     }
     // variable jump height
     if (!K.jump.isDown && body.velocity.y < -260) body.velocity.y = -260;

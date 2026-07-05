@@ -143,6 +143,22 @@ export default class GameScene extends Phaser.Scene {
       gravityY: 600, emitting: false,
     }).setDepth(DEPTH.fx);
 
+    // pooled run-dust: soft low puffs kicked up at the feet while running
+    this.dust = this.add.particles(0, 0, "px", {
+      speed: { min: 20, max: 70 }, angle: { min: 200, max: 340 },
+      scale: { start: 0.5, end: 0 }, alpha: { start: 0.5, end: 0 },
+      lifespan: 380, gravityY: -30, tint: 0xb8c2dc, emitting: false,
+    }).setDepth(DEPTH.fx - 2);
+
+    // pooled phase-walk afterimages: a fixed ring of ghost sprites recycled and
+    // faded manually (no per-frame allocation). One head index cycles the pool.
+    this.ghosts = [];
+    for (let i = 0; i < 8; i++) {
+      const gi = this.add.image(0, 0, "robot_b").setDepth(DEPTH.player - 1).setVisible(false);
+      this.ghosts.push({ img: gi, life: 0 });
+    }
+    this._ghostHead = 0;
+
     // M mutes from in-game too; the visible corner icon is drawn by the UI
     // overlay (unzoomed), so this scene only wires the key.
     installMute(this, { icon: false });
@@ -749,6 +765,21 @@ export default class GameScene extends Phaser.Scene {
     bug.destroy();
   }
 
+  // Grab the next pooled ghost sprite and stamp it with the phasing robot's
+  // current pose (texture/flip/scale/tint) at full-ish alpha; it fades in update.
+  spawnGhost(p) {
+    const g = this.ghosts[this._ghostHead];
+    this._ghostHead = (this._ghostHead + 1) % this.ghosts.length;
+    g.img.setTexture(p.texture.key);
+    g.img.setPosition(p.x, p.y);
+    g.img.setFlipX(p.flipX);
+    g.img.setScale(p.scaleX, p.scaleY);
+    g.img.setAngle(p.angle);
+    g.img.setTint(0xc39dff);
+    g.life = 1;
+    g.img.setAlpha(0.4).setVisible(true);
+  }
+
   // --- crane fight ---------------------------------------------------------------
   yankCranePlate(plate) {
     plate.attached = false;
@@ -952,6 +983,14 @@ export default class GameScene extends Phaser.Scene {
       for (const pf of this.phaseFlows) pf.tilePositionY = this.phaseFlow;
     }
 
+    // fade the pooled phase afterimages
+    for (const g of this.ghosts) {
+      if (g.life <= 0) continue;
+      g.life -= dt * 3.2;
+      if (g.life <= 0) g.img.setVisible(false);
+      else g.img.setAlpha(g.life * 0.4);
+    }
+
     for (const p of this.players) {
       if (p.dead) continue;
       if (J(p.keys.act) || (p.keys.actAlt && J(p.keys.actAlt))) this.handleAction(p);
@@ -966,7 +1005,20 @@ export default class GameScene extends Phaser.Scene {
       p.inPhaseWall = this.tileAt(p.x, p.y) === "~";
       if (p.inPhaseWall && !wasInWall) sfx.phaseIn();
       else if (!p.inPhaseWall && wasInWall) sfx.phaseOut();
-      if (p.invuln <= 0) p.setAlpha(p.inPhaseWall ? 0.55 : 1);
+      // phase ghost: alpha shimmer + a faint afterimage trail while phasing
+      if (p.invuln <= 0) p.setAlpha(p.inPhaseWall ? 0.42 + 0.16 * Math.sin(time / 55) : 1);
+      p.ghostCd -= delta;
+      if (p.inPhaseWall && p.skill === "phase" && p.ghostCd <= 0) {
+        this.spawnGhost(p);
+        p.ghostCd = 90;
+      }
+
+      // run dust: small puffs at the feet while grounded and moving fast
+      p.dustCd -= delta;
+      if (p.grounded && Math.abs(p.body.velocity.x) > 100 && p.dustCd <= 0) {
+        this.dust.emitParticleAt(p.x - p.facing * 8, p.body.bottom - 2, 1);
+        p.dustCd = 130;
+      }
 
       // conveyor drift (Heavyweight stands his ground)
       if (p.skill !== "heavy" && p.grounded && !p.zip) {

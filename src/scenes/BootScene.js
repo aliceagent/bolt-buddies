@@ -130,20 +130,60 @@ export default class BootScene extends Phaser.Scene {
     }
 
     // --- robots ------------------------------------------------------------
-    const robot = (color, dark) => (g) => {
-      g.fillStyle(0x10141f).fillRect(4, 40, 36, 8); // treads
+    // Multiply a colour by a factor to make canvas-safe lighter/darker shades
+    // (setTint / fillGradientStyle no-op under the Canvas renderer, so the whole
+    // two-tone body gradient is baked in with interpolated horizontal strips).
+    const shade = (hex, f) => {
+      const c = Phaser.Display.Color.IntegerToColor(hex);
+      const cl = (v) => Math.max(0, Math.min(255, Math.round(v)));
+      return Phaser.Display.Color.GetColor(cl(c.red * f), cl(c.green * f), cl(c.blue * f));
+    };
+    // color: body base, dark: visor/stripe, rim: rim-light on one side.
+    // blink=true draws the visor with eyes closed for the _blink texture.
+    const robot = (color, dark, rim, blink) => (g) => {
+      // chunkier treads: wider, taller base with four wheel bumps + top rim line
+      g.fillStyle(0x0c1019).fillRect(2, 40, 40, 9);
       g.fillStyle(0x2a3247);
-      g.fillCircle(10, 44, 3.4); g.fillCircle(22, 44, 3.4); g.fillCircle(34, 44, 3.4);
-      g.fillStyle(color).fillRoundedRect(4, 12, 36, 30, 7); // body
-      g.fillStyle(dark, 1).fillRoundedRect(9, 17, 26, 13, 5); // visor
-      g.fillStyle(0xffffff);
-      g.fillCircle(17, 23, 3.2); g.fillCircle(28, 23, 3.2); // eyes
-      g.lineStyle(2, color).lineBetween(22, 12, 22, 4); // antenna
+      [8, 17, 26, 35].forEach((x) => g.fillCircle(x, 44.5, 3.9));
+      g.fillStyle(0x151b2b).fillRect(2, 39, 40, 2);
+      // body: vertical two-tone gradient, baked as interpolated strips inside the
+      // rounded silhouette. The rounded rect underneath supplies the soft corners.
+      const top = Phaser.Display.Color.IntegerToColor(shade(color, 1.28));
+      const bot = Phaser.Display.Color.IntegerToColor(shade(color, 0.68));
+      g.fillStyle(shade(color, 0.68)).fillRoundedRect(4, 12, 36, 30, 7);
+      const bands = 9;
+      for (let i = 0; i < bands; i++) {
+        const c = Phaser.Display.Color.Interpolate.ColorWithColor(top, bot, bands - 1, i);
+        g.fillStyle(Phaser.Display.Color.GetColor(c.r, c.g, c.b));
+        g.fillRect(6, 14 + (i * 26) / bands, 32, 26 / bands + 1);
+      }
+      // colored rim-light running down the left edge of the body
+      g.fillStyle(rim, 0.85).fillRect(5.5, 15, 2.6, 24);
+      g.lineStyle(1.5, shade(color, 1.45), 0.55).strokeRoundedRect(4, 12, 36, 30, 7);
+      // visor
+      g.fillStyle(dark, 1).fillRoundedRect(9, 17, 26, 13, 5);
+      if (blink) {
+        // eyes closed — two short horizontal lids
+        g.lineStyle(2.4, 0xffffff, 0.92);
+        g.lineBetween(13, 24, 21, 24);
+        g.lineBetween(24, 24, 32, 24);
+      } else {
+        g.fillStyle(0xffffff);
+        g.fillCircle(17, 23, 3.4); g.fillCircle(28, 23, 3.4); // eyes
+        g.fillStyle(0xbfeaff, 0.95); // glossy specular dots
+        g.fillCircle(15.8, 21.4, 1.2); g.fillCircle(26.8, 21.4, 1.2);
+      }
+      // glossy visor sweep — thin white specular streak across the top of the glass
+      g.fillStyle(0xffffff, 0.16).fillRoundedRect(10, 18, 24, 2.6, 1);
+      // antenna
+      g.lineStyle(2, shade(color, 1.28)).lineBetween(22, 12, 22, 4);
       g.fillStyle(0xffffff).fillCircle(22, 3, 2.6);
       g.fillStyle(dark).fillRect(12, 34, 20, 3); // chest stripe
     };
-    make("robot_b", 44, 48, robot(COLORS.beep, 0x0c2f44));
-    make("robot_o", 44, 48, robot(COLORS.boop, 0x4a2a08));
+    make("robot_b", 44, 48, robot(COLORS.beep, 0x0c2f44, 0xbfeaff, false));
+    make("robot_o", 44, 48, robot(COLORS.boop, 0x4a2a08, 0xffe0a8, false));
+    make("robot_b_blink", 44, 48, robot(COLORS.beep, 0x0c2f44, 0xbfeaff, true));
+    make("robot_o_blink", 44, 48, robot(COLORS.boop, 0x4a2a08, 0xffe0a8, true));
 
     // --- interactables -----------------------------------------------------
     make("anchor", 32, 32, (g) => {
