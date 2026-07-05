@@ -193,3 +193,83 @@ export default [
     },
   },
 ];
+
+// --- 100%-core variant (Beat Sprint T3) -------------------------------------
+// Cores by ents order: 0=(9,9) start-side ledge (grapple zip), 1=(28,16) under-
+// floor key chamber, 2=(50,6) exit-terrace core ledge (grapple zip). None sit
+// on the base path (verified by coreprobe) so each is its own detour.
+//
+// FINDING (uncollectable — see TESTKIT_ROADMAP.md FL-T3-A): core1 (28,16) sits
+// in a left pocket (cols28-29) whose ceiling (r14) is solid, separated from the
+// lid-hole entry (cols30-33) by the step at col30. A Heavy robot on that step
+// cannot translate left into the pocket — its head collides with the pocket's
+// r14 ceiling corner at col29 — and there is no vertical opening above the
+// pocket to drop straight in (scan- and drive-verified). Grapple has no anchor
+// there either. So core1 is not collectable by real input without a level
+// change; it is excluded from the assertion pending design arbitration.
+export const uncollectableCores = [
+  { index: 1, reason: "core (28,16) walled in a Heavy-impassable left pocket behind the col30 step; no drop-in opening (r14 solid). Level-design flaw — FL-T3-A." },
+];
+
+export const coreSteps = [
+  {
+    after: "equip skills -> gate opens",
+    steps: [
+      {
+        name: "core0: G zips the start-side ledge for the core (9,9)",
+        fn: async (bb) => {
+          // anchor (9,6) sits ABOVE its own ledge (8-10,r10); the ledge blocks
+          // the sightline from directly under/right of it, so the only grapple
+          // stance is a couple tiles LEFT where the LOS clears the ledge (x6,
+          // d≈366; x7+ is LOS-blocked — scan-verified). Then drop straight down
+          // through the core onto the ledge and return to the start floor.
+          let fired = false;
+          for (const tx of [6, 6.2, 5.9, 6.35, 6.05, 5.8]) {
+            await bb.walkTo("G", tx, { tol: 4, timeout: 5000 }).catch(() => {});
+            await bb.face("G", "right");
+            await bb.waitFor((s) => s.players[bb.idx("G")].grounded && !s.players[bb.idx("G")].zip, 1500, "G settled").catch(() => {});
+            const tgt = await bb.grappleTarget("G");
+            if (tgt && tgt.kind === "anchor") {
+              try { await bb.zipTo("G"); fired = true; break; } catch { /* marginal stance — try next */ }
+            }
+          }
+          if (!fired) throw new Error("core0: no LOS stance to anchor (9,6)");
+          await bb.zipRelease("G", "jump"); // drop through core (9,9) onto the ledge
+          await bb.waitFor((s) => s.coresGot[0], 3000, "core0 collected");
+          await bb.walkTo("G", 6, { tol: 10, timeout: 6000 }).catch(() => {});
+        },
+      },
+    ],
+  },
+  // core1 (28,16): no detour — documented uncollectable (see uncollectableCores).
+  {
+    after: "ride the co-op lift; G carries H across to the terrace",
+    steps: [
+      {
+        name: "core2: G zips onto the exit-terrace core ledge (50,6)",
+        fn: async (bb) => {
+          const gi = bb.idx("G");
+          // from the terrace, zip up-left to anchor (51,4) and drop onto the
+          // 2-tile core ledge (50-51,r7); standing at x50 sits level with the
+          // core, then hop right off the ledge back down onto the terrace.
+          let fired = false;
+          for (const tx of [53.5, 53.2, 53.8, 53, 54]) {
+            await bb.walkTo("G", tx, { tol: 6, timeout: 8000 }).catch(() => {});
+            await bb.face("G", "left");
+            await bb.waitFor((s) => s.players[gi].grounded && !s.players[gi].zip, 1500, "G settled").catch(() => {});
+            const tgt = await bb.grappleTarget("G");
+            if (tgt && tgt.kind === "anchor") {
+              try { await bb.zipTo("G"); fired = true; break; } catch { /* marginal — try next */ }
+            }
+          }
+          if (!fired) throw new Error("core2: no zip stance to anchor (51,4)");
+          await bb.zipRelease("G", "jump"); // drop onto the core ledge (50-51,r7)
+          await bb.waitFor((s) => s.players[gi].grounded && s.players[gi].ty < 8, 3000, "G on the core ledge").catch(() => {});
+          await bb.walkTo("G", 50, { tol: 8, timeout: 4000 }).catch(() => {});
+          await bb.waitFor((s) => s.coresGot[2], 3000, "core2 collected");
+          await bb.walkTo("G", 55, { tol: 12, timeout: 8000 }).catch(() => {});
+        },
+      },
+    ],
+  },
+];

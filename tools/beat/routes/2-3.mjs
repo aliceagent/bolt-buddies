@@ -92,3 +92,50 @@ export default [
     },
   },
 ];
+
+// --- 100%-core variant (Beat Sprint T3) -------------------------------------
+// Cores by ents order: 0=(43,7) slab-top vent pocket, 1=(44,12) tunnel-end
+// double-shimmer pocket, 2=(55,12) mid-gap (snagged during the finale throw —
+// base route already collects it, verified by coreprobe). core0 and core1 sit
+// one row above each lane's crawl height, so each buddy hops up in-pocket.
+export const coreSteps = [
+  {
+    after: "timed relay: lvB1 -> T through tDoorA; lvA1 -> P through tDoorB",
+    steps: [
+      {
+        name: "core0: T hops into the slab-top vent pocket (43,7)",
+        fn: async (bb) => {
+          const kT = bb.keysFor("T");
+          await bb.walkTo("T", 43, { tol: 8, timeout: 12000 });
+          for (let i = 0; i < 8 && !(await bb.state()).coresGot[0]; i++) {
+            await bb.walkTo("T", 43, { tol: 7, timeout: 4000 }).catch(() => {});
+            await bb.tap(kT.jump, 170);
+            await bb.page.waitForTimeout(420);
+          }
+          await bb.waitFor((s) => s.coresGot[0], 3000, "core0 collected");
+        },
+      },
+    ],
+  },
+  {
+    after: "P ambushes w2, exits the tunnel; T runs out the slab; meet at x47",
+    steps: [
+      {
+        name: "core1: P hops into the tunnel-end shimmer pocket (44,12)",
+        fn: async (bb) => {
+          const kP = bb.keysFor("P");
+          // P is just past the pocket at x47 — step back into the shimmer (x45)
+          await bb.walkTo("P", 44, { tol: 8, timeout: 10000 });
+          for (let i = 0; i < 8 && !(await bb.state()).coresGot[1]; i++) {
+            await bb.walkTo("P", 44, { tol: 7, timeout: 4000 }).catch(() => {});
+            await bb.tap(kP.jump, 170);
+            await bb.page.waitForTimeout(420);
+          }
+          await bb.waitFor((s) => s.coresGot[1], 3000, "core1 collected");
+          // rejoin the checkpoint so the finale pickup starts from the base state
+          await bb.walkTo("P", 47, { tol: 10, timeout: 8000 }).catch(() => {});
+        },
+      },
+    ],
+  },
+];

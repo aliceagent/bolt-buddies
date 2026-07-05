@@ -524,6 +524,108 @@ A red beat run is never just reported — it enters a fix loop until green:
 - Route simplification: the 2-2 ride is now walk in → release → float up
   (3-attempt retry loop retained as insurance).
 
+## Beat Sprint T3 (stretch) — 100%-core runs + chaos smoke: completion notes
+
+**Route pattern (all six levels).** The base `export default [...]` route is left
+VERBATIM — the default 12-run matrix runs it unchanged (provably: `runner.mjs`
+without `--full` never imports the core machinery). The 100%-core variant is
+built by SPLICING, not editing: each route also `export const coreSteps` — a
+list of `{ after: "<base step name>" | "@start", steps: [...] }` detours.
+`tools/beat/coremerge.mjs::buildCoreRoute` merges them; the runner then inserts
+one `assertCoresStep(exclude)` immediately before the final (exit) step, so every
+required core is proven collected before the level can be finished. A route may
+also `export const uncollectableCores = [{ index, reason }]` — indices excluded
+from the assertion because they are DESIGN FINDINGS, not kit failures (below).
+
+**Runner flags.** `--full` = the 12 core-collecting variants (assert all
+non-excluded cores) + the 6 chaos smokes. `--chaos` = chaos only. Default =
+the untouched 12-run matrix. `npm run test:beat:full` = `runner.mjs --full`.
+`tools/beat/coreprobe.mjs` is the diagnostic used to build the routes (prints
+`coresGot` progression per step; `--full`/`--swap` flags).
+
+**Per-level core routes (input-only; cores index by entity order).**
+- **1-1** — core0 (9,9): G zips the start-side ledge anchor (LOS-stance x6),
+  drops through the core. core2 (50,6): from the terrace G zips anchor (51,4),
+  drops onto the core ledge. core1 (28,16): FINDING (FL-T3-A). Auto: none.
+- **1-2** — core1 (34,8): G takes the sky-anchor chain (29,7)->(34,7), drops
+  through the core into the yard. core2 (56,9): pull lever lv2 FIRST (it
+  out-scores the anchor), then zip anchor (56,6) from LOS-stance x53. core0
+  (20,16): FINDING (FL-T3-B).
+- **1-3** — core0 (6,9) & core1 (39,9): G zips each above-ledge anchor from its
+  LOS-stance (x3 / x36). core2 (43,5): reached by dropping from the top floor
+  back onto ledge3 and hugging its left lip, then re-ascending — see status.
+- **2-1** — core0 (43,12): Tiny hops up into the tunnel-end vent pocket. core1
+  (39,7) & core2 (46,9): AUTO-collected by the base traversal.
+- **2-2** — core0 (14,2): Tiny re-rides the fan to its top (past the base
+  deck-drift height). core2 (48,9): high-toss (below). core1 (32,13): AUTO.
+- **2-3** — core0 (43,7) & core1 (44,12): each buddy hops up in its lane pocket.
+  core2 (55,12): AUTO (snagged mid-throw by the base finale).
+
+**Kit techniques discovered (reusable lessons).**
+- *Above-ledge anchor LOS-stance.* Several data-core anchors sit directly ABOVE
+  their own core ledge (1-1/1-3 start ledges, 1-2/1-3 end ledges). The ledge
+  blocks the sightline from directly under/right, so the grapple only fires from
+  a narrow stance a few tiles to the LEFT where the LOS clears the ledge — AND
+  still inside 380px range. Routes scan candidate x's and fire only when
+  `grappleTarget` actually returns the anchor.
+- *Lever out-scores anchors.* A grounded grappler near a lever picks the lever
+  (bias 40) over a data-core anchor every time. 1-2 core2 pulls lv2 first
+  (harmless — its door also needs the plate) to drop the lever from the
+  candidate list before zipping.
+- *Thrown-Tiny toss clamp (2-2 core2).* The toss ledge is 4 rows up; only a high
+  toss (`tossY` ≈ -886) reaches it. TWO non-obvious requirements make it work
+  input-only: (1) the CARRIER holds jump then throws (highToss fires; the
+  carrier keeps the buddy through the jump, 0.92 factor), and (2) the thrown
+  TINY must hold HER OWN jump the instant she is released, or
+  `Player.update`'s variable-jump-height clamp (`vy<-260 && !jump.isDown` -> set
+  -260) cuts the -886 launch down to -260 and she never clears row 9. Launch
+  from x47.2 (snug against pillar46's right face) so she rises through the core
+  at ~x47.7 before drifting into the solid ledge's left edge. (Kit-legitimate,
+  but the clamp cutting a thrown buddy's toss is arguably a gameplay wrinkle
+  worth Fable's eye — a kid tossing Tiny "up" without her holding jump would
+  fall short.)
+
+### FL-T3-A — 1-1 core1 (28,16) is walled in a Heavy-impassable pocket
+
+- **Triage class:** (c) level-design flaw. The core sits in a LEFT pocket
+  (cols 28-29) whose ceiling (r14) is solid, separated from the only opening —
+  the lid hole (30-33) — by the step at col30. Drive- and scan-verified: a Heavy
+  robot drops in on the right (30-33), but at the step it is hard `blocked.left`
+  (can't walk through); hopping over the step launches it straight UP through
+  the lid hole (exit); and once balanced ON the step it cannot translate left
+  into the pocket — its head collides with the pocket's solid r14 ceiling corner
+  at col29 — with no vertical opening above the pocket to drop straight in.
+  Grapple has no anchor there. The core is unreachable by real input.
+- **Suggested fix (for arbitration):** either carve a 1-tile drop-in above the
+  pocket (open r14 at col28), or move the core to col31-32 (right of the step,
+  under the existing hole) where the key route already passes.
+- **Status:** excluded from the 1-1 core assertion (`uncollectableCores[1]`).
+  1-1 `--full` collects cores 0 + 2 and completes.
+
+### FL-T3-B — 1-2 core0 (20,16) softlocks Heavy behind an uncrossable hole
+
+- **Triage class:** (c) level-design flaw. The core is in a 1-tile pocket
+  (col20) walled solid on the right (col21, r15-16). The only entry is stomping
+  the cracked lid (19-20, r14), which severs the tunnel floor with a 2-tile
+  hole. The core IS collectable, but afterwards Heavy is TRAPPED: it can't clear
+  r14 jumping from the pocket floor; climbing the col19 step drops it LEFT of
+  the hole; and from there it can neither run-jump nor walk back across the
+  2-tile hole to the scuttlebug yard (drive-verified — falls back in). Collecting
+  core0 softlocks the run.
+- **Suggested fix (for arbitration):** narrow the lid to a single cracked tile
+  (col20) so the post-stomp gap is 1 tile (Heavy auto-hops it), or add a step on
+  the yard side of the hole.
+- **Status:** excluded from the 1-2 core assertion (`uncollectableCores[0]`).
+  1-2 `--full` collects cores 1 + 2 and completes.
+
+**Chaos smoke.** `tools/beat/chaos.mjs` — per level, 60s of random real input on
+BOTH key sets (weighted ~70% direction holds, ~15% jump, ~10% act, ~5% release,
+occasional down-taps), asserting: zero page errors, no player permanently out of
+world bounds (settled check every 5s; a transient/mid-respawn is retried once),
+and fps up. Headless SwiftShader baselines ~53-54 fps (UI Sprint 8), so the
+headless bar is **>= 48** (design bar 50, noted in output). Not in the default
+matrix — behind `--full`/`--chaos`.
+
 ## Maintenance rule (add to both other roadmaps' ground rules)
 
 From T2 onward, **every sprint (UI or sound) must leave the 12-run beat

@@ -75,3 +75,32 @@ export default [
     },
   },
 ];
+
+// --- 100%-core variant (Beat Sprint T3) -------------------------------------
+// Cores by ents order: 0=(43,12) tunnel-end vent pocket, 1=(39,7) slab shimmer
+// box, 2=(46,9) merge-zone toss ledge. The base route already sweeps up core1
+// (P phases through the shimmer box crossing the slab) and core2 (P drops onto
+// the toss ledge leaving the slab) — verified by coreprobe. Only core0 needs a
+// detour: Tiny hops up into the vent pocket she otherwise crawls straight past.
+export const coreSteps = [
+  {
+    after: "T runs the tunnel to lvT1 -> dP1",
+    steps: [
+      {
+        name: "core0: T hops into the tunnel-end vent pocket (43,12)",
+        fn: async (bb) => {
+          const kT = bb.keysFor("T");
+          await bb.walkTo("T", 43, { tol: 8, timeout: 14000 });
+          // core bobs at row12; Tiny crawls the floor a row below — a small hop
+          // in the pocket (walls at x42/x44, open between) lifts her into it.
+          for (let i = 0; i < 8 && !(await bb.state()).coresGot[0]; i++) {
+            await bb.walkTo("T", 43, { tol: 7, timeout: 4000 }).catch(() => {});
+            await bb.tap(kT.jump, 170);
+            await bb.page.waitForTimeout(420);
+          }
+          await bb.waitFor((s) => s.coresGot[0], 3000, "core0 collected");
+        },
+      },
+    ],
+  },
+];

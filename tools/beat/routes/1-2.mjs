@@ -90,3 +90,79 @@ export default [
     },
   },
 ];
+
+// --- 100%-core variant (Beat Sprint T3) -------------------------------------
+// Cores by ents order: 0=(20,16) cracked-lid pocket in the tunnel, 1=(34,8) on
+// the sky-anchor chain, 2=(56,9) exit core-3 ledge. None are on the base path
+// (verified by coreprobe). core1/core2 are grapple zips.
+//
+// FINDING (uncollectable/softlock — see TESTKIT_ROADMAP.md FL-T3-B): core0
+// (20,16) sits in a 1-tile pocket (col20) walled solid on the right (col21,
+// r15-16); the only entry is stomping the cracked lid (19-20,r14), which severs
+// the tunnel floor with a 2-tile hole. The core IS collectable, but afterwards
+// Heavy is TRAPPED: it can't clear r14 jumping from the pocket floor, climbing
+// the col19 step drops it LEFT of the hole, and from there it can neither
+// run-jump nor walk back across the 2-tile hole to the yard (drive-verified —
+// falls back in). Collecting core0 softlocks the run. Excluded pending design
+// arbitration.
+export const uncollectableCores = [
+  { index: 0, reason: "core (20,16): breaking the lid to reach it opens a 2-tile tunnel hole that strands Heavy — no way back across to the yard. Softlock — FL-T3-B." },
+];
+
+export const coreSteps = [
+  {
+    after: "G takes the sky route over the crushers",
+    steps: [
+      {
+        name: "core1: G takes the sky anchors through the core (34,8)",
+        fn: async (bb) => {
+          const gi = bb.idx("G");
+          // from the slab end, zip anchor (29,7) then chain to (34,7); the core
+          // hangs one tile below (34,7), so drop straight down through it into
+          // the scuttlebug yard (where G is heading for the chasm anyway).
+          await bb.walkTo("G", 24, { tol: 10, timeout: 8000 }).catch(() => {});
+          await bb.face("G", "right");
+          await bb.zipTo("G"); // anchor (29,7)
+          await bb.act("G"); // chain -> anchor (34,7)
+          await bb.waitFor((s) => s.players[gi].zip && s.players[gi].zip.arrived, 3000, "at anchor 34,7").catch(() => {});
+          await bb.zipRelease("G", "jump"); // drop through core (34,8)
+          await bb.waitFor((s) => s.coresGot[1], 3000, "core1 collected");
+        },
+      },
+      // core0 (20,16): no detour — documented uncollectable (see uncollectableCores).
+    ],
+  },
+  {
+    after: "chasm relay: G crosses on the anchors, reels H over the pillar",
+    steps: [
+      {
+        name: "core2: G zips onto the core-3 ledge (56,9)",
+        fn: async (bb) => {
+          // anchor (56,6) sits ABOVE its own ledge (55-57,r10). Two gotchas:
+          //  - LOS to it only clears from a stance LEFT of the ledge (x53);
+          //  - the nearby lever lv2 (bias 40) out-scores the anchor and steals
+          //    the grapple. So PULL lv2 first (harmless — door d2 also needs
+          //    plate pl2), which drops the lever from the candidate list, then
+          //    the anchor is selectable. Zip up, drop straight through the core.
+          await bb.walkTo("G", 55, { tol: 8, timeout: 8000 }).catch(() => {});
+          await bb.act("G"); // lever lv2 (early is fine)
+          await bb.waitFor((s) => s.levers.find((l) => l.id === "lv2")?.on, 3000, "lv2 on").catch(() => {});
+          let fired = false;
+          for (const tx of [53, 52.7, 53.3, 52.4, 52.9]) {
+            await bb.walkTo("G", tx, { tol: 4, timeout: 8000 }).catch(() => {});
+            await bb.face("G", "right");
+            await bb.waitFor((s) => s.players[bb.idx("G")].grounded && !s.players[bb.idx("G")].zip, 1500, "G settled").catch(() => {});
+            const tgt = await bb.grappleTarget("G");
+            if (tgt && tgt.kind === "anchor" && Math.abs(tgt.x - (56 * 48 + 24)) < 30) {
+              try { await bb.zipTo("G"); fired = true; break; } catch { /* marginal — try next */ }
+            }
+          }
+          if (!fired) throw new Error("core2: no LOS stance to anchor (56,6)");
+          await bb.zipRelease("G", "jump"); // drop through core (56,9) onto the ledge
+          await bb.waitFor((s) => s.coresGot[2], 3000, "core2 collected");
+          await bb.walkTo("G", 55, { tol: 12, timeout: 6000 }).catch(() => {});
+        },
+      },
+    ],
+  },
+];

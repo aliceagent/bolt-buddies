@@ -5,12 +5,17 @@
 // PASS/FAIL table + report.json and writes a failure artifact (screenshot + state
 // JSON + step log) for any run that fails. Non-zero exit on any failure.
 //
-//   node tools/beat/runner.mjs               # World-1 matrix: 1-1, 1-2, 1-3
+//   node tools/beat/runner.mjs               # default 12-run matrix (no cores)
 //   node tools/beat/runner.mjs 1-1           # one level, both assignments
 //   node tools/beat/runner.mjs 1-1 1-3       # a subset
+//   node tools/beat/runner.mjs --full        # 12 core-collecting runs + 6 chaos smokes
+//   node tools/beat/runner.mjs --chaos       # chaos smoke only (6 runs)
+//   node tools/beat/runner.mjs --full 2-2    # core variant + chaos for one level
 import { chromium } from "playwright";
 import { mkdirSync, writeFileSync } from "fs";
 import { Driver } from "./driver.mjs";
+import { buildCoreRoute, assertCoresStep } from "./coremerge.mjs";
+import { runChaos, HEADLESS_FPS_BAR } from "./chaos.mjs";
 
 const URL = process.env.BB_URL || "http://localhost:5173/?canvas=1";
 const CHROMIUM = process.env.BB_CHROMIUM || "/opt/pw-browsers/chromium";
@@ -29,14 +34,28 @@ const ASSIGNMENTS = [
   { name: "B:P1=H", roles: { G: 1, H: 0, P: 1, T: 0 } },
 ];
 
-const levels = process.argv.slice(2).filter((a) => LEVEL_INDEX[a] !== undefined);
+const argv = process.argv.slice(2);
+const FULL = argv.includes("--full");
+const CHAOS_ONLY = argv.includes("--chaos");
+const levels = argv.filter((a) => LEVEL_INDEX[a] !== undefined);
 const toRun = levels.length ? levels : DEFAULT_LEVELS;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function loadRoute(id) {
+// Default matrix: the route's `export default` VERBATIM (provably unchanged).
+// --full: splice the route's `coreSteps` detours in and add the pre-exit
+// "all 3 cores collected" assertion before the final (exit/complete) step.
+async function loadRoute(id, full) {
   const mod = await import(`./routes/${id}.mjs`);
-  return mod.default;
+  if (!full) return mod.default;
+  if (!mod.coreSteps) {
+    throw new Error(`--full: routes/${id}.mjs has no coreSteps export`);
+  }
+  const merged = buildCoreRoute(mod.default, mod.coreSteps || []);
+  // cores documented uncollectable-by-real-input (findings for design arbitration)
+  const exclude = new Set((mod.uncollectableCores || []).map((c) => c.index));
+  // insert the cores assertion immediately before the final route step
+  return [...merged.slice(0, -1), assertCoresStep(exclude), merged[merged.length - 1]];
 }
 
 async function startLevel(page, levelIndex) {
@@ -49,8 +68,8 @@ async function startLevel(page, levelIndex) {
   await sleep(1600); // let the scene warm up
 }
 
-async function runOne(page, id, assignment) {
-  const steps = await loadRoute(id);
+async function runOne(page, id, assignment, full) {
+  const steps = await loadRoute(id, full);
   const bb = new Driver(page);
   bb.setRoles(assignment.roles);
   const label = `${id}_${assignment.name}`;
@@ -133,45 +152,88 @@ async function main() {
   }
   process.stdout.write("done\n");
 
+  // The run matrix. --chaos runs ONLY the chaos smoke; default and --full both
+  // run the 12-run matrix (--full uses the core-collecting variants).
   const results = [];
-  for (const id of toRun) {
-    for (const assignment of ASSIGNMENTS) {
-      process.stdout.write(`\n▶ ${id} [${assignment.name}] ... `);
-      const r = await runOne(page, id, assignment);
-      results.push(r);
+  const runMatrix = !CHAOS_ONLY;
+  const runChaosSmoke = FULL || CHAOS_ONLY;
+  const label = FULL ? "core matrix (100%)" : "matrix";
+
+  if (runMatrix) {
+    for (const id of toRun) {
+      for (const assignment of ASSIGNMENTS) {
+        process.stdout.write(`\n▶ ${id} [${assignment.name}]${FULL ? " +cores" : ""} ... `);
+        const r = await runOne(page, id, assignment, FULL);
+        results.push(r);
+        process.stdout.write(
+          `${r.result} in ${(r.durationMs / 1000).toFixed(1)}s (${r.deaths} deaths, ${r.steps}/${r.totalSteps} steps)` +
+          (r.result === "FAIL" ? ` — ${r.failedStep}: ${r.error}` : "")
+        );
+      }
+    }
+  }
+
+  const chaosResults = [];
+  if (runChaosSmoke) {
+    process.stdout.write(`\n\n=== chaos smoke (60s random input/level, fps bar ${HEADLESS_FPS_BAR}) ===`);
+    for (const id of toRun) {
+      process.stdout.write(`\n▶ chaos ${id} ... `);
+      const c = await runChaos(page, id, LEVEL_INDEX[id]).catch((e) => ({
+        id, kind: "chaos", result: "FAIL", pageErrors: 1, firstError: e.message,
+        minFps: 0, avgFps: 0, oob: [], fpsBar: HEADLESS_FPS_BAR,
+      }));
+      chaosResults.push(c);
       process.stdout.write(
-        `${r.result} in ${(r.durationMs / 1000).toFixed(1)}s (${r.deaths} deaths, ${r.steps}/${r.totalSteps} steps)` +
-        (r.result === "FAIL" ? ` — ${r.failedStep}: ${r.error}` : "")
+        `${c.result} — fps min ${c.minFps}/avg ${c.avgFps}, ${c.pageErrors} page errors, ${c.oob.length} oob` +
+        (c.result === "FAIL" && c.firstError ? ` — ${c.firstError}` : "")
       );
     }
   }
 
   await browser.close();
 
-  console.log("\n\n=== Beat matrix summary ===");
-  console.table(
-    results.map((r) => ({
-      level: r.id,
-      assignment: r.assignment,
-      result: r.result,
-      "time(s)": +(r.durationMs / 1000).toFixed(1),
-      deaths: r.deaths,
-      steps: `${r.steps}/${r.totalSteps}`,
-      failedStep: r.failedStep,
-    }))
-  );
+  if (runMatrix) {
+    console.log(`\n\n=== Beat ${label} summary ===`);
+    console.table(
+      results.map((r) => ({
+        level: r.id,
+        assignment: r.assignment,
+        result: r.result,
+        "time(s)": +(r.durationMs / 1000).toFixed(1),
+        deaths: r.deaths,
+        steps: `${r.steps}/${r.totalSteps}`,
+        failedStep: r.failedStep,
+      }))
+    );
+  }
+  if (runChaosSmoke) {
+    console.log(`\n=== Chaos smoke summary (headless fps bar ${HEADLESS_FPS_BAR}; design bar 50) ===`);
+    console.table(
+      chaosResults.map((c) => ({
+        level: c.id,
+        result: c.result,
+        "fps(min)": c.minFps,
+        "fps(avg)": c.avgFps,
+        pageErrors: c.pageErrors,
+        oob: c.oob.length,
+      }))
+    );
+  }
 
-  const passed = results.filter((r) => r.result === "PASS").length;
-  console.log(`\n${passed}/${results.length} runs GREEN`);
-  if (pageErrors.length) console.log(`page errors seen: ${pageErrors.length} (first: ${pageErrors[0]})`);
+  const matrixPass = results.filter((r) => r.result === "PASS").length;
+  const chaosPass = chaosResults.filter((c) => c.result === "PASS").length;
+  if (runMatrix) console.log(`\n${matrixPass}/${results.length} matrix runs GREEN`);
+  if (runChaosSmoke) console.log(`${chaosPass}/${chaosResults.length} chaos smokes GREEN`);
+  if (pageErrors.length) console.log(`page errors seen (runner listener): ${pageErrors.length} (first: ${pageErrors[0]})`);
 
   writeFileSync(
     "tools/beat/report.json",
-    JSON.stringify({ when: new Date().toISOString(), levels: toRun, results, pageErrors }, null, 2)
+    JSON.stringify({ when: new Date().toISOString(), full: FULL, chaosOnly: CHAOS_ONLY, levels: toRun, results, chaosResults, pageErrors }, null, 2)
   );
   console.log("report -> tools/beat/report.json");
 
-  process.exit(passed === results.length ? 0 : 1);
+  const allGreen = matrixPass === results.length && chaosPass === chaosResults.length;
+  process.exit(allGreen ? 0 : 1);
 }
 
 main().catch((e) => {

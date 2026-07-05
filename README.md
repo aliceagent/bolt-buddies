@@ -99,3 +99,10 @@ The repo works out of the box: framework **Vite**, build `npm run build`, output
 `npm run test:beat -- 1-3 2-2` runs the beat matrix for a subset of levels.
 Failures write artifacts (screenshot + state dump + step log) to
 `tools/beat/failures/`.
+
+`npm run test:beat:full` (`runner.mjs --full`) runs the stretch pass: the 12
+runs use each level's **100%-core variant** (input-only detours that also
+collect all 3 data-cores, asserting `coresGot` all-true before the exit), then
+a **chaos smoke** per level — 60s of random input on both key sets asserting no
+page errors, no player permanently out of bounds, and fps up (headless
+SwiftShader bar 48; design bar 50 — see TESTKIT_ROADMAP.md "Beat Sprint T3").

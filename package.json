@@ -9,7 +9,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "playtest": "node tools/playtest.mjs && node tools/playtest_w2.mjs && node tools/playtest_audio.mjs && node tools/tut_sanity.mjs && node tools/beat/runner.mjs",
-    "test:beat": "node tools/beat/runner.mjs"
+    "test:beat": "node tools/beat/runner.mjs",
+    "test:beat:full": "node tools/beat/runner.mjs --full"
   },
   "dependencies": {
     "phaser": "^3.87.0"
