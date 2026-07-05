@@ -13,6 +13,8 @@ export const COLORS = {
   green: 0x59ff9c,
   steel: 0x1c2742,
   steelEdge: 0x2f4066,
+  steelHi: 0x30436e, // lighter top-left bevel on tiles
+  steelLo: 0x121a30, // darker bottom-right bevel on tiles
   dark: 0x0b101f,
 };
 

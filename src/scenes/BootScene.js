@@ -17,14 +17,31 @@ export default class BootScene extends Phaser.Scene {
 
     // --- terrain -----------------------------------------------------------
     make("tile", 48, 48, (g) => {
+      // Quiet two-tone bevel: lighter top-left edge, darker bottom-right edge.
       g.fillStyle(COLORS.steel).fillRect(0, 0, 48, 48);
-      g.lineStyle(2, COLORS.steelEdge).strokeRect(1, 1, 46, 46);
+      g.fillStyle(COLORS.steelHi);
+      g.fillRect(0, 0, 48, 2); // top highlight
+      g.fillRect(0, 0, 2, 48); // left highlight
+      g.fillStyle(COLORS.steelLo);
+      g.fillRect(0, 46, 48, 2); // bottom shade
+      g.fillRect(46, 0, 2, 48); // right shade
+      // faint inner panel line
+      g.lineStyle(1, COLORS.steelEdge, 0.5).strokeRect(7, 7, 34, 34);
+      // corner rivets
       g.fillStyle(COLORS.steelEdge);
-      [6, 42].forEach((x) => [6, 42].forEach((y) => g.fillCircle(x, y, 1.6)));
+      [7, 41].forEach((x) => [7, 41].forEach((y) => g.fillCircle(x, y, 1.6)));
     });
     make("crack", 48, 48, (g) => {
       g.fillStyle(0x2a2436).fillRect(0, 0, 48, 48);
       g.lineStyle(2, 0x4a3f5c).strokeRect(1, 1, 46, 46);
+      // hairline glow behind the cracks (accent, low alpha) so kids read it as special
+      g.lineStyle(4, COLORS.neon, 0.16);
+      g.beginPath();
+      g.moveTo(8, 6); g.lineTo(20, 20); g.lineTo(14, 34); g.lineTo(26, 44);
+      g.moveTo(40, 4); g.lineTo(30, 18); g.lineTo(38, 30);
+      g.moveTo(20, 20); g.lineTo(30, 18);
+      g.strokePath();
+      // dark crack lines on top
       g.lineStyle(2, 0x120e1c);
       g.beginPath();
       g.moveTo(8, 6); g.lineTo(20, 20); g.lineTo(14, 34); g.lineTo(26, 44);
@@ -35,8 +52,13 @@ export default class BootScene extends Phaser.Scene {
     make("belt", 48, 48, (g) => {
       g.fillStyle(0x151b2c).fillRect(0, 0, 48, 48);
       g.lineStyle(2, 0x3a4a72).strokeRect(1, 1, 46, 46);
-      g.fillStyle(COLORS.amber, 0.9);
-      // chevrons pointing right
+      // end rollers (metal wheels at the tile edges)
+      g.fillStyle(0x2a3350);
+      g.fillCircle(3, 24, 6); g.fillCircle(45, 24, 6);
+      g.fillStyle(0x5a6aa0);
+      g.fillCircle(3, 24, 2.6); g.fillCircle(45, 24, 2.6);
+      // brighter chevrons pointing right
+      g.fillStyle(COLORS.amber, 1);
       [4, 20, 36].forEach((x) => {
         g.beginPath();
         g.moveTo(x, 14); g.lineTo(x + 10, 24); g.lineTo(x, 34); g.lineTo(x + 4, 24);
@@ -55,8 +77,12 @@ export default class BootScene extends Phaser.Scene {
     });
     make("bridgetile", 48, 48, (g) => {
       g.fillStyle(0x123a44).fillRect(0, 4, 48, 40);
-      g.lineStyle(2, COLORS.neon, 0.9).strokeRect(1, 5, 46, 38);
-      g.lineStyle(1, COLORS.neon, 0.35);
+      // holo scanline stripes
+      g.fillStyle(COLORS.neon, 0.16);
+      for (let y = 8; y < 44; y += 6) g.fillRect(3, y, 42, 2);
+      // brighter holo border
+      g.lineStyle(2, COLORS.neon, 1).strokeRect(1, 5, 46, 38);
+      g.lineStyle(1, COLORS.neon, 0.45);
       g.lineBetween(0, 24, 48, 24);
     });
     make("liftplat", 48, 20, (g) => {
@@ -223,11 +249,20 @@ export default class BootScene extends Phaser.Scene {
       g.lineStyle(1, 0xc39dff, 0.45);
       for (let y = 8; y < 48; y += 10) g.lineBetween(4, y, 44, y - 4);
     });
+    // Drifting inner pattern for phase-walls: diagonal energy stripes that tile
+    // vertically. Scrolled via tilePositionY in GameScene so the shimmer flows.
+    make("phaseflow", 48, 48, (g) => {
+      g.lineStyle(3, 0xd7bbff, 0.5);
+      for (let i = -48; i < 96; i += 16) g.lineBetween(i, 48, i + 48, 0);
+    });
     make("duct", 48, 20, (g) => {
       g.fillStyle(0x232c48).fillRect(0, 0, 48, 20);
-      g.lineStyle(2, 0x44548c).strokeRect(1, 1, 46, 18);
-      g.lineStyle(2, 0x141b30);
-      for (let x = 8; x < 48; x += 10) g.lineBetween(x, 4, x, 16);
+      // darker interior slot under the lip
+      g.fillStyle(0x121829).fillRect(3, 9, 42, 9);
+      g.lineStyle(2, 0x44548c).strokeRect(1, 1, 46, 18); // lip frame
+      // tiny fan-slit lines across the slot
+      g.lineStyle(1, 0x2f4066, 0.85);
+      for (let x = 7; x < 46; x += 7) g.lineBetween(x, 10, x, 17);
     });
     make("fan", 48, 22, (g) => {
       g.fillStyle(0x2a3350).fillRect(0, 10, 48, 12);

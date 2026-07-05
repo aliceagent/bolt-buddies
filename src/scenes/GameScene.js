@@ -66,6 +66,8 @@ export default class GameScene extends Phaser.Scene {
     this.wardens = [];
     this.jets = [];
     this.fans = [];
+    this.phaseFlows = []; // drifting inner-pattern overlays for phase-walls
+    this.phaseFlow = 0; // single shared scroll counter (no per-frame alloc)
 
     this.buildTerrain();
 
@@ -213,18 +215,35 @@ export default class GameScene extends Phaser.Scene {
   // --- terrain -------------------------------------------------------------
   buildTerrain() {
     const g = this.grid;
+    const accent = (this.theme && this.theme.accent) || WORLD_THEMES[1].accent;
     for (let y = 0; y < this.def.rows; y++) {
       let runStart = -1;
+      let hazStart = -1;
       const flush = (endX) => {
         if (runStart < 0) return;
         const w = (endX - runStart) * TILE;
-        const ts = this.add.tileSprite(runStart * TILE + w / 2, y * TILE + 24, w, TILE, "tile").setDepth(DEPTH.terrain);
+        const cx = runStart * TILE + w / 2;
+        const ts = this.add.tileSprite(cx, y * TILE + 24, w, TILE, "tile").setDepth(DEPTH.terrain);
         this.physics.add.existing(ts, true);
         this.solidObjs.push(ts);
+        // walkable-edge highlight: thin accent strip along the run's top edge,
+        // dark drop-shadow strip just below its bottom edge.
+        this.add.rectangle(cx, y * TILE + 1.5, w, 3, accent, 0.5).setDepth(DEPTH.terrain + 1);
+        this.add.rectangle(cx, (y + 1) * TILE + 2, w, 4, COLORS.dark, 0.45).setDepth(DEPTH.terrain);
         runStart = -1;
+      };
+      // one soft pulsing glow per contiguous hazard run (not per tile)
+      const flushHaz = (endX) => {
+        if (hazStart < 0) return;
+        const w = (endX - hazStart) * TILE;
+        const cx = hazStart * TILE + w / 2;
+        const glow = this.add.rectangle(cx, y * TILE + 30, w, 26, COLORS.hazard, 0.3).setDepth(DEPTH.terrain + 1);
+        this.tweens.add({ targets: glow, alpha: { from: 0.15, to: 0.45 }, duration: 640, yoyo: true, repeat: -1, ease: "sine.inOut" });
+        hazStart = -1;
       };
       for (let x = 0; x < this.def.cols; x++) {
         const c = g[y][x];
+        if (c !== "^") flushHaz(x);
         if (c === "#") {
           if (runStart < 0) runStart = x;
           continue;
@@ -245,10 +264,18 @@ export default class GameScene extends Phaser.Scene {
         } else if (c === "^") {
           this.add.image(x * TILE + 24, y * TILE + 24, "hazard").setDepth(DEPTH.terrain);
           this.hazardZones.push(new Phaser.Geom.Rectangle(x * TILE + 2, y * TILE + 26, TILE - 4, TILE - 26));
+          if (hazStart < 0) hazStart = x;
         } else if (c === "~") {
           const img = this.phaseWalls.create(x * TILE + 24, y * TILE + 24, "phasewall");
           img.setDepth(DEPTH.terrain);
           this.tweens.add({ targets: img, alpha: { from: 0.55, to: 0.95 }, duration: 900, yoyo: true, repeat: -1 });
+          // second drifting inner pattern; tilePositionY scrolled by shared counter
+          const flow = this.add
+            .tileSprite(x * TILE + 24, y * TILE + 24, TILE, TILE, "phaseflow")
+            .setDepth(DEPTH.terrain + 1)
+            .setBlendMode(Phaser.BlendModes.ADD)
+            .setAlpha(0.45);
+          this.phaseFlows.push(flow);
         } else if (c === "d") {
           // vent lip: blocks the top of the tile, leaving a crawl gap only Tiny fits
           const img = this.ducts.create(x * TILE + 24, y * TILE + 10, "duct");
@@ -256,6 +283,7 @@ export default class GameScene extends Phaser.Scene {
         }
       }
       flush(this.def.cols);
+      flushHaz(this.def.cols);
     }
   }
 
@@ -351,6 +379,12 @@ export default class GameScene extends Phaser.Scene {
           const img = this.bridgeGroup.create(e.x * TILE + 24 + i * TILE, e.y * TILE + 24, "bridgetile");
           img.setDepth(DEPTH.terrain).setAlpha(0.13);
           img.body.enable = false;
+          // slow shimmer while the bridge is still a ghost
+          this.tweens.add({
+            targets: img, alpha: { from: 0.09, to: 0.2 },
+            duration: 1400, yoyo: true, repeat: -1, ease: "sine.inOut",
+            delay: i * 120,
+          });
           tiles.push(img);
         }
         this.bridges.push({ id: e.id, tiles, needs: e.needs || {}, open: false });
@@ -912,6 +946,12 @@ export default class GameScene extends Phaser.Scene {
 
     this.beltSprites.forEach((b) => (b.tilePositionX += b.beltDir * 60 * dt));
 
+    // drifting phase-wall shimmer: one shared counter, applied to every overlay
+    if (this.phaseFlows.length) {
+      this.phaseFlow += dt * 22;
+      for (const pf of this.phaseFlows) pf.tilePositionY = this.phaseFlow;
+    }
+
     for (const p of this.players) {
       if (p.dead) continue;
       if (J(p.keys.act) || (p.keys.actAlt && J(p.keys.actAlt))) this.handleAction(p);
@@ -1114,6 +1154,7 @@ export default class GameScene extends Phaser.Scene {
         br.open = true;
         this.opened.add(br.id);
         br.tiles.forEach((t, i) => {
+          this.tweens.killTweensOf(t); // stop the ghost shimmer before solidifying
           this.tweens.add({ targets: t, alpha: 1, duration: 300, delay: i * 70 });
           this.time.delayedCall(i * 70, () => {
             t.body.enable = true;
