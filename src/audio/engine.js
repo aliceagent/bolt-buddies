@@ -15,10 +15,19 @@ const STORAGE_KEY = "bolt-buddies-audio-v1";
 // sit *under* the game), not the 0.7 sketched in the architecture diagram.
 const DEFAULTS = { music: 0.45, sfx: 0.8, muted: false };
 
+// Master ceiling (Sound Sprint S5): the unmuted masterGain sits at 0.8, not 1.0,
+// so the summed output keeps headroom below full scale even when many voices +
+// the music bed fire at once (e.g. stomp + squish×4 + music). Mute still drives
+// the master to 0; settings semantics (music/sfx/mute) are unchanged — this only
+// caps the final bus. A DynamicsCompressor sits after it as a brick-wall-ish
+// limiter safeguard so any residual peak can't hard-clip the destination.
+const MASTER = 0.8;
+
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
 let ctx = null;
 let masterGain = null;
+let limiter = null;
 let musicBus = null;
 let sfxBus = null;
 let ducked = false;
@@ -58,7 +67,7 @@ function saveSettings() {
 function applySettings() {
   if (!ctx) return;
   const t = ctx.currentTime;
-  masterGain.gain.setTargetAtTime(settings.muted ? 0 : 1, t, 0.008);
+  masterGain.gain.setTargetAtTime(settings.muted ? 0 : MASTER, t, 0.008);
   musicBus.gain.setTargetAtTime(settings.music * (ducked ? 0.7 : 1) * (pauseDucked ? 0.5 : 1), t, 0.02);
   sfxBus.gain.setTargetAtTime(settings.sfx, t, 0.02);
 }
@@ -70,11 +79,22 @@ export function initAudio() {
       masterGain = ctx.createGain();
       musicBus = ctx.createGain();
       sfxBus = ctx.createGain();
+      // Limiter safeguard: a fast-attack compressor with a hard-ish ratio just
+      // below 0 dBFS. It never colours normal levels (nothing crosses -3 dB in
+      // isolation); it only catches the rare moment when many voices sum past
+      // the ceiling, preventing sum-clipping.
+      limiter = ctx.createDynamicsCompressor();
+      limiter.threshold.value = -3;
+      limiter.knee.value = 0;
+      limiter.ratio.value = 20;
+      limiter.attack.value = 0.003;
+      limiter.release.value = 0.12;
       musicBus.connect(masterGain);
       sfxBus.connect(masterGain);
-      masterGain.connect(ctx.destination);
+      masterGain.connect(limiter);
+      limiter.connect(ctx.destination);
       // set gains immediately (no ramp) so the very first note is at the right level
-      masterGain.gain.value = settings.muted ? 0 : 1;
+      masterGain.gain.value = settings.muted ? 0 : MASTER;
       musicBus.gain.value = settings.music * (ducked ? 0.7 : 1) * (pauseDucked ? 0.5 : 1);
       sfxBus.gain.value = settings.sfx;
     } catch (e) {

@@ -8,7 +8,7 @@ import PauseScene from "./scenes/PauseScene.js";
 import SettingsScene from "./scenes/SettingsScene.js";
 import { engineState } from "./audio/engine.js";
 import { musicState } from "./audio/music.js";
-import { sfx, sfxCounts, resetSfxCounts, kobi } from "./audio/sfx.js";
+import { sfx, sfxCounts, resetSfxCounts, kobi, panForX, setListener } from "./audio/sfx.js";
 
 const game = new Phaser.Game({
   // ?canvas=1 forces the canvas renderer (the automated playtest uses it —
@@ -38,4 +38,6 @@ window.__BB = { game };
 window.__BB.audio = { engine: engineState, music: musicState };
 // sfx test surface (tools/playtest_audio.mjs): the voice library, the per-voice
 // play counter (rate-limiter check), a reset, and the mood router.
-window.__BB.audio.sfx = { voices: sfx, kobi, counts: sfxCounts, reset: resetSfxCounts };
+// panForX + setListener let the S5 audio test verify positional stereo panning
+// (±0.3 clamp) deterministically without needing a live camera.
+window.__BB.audio.sfx = { voices: sfx, kobi, counts: sfxCounts, reset: resetSfxCounts, panForX, setListener };

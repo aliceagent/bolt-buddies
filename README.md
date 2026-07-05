@@ -15,6 +15,32 @@ The full design document lives in [`GAME_DESIGN.md`](./GAME_DESIGN.md).
 
 The **Action** button is context-sensitive: equip a pedestal gadget, fire your skill (zip / stomp), pull a lever, or — next to your buddy — pick them up and throw them. Hold **jump** while throwing for a high toss.
 
+## Sound & music
+
+Every screen and level has its own **unique background track** — all of it
+synthesised live in WebAudio, zero audio files. A warm title theme, a quiet
+map-room groove in the hub, and a distinct chiptune/synthwave piece per level
+(bright and bouncy in 1-1, industrial in 1-2, a driving boss groove in 1-3,
+sneaky vents in 2-1, and so on), each a long, sectioned composition that never
+loops in an obvious 4-bar rut. On top of that, every action, device, enemy and
+reward has its own sound effect, positioned in the stereo field by where it
+happens on screen and fading with distance from the action.
+
+Controls & options:
+
+- **M** — mute / unmute, from anywhere (a small speaker-off icon shows while
+  muted).
+- **S** — open the **sound settings** page from the Title or Hub: separate
+  **music** and **SFX** volume sliders and a master mute, adjusted with the
+  arrow keys, saved to your browser.
+- **P** — pause mid-level; the pause menu also has a **Settings** shortcut, and
+  the music ducks softly while you're paused.
+
+Mix notes: music sits deliberately under the game (default music volume 0.45),
+the master output is capped at 0.8 with a limiter safeguard so nothing clips
+even when many sounds fire at once, and repeatable effects are rate-limited so
+crowds of enemies never turn into a wall of noise.
+
 ## Current state
 
 - ✅ Engine core: 2-player input, physics, shared camera with soft zoom, checkpoints & instant respawn
@@ -55,7 +81,11 @@ The repo works out of the box: framework **Vite**, build `npm run build`, output
 2. **World 2 mechanics suite** (`tools/playtest_w2.mjs`, 30 checks) — phase
    walls & escort, ducts, rollers, wardens, jets, fans, the throw finale.
    Runs chunked: each level in its own browser (see TESTKIT_ROADMAP.md).
-3. **Beat matrix** (`tools/beat/runner.mjs`, 12 runs) — plays every level of
+3. **Audio suite** (`tools/playtest_audio.mjs`, 29 checks) — asserts engine
+   STATE (not sound): autoplay-safety, per-scene/per-level music, jingles, the
+   1-3 tension layer, mute + the 0.8 master ceiling, settings persistence, the
+   pause overlay, the SFX rate-limiter, KOBI moods, and the ±0.3 stereo pan.
+4. **Beat matrix** (`tools/beat/runner.mjs`, 12 runs) — plays every level of
    Worlds 1-2 start-to-finish with real keyboard input only, in BOTH role
    assignments, proving each level is beatable like a human would play it.
 

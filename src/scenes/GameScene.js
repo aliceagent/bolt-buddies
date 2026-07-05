@@ -1295,37 +1295,40 @@ export default class GameScene extends Phaser.Scene {
   // gain is set each frame from the nearest emitter's proximity (silent when
   // off-screen). No per-frame node creation — setLoop just ramps a live gain.
   updateLoops() {
+    // track the x of the emitter that yields the loudest proximity so the loop's
+    // stereo pan can follow it (setLoop updates pan on its existing per-tick gain
+    // ramp — no per-frame nodes).
     if (this.beltSprites.length) {
-      let prox = 0;
+      let prox = 0, px = null;
       for (const p of this.players) {
         if (p.dead) continue;
         const c = this.tileAt(p.x, p.body.bottom + 6);
-        if ((c === "<" || c === ">") && p.grounded) prox = Math.max(prox, proximity(p.x, p.y));
+        if ((c === "<" || c === ">") && p.grounded) { const q = proximity(p.x, p.y); if (q > prox) { prox = q; px = p.x; } }
       }
-      setLoop("conveyor", prox);
+      setLoop("conveyor", prox, px);
     }
     if (this.rollers.length) {
-      let prox = 0;
-      for (const r of this.rollers) prox = Math.max(prox, proximity(r.img.x, r.img.y));
-      setLoop("motor", prox);
+      let prox = 0, px = null;
+      for (const r of this.rollers) { const q = proximity(r.img.x, r.img.y); if (q > prox) { prox = q; px = r.img.x; } }
+      setLoop("motor", prox, px);
     }
     if (this.jets.length) {
-      let prox = 0;
-      for (const j of this.jets) if (j.active) prox = Math.max(prox, proximity(j.x, j.topY + j.len / 2));
-      setLoop("hiss", prox);
+      let prox = 0, px = null;
+      for (const j of this.jets) if (j.active) { const q = proximity(j.x, j.topY + j.len / 2); if (q > prox) { prox = q; px = j.x; } }
+      setLoop("hiss", prox, px);
     }
     if (this.fans.length) {
-      let prox = 0;
+      let prox = 0, px = null;
       for (const f of this.fans) {
         const inCol = this.players.some((p) => !p.dead && !p.carriedBy && Phaser.Geom.Rectangle.Contains(f.zone, p.x, p.y));
-        if (inCol) prox = Math.max(prox, proximity(f.zone.centerX, f.zone.centerY));
+        if (inCol) { const q = proximity(f.zone.centerX, f.zone.centerY); if (q > prox) { prox = q; px = f.zone.centerX; } }
       }
-      setLoop("fan", prox);
+      setLoop("fan", prox, px);
     }
     if (this.lifts.length) {
-      let prox = 0;
-      for (const lf of this.lifts) if (Math.abs(lf.img.body.velocity.y) > 1) prox = Math.max(prox, proximity(lf.img.x, lf.img.y));
-      setLoop("lift", prox);
+      let prox = 0, px = null;
+      for (const lf of this.lifts) if (Math.abs(lf.img.body.velocity.y) > 1) { const q = proximity(lf.img.x, lf.img.y); if (q > prox) { prox = q; px = lf.img.x; } }
+      setLoop("lift", prox, px);
     }
   }
 

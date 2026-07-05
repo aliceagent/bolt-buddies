@@ -49,7 +49,8 @@ const hasSurface = await scene(() => !!(window.__BB.audio && window.__BB.audio.e
 check("__BB.audio test surface exists", hasSurface);
 const a1 = await audio();
 check("AudioContext running after keypress", a1.state === "running", `state=${a1.state}`);
-check("masterGain up (unmuted) after keypress", a1.muted === false && a1.masterGain > 0.9, `muted=${a1.muted} master=${a1.masterGain}`);
+// S5: the unmuted master sits at the 0.8 ceiling (headroom), not 1.0.
+check("masterGain up to the 0.8 ceiling (unmuted) after keypress", a1.muted === false && a1.masterGain > 0.7 && a1.masterGain < 0.85, `muted=${a1.muted} master=${a1.masterGain}`);
 
 // title proof track requested + playing
 const m1 = await scene(() => window.__BB.audio.music);
@@ -66,7 +67,7 @@ await tap("KeyM");
 await page.waitForTimeout(220);
 const a3 = await audio();
 check("M unmutes: muted=false", a3.muted === false, `muted=${a3.muted}`);
-check("M unmutes: masterGain restored", a3.masterGain > 0.9, `master=${a3.masterGain}`);
+check("M unmutes: masterGain restored to 0.8 ceiling", a3.masterGain > 0.7 && a3.masterGain < 0.85, `master=${a3.masterGain}`);
 
 // --- section-advance: the loop pointer must move over time (title still up) ----
 const s0 = await scene(() => window.__BB.audio.music);
@@ -151,6 +152,30 @@ check(
   "KOBI mood router: angry/defeated tags hit the right voice",
   moodCounts.angry === 1 && moodCounts.defeated === 2 && moodCounts.gloating === 0,
   JSON.stringify(moodCounts)
+);
+
+// --- S5: positional stereo pan clamps to ±0.3 --------------------------------
+// Deterministic: plant a listener at x=0 with a 640px half-width, then check the
+// pan mapping. Off-screen-far saturates at the ±0.3 ceiling; centre is 0.
+const panVals = await scene(() => {
+  const s = window.__BB.audio.sfx;
+  s.setListener(0, 0, 640, 360);
+  return {
+    center: s.panForX(0),
+    right: s.panForX(320),
+    farRight: s.panForX(99999),
+    farLeft: s.panForX(-99999),
+    nullX: s.panForX(null),
+  };
+});
+check(
+  "S5 stereo pan: clamps to ±0.3, centre 0, null centred",
+  Math.abs(panVals.center) < 1e-6 &&
+    Math.abs(panVals.right - 0.15) < 1e-6 &&
+    Math.abs(panVals.farRight - 0.3) < 1e-6 &&
+    Math.abs(panVals.farLeft + 0.3) < 1e-6 &&
+    Math.abs(panVals.nullX) < 1e-6,
+  JSON.stringify(panVals)
 );
 
 // --- check 5: Settings — open with S from title, arrow-adjust music volume,   -
