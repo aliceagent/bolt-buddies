@@ -552,8 +552,11 @@ the untouched 12-run matrix. `npm run test:beat:full` = `runner.mjs --full`.
   out-scores the anchor), then zip anchor (56,6) from LOS-stance x53. core0
   (20,16): FINDING (FL-T3-B).
 - **1-3** — core0 (6,9) & core1 (39,9): G zips each above-ledge anchor from its
-  LOS-stance (x3 / x36). core2 (43,5): reached by dropping from the top floor
-  back onto ledge3 and hugging its left lip, then re-ascending — see status.
+  LOS-stance (x3 / x36; core1 then drops off the ledge's LEFT edge to avoid the
+  arena/tower divider). core2 (43,5): after the tower climb, G drops from the
+  top floor's left edge onto ledge3 (a full LEFT hold clears the col47 gap),
+  hugs the left lip so the 42px collect radius reaches the core, then re-ascends
+  via the base's UP+ACTION zip to anchor (47,1) from stance x46.3. All 3 cores.
 - **2-1** — core0 (43,12): Tiny hops up into the tunnel-end vent pocket. core1
   (39,7) & core2 (46,9): AUTO-collected by the base traversal.
 - **2-2** — core0 (14,2): Tiny re-rides the fan to its top (past the base

@@ -189,20 +189,23 @@ export const coreSteps = [
           // ledge3 (right lip); hugging the left lip (x44) brings the 42px collect
           // radius over the core. Then re-ascend with the base's top-floor zip.
           let onLedge3 = false;
-          for (let att = 0; att < 4 && !onLedge3; att++) {
+          for (let att = 0; att < 3 && !onLedge3; att++) {
             const g0 = (await bb.state()).players[gi];
-            if (g0.ty > 6.8) {
-              // not on the top floor (a prior attempt fell) — cannot re-climb
-              // here; bail so the failure is reported precisely.
-              break;
-            }
-            await bb.walkTo("G", 48.2, { tol: 6, timeout: 6000 }).catch(() => {});
+            if (g0.ty > 6.8) break; // fell off the top floor already — can't re-climb here
+            await bb.walkTo("G", 48.5, { tol: 6, timeout: 6000 }).catch(() => {});
+            // hold LEFT off the top-floor edge: the fall drifts G ~1.6 tiles left,
+            // clearing the col47 gap to land mid-ledge3 (44-46,r6). Release the
+            // instant it lands so it doesn't walk off the left lip into the shaft.
             await bb.down(kG.left);
-            await bb.page.waitForTimeout(190); // gentle: low speed lands near ledge3's right lip
+            const end = Date.now() + 1600;
+            while (Date.now() < end) {
+              const g = (await bb.state()).players[gi];
+              if (g.grounded && g.ty > 5.2 && g.ty < 7 && g.tx > 43.6 && g.tx < 46.6) { onLedge3 = true; break; }
+              if (g.ty > 8) break; // overshot into the shaft/arena
+              await bb.page.waitForTimeout(20);
+            }
             await bb.up(kG.left);
-            await bb.waitFor((s) => s.players[gi].grounded, 2500, "G settled").catch(() => {});
-            const G = (await bb.state()).players[gi];
-            if (G.ty > 5.4 && G.ty < 6.8 && G.tx >= 43.5 && G.tx <= 46.6) onLedge3 = true;
+            await bb.page.waitForTimeout(150);
           }
           if (!onLedge3) throw new Error("core2: G could not settle on ledge3 (tower geometry)");
           // hug the left lip; nudge left until the core registers
@@ -214,10 +217,22 @@ export const coreSteps = [
             await bb.page.waitForTimeout(150);
           }
           await bb.waitFor((s) => s.coresGot[2], 3000, "core2 collected");
-          // re-ascend to the top floor: UP+ACTION zip to anchor (47,1), drift right
-          await bb.zipTo("G", { up: true });
-          await bb.zipRelease("G", "right");
-          await bb.waitFor((s) => s.players[gi].ty < 4 && s.players[gi].grounded, 6000, "G back on the top floor").catch(() => {});
+          // re-ascend to the top floor exactly like the base tower's last rung:
+          // shuffle RIGHT to ledge3's stance (~x46.3) first — from the left lip
+          // (x44) anchor (47,1) is >130px away and UP+ACTION won't select it —
+          // then UP+ACTION zip to (47,1) and drift right onto the slab.
+          let up = false;
+          for (let att = 0; att < 3 && !up; att++) {
+            await bb.walkTo("G", 46.3, { tol: 5, timeout: 4000 }).catch(() => {});
+            await bb.waitFor((s) => s.players[gi].grounded && !s.players[gi].zip, 1500, "G settled on ledge3").catch(() => {});
+            try {
+              await bb.zipTo("G", { up: true });
+              await bb.zipRelease("G", "right");
+            } catch { continue; }
+            up = await bb.waitFor((s) => s.players[gi].ty < 4 && s.players[gi].grounded, 5000, "G back on the top floor")
+              .then(() => true).catch(() => false);
+          }
+          if (!up) throw new Error("core2: G could not re-ascend to the top floor");
         },
       },
     ],
