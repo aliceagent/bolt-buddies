@@ -193,6 +193,65 @@ export default class GameScene extends Phaser.Scene {
     }
     this._ghostHead = 0;
 
+    // --- Sprint 8 game-feel FX pools (all created here, never per frame) ------
+    // additive zoom offset consumed + decayed inside updateCamera; NEVER alters
+    // camPos.zoom (world coords the beat kit + audio listener read stay exact).
+    this.zoomKick = 0;
+
+    // speed-line streaks flicked backward while a grappler zips
+    this.zipLines = this.add.particles(0, 0, "streak", {
+      speed: { min: 140, max: 300 }, scale: { start: 1, end: 0 },
+      lifespan: 240, alpha: { start: 0.8, end: 0 },
+      blendMode: Phaser.BlendModes.ADD, emitting: false, rotate: { min: 0, max: 360 },
+    }).setDepth(DEPTH.rope - 1);
+
+    // small hook head parked at the far end of each player's rope
+    this.hooks = this.players.map(() =>
+      this.add.image(0, 0, "hookhead").setDepth(DEPTH.rope + 1).setVisible(false));
+
+    // radial star burst when a data-core is collected (pre-coloured star texture)
+    this.starBurst = this.add.particles(0, 0, "star", {
+      speed: { min: 90, max: 240 }, scale: { start: 1, end: 0 },
+      lifespan: 480, rotate: { start: 0, end: 200 },
+      blendMode: Phaser.BlendModes.ADD, emitting: false,
+    }).setDepth(DEPTH.fx);
+
+    // bolt/gear debris flung on death
+    this.bolts = this.add.particles(0, 0, "bolt", {
+      speed: { min: 80, max: 240 }, angle: { min: 200, max: 340 },
+      scale: { start: 1, end: 0.4 }, rotate: { start: 0, end: 360 },
+      lifespan: 620, gravityY: 700, emitting: false,
+    }).setDepth(DEPTH.fx);
+
+    // steam-jet drip droplets seeping from active nozzles
+    this.jetDrips = this.add.particles(0, 0, "drip", {
+      speedX: { min: -14, max: 14 }, speedY: { min: 20, max: 60 },
+      scale: { start: 1, end: 0.3 }, lifespan: 520, gravityY: 500,
+      alpha: { start: 0.85, end: 0 }, emitting: false,
+    }).setDepth(DEPTH.fx - 1);
+
+    // single reusable stomp shockwave ring (separate from the crane slamRing)
+    this.stompRing = this.add.image(0, 0, "shockring").setDepth(DEPTH.fx - 1)
+      .setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
+
+    // pooled respawn beam columns + phase-cross ripple rings (2 each is plenty)
+    this.respawnBeams = [];
+    for (let i = 0; i < 2; i++) {
+      this.respawnBeams.push(this.add.image(0, 0, "beamcol").setOrigin(0.5, 1)
+        .setDepth(DEPTH.player - 1).setBlendMode(Phaser.BlendModes.ADD).setVisible(false));
+    }
+    this._beamHead = 0;
+    this.phaseRipples = [];
+    for (let i = 0; i < 2; i++) {
+      this.phaseRipples.push(this.add.image(0, 0, "ring").setDepth(DEPTH.fx)
+        .setBlendMode(Phaser.BlendModes.ADD).setVisible(false));
+    }
+    this._rippleHead = 0;
+
+    // reusable point buffer for the catenary rope (mutated in place, no alloc)
+    this._ropePts = [];
+    for (let i = 0; i <= 10; i++) this._ropePts.push(new Phaser.Geom.Point(0, 0));
+
     // M mutes from in-game too; the visible corner icon is drawn by the UI
     // overlay (unzoomed), so this scene only wires the key.
     installMute(this, { icon: false });
@@ -659,7 +718,10 @@ export default class GameScene extends Phaser.Scene {
           scale: { start: 0.5, end: 0 }, lifespan: { min: 400, max: 900 },
           quantity: 1, frequency: 90, tint: 0x59ff9c, alpha: 0.5,
         }).setDepth(DEPTH.fx);
-        this.fans.push({ zone, puffs });
+        // soft updraft column whose alpha gently wobbles (see updateWorld2)
+        const col = this.add.rectangle(zone.centerX, zone.centerY, zone.width, zone.height, 0x59ff9c, 0.09)
+          .setBlendMode(Phaser.BlendModes.ADD).setDepth(DEPTH.fx - 3);
+        this.fans.push({ zone, puffs, col });
         break;
       }
       case "crane": {
@@ -848,6 +910,8 @@ export default class GameScene extends Phaser.Scene {
     }
     q.pickupCd = 450;
     p.pickupCd = 450;
+    this.dust.emitParticleAt(q.x, q.y + 8, 6); // small poof at release
+    q._landDust = true; // landing dust kicks up when the thrown buddy touches down
     if (highToss) sfx.tossHigh();
     else sfx.throwIt();
   }
@@ -933,6 +997,18 @@ export default class GameScene extends Phaser.Scene {
     sfx.stomp(fx, fy);
     this.cameras.main.shake(strong ? 160 : 90, strong ? 0.005 : 0.002);
     this.boom.explode(strong ? 20 : 10, fx, fy);
+    // expanding shockwave ring + floor dust burst + a brief zoom-punch
+    const ring = this.stompRing;
+    this.tweens.killTweensOf(ring);
+    ring.setVisible(true).setPosition(fx, fy).setAlpha(0.9)
+      .setScale(strong ? 0.28 : 0.2);
+    this.tweens.add({
+      targets: ring, scale: strong ? 2.4 : 1.6, alpha: 0,
+      duration: strong ? 420 : 320, ease: "cubic.out",
+      onComplete: () => ring.setVisible(false),
+    });
+    this.dust.emitParticleAt(fx, fy, strong ? 16 : 10);
+    this.zoomKick = Math.min(0.03, this.zoomKick + 0.03); // consumed in updateCamera
     this.crackies.children.each((tile) => {
       if (!tile.active) return;
       if (Math.hypot(tile.x - fx, tile.y - fy) < radius + 30) {
@@ -1166,6 +1242,7 @@ export default class GameScene extends Phaser.Scene {
     p.setVisible(false);
     sfx.die(p.x, p.y);
     this.boom.explode(16, p.x, p.y);
+    this.bolts.explode(8, p.x, p.y); // + a few bolt/gear shards
     this.time.delayedCall(900, () => {
       const cp = this.cpPos[p.idx];
       p.body.reset(cp.x, cp.y - 8); // slight lift so a big body never spawns embedded
@@ -1176,6 +1253,38 @@ export default class GameScene extends Phaser.Scene {
       p.invuln = 1500;
       p.wasGround = false;
       sfx.respawn(); // beam back in
+      this.respawnFx(cp.x, cp.y, p); // beam-in column + materialize blink
+    });
+  }
+
+  // Beam-in column that scales down onto the checkpoint + a materialize blink on
+  // the robot. Uses pooled beam images; the blink rides p.alpha during invuln
+  // (update() only forces alpha once invuln clears, so it never fights the tween).
+  respawnFx(x, y, p) {
+    const beam = this.respawnBeams[this._beamHead];
+    this._beamHead = (this._beamHead + 1) % this.respawnBeams.length;
+    this.tweens.killTweensOf(beam);
+    beam.setVisible(true).setPosition(x, y + 22).setAlpha(0.9)
+      .setScale(0.5, 1.4);
+    this.tweens.add({
+      targets: beam, scaleX: 0.15, scaleY: 0.2, alpha: 0,
+      duration: 380, ease: "cubic.in",
+      onComplete: () => beam.setVisible(false),
+    });
+    p.setAlpha(0.15);
+    this.tweens.add({ targets: p, alpha: 1, duration: 90, yoyo: true, repeat: 3,
+      onComplete: () => p.setAlpha(1) });
+  }
+
+  // A brief expanding ripple ring where a robot crosses a phase-wall boundary.
+  phaseRipple(x, y) {
+    const r = this.phaseRipples[this._rippleHead];
+    this._rippleHead = (this._rippleHead + 1) % this.phaseRipples.length;
+    this.tweens.killTweensOf(r);
+    r.setVisible(true).setPosition(x, y).setAlpha(0.7).setScale(0.25);
+    this.tweens.add({
+      targets: r, scale: 1.5, alpha: 0, duration: 420, ease: "cubic.out",
+      onComplete: () => r.setVisible(false),
     });
   }
 
@@ -1271,8 +1380,17 @@ export default class GameScene extends Phaser.Scene {
       // ghost shimmer while inside a phase-wall
       const wasInWall = p.inPhaseWall;
       p.inPhaseWall = this.tileAt(p.x, p.y) === "~";
-      if (p.inPhaseWall && !wasInWall) sfx.phaseIn();
-      else if (!p.inPhaseWall && wasInWall) sfx.phaseOut();
+      if (p.inPhaseWall !== wasInWall) {
+        this.phaseRipple(p.x, p.y); // brief ripple ring at the crossing point
+        if (p.inPhaseWall) sfx.phaseIn();
+        else sfx.phaseOut();
+      }
+
+      // landing dust for a freshly-thrown buddy the moment it touches down
+      if (p._landDust && p.grounded) {
+        this.dust.emitParticleAt(p.x, p.body.bottom, 8);
+        p._landDust = false;
+      }
       // phase ghost: alpha shimmer + a faint afterimage trail while phasing
       if (p.invuln <= 0) p.setAlpha(p.inPhaseWall ? 0.42 + 0.16 * Math.sin(time / 55) : 1);
       p.ghostCd -= delta;
@@ -1317,11 +1435,19 @@ export default class GameScene extends Phaser.Scene {
         if (c.active && Math.hypot(c.x - p.x, c.y - p.y) < 42) {
           this.coresGot[c.coreIndex] = true;
           this.boom.explode(10, c.x, c.y);
+          this.starBurst.explode(9, c.x, c.y); // radial star burst
           sfx.core();
           // bonus fanfare the moment the third core of the level is collected
           if (this.coresGot.every(Boolean)) this.time.delayedCall(220, () => sfx.coresFanfare());
+          this.game.events.emit("bb:cores", this.coresGot); // state authority (pip)
+          // a star flies to the HUD pip: hand UIScene the world->screen coords
+          const cam = this.cameras.main;
+          this.game.events.emit("bb:coreFly", {
+            x: (c.x - cam.worldView.x) * cam.zoom,
+            y: (c.y - cam.worldView.y) * cam.zoom,
+            index: c.coreIndex,
+          });
           c.destroy();
-          this.game.events.emit("bb:cores", this.coresGot);
         }
       });
       this.keyItems.forEach((k) => {
@@ -1459,7 +1585,10 @@ export default class GameScene extends Phaser.Scene {
         this.opened.add(d.id);
         d.img.body.enable = false;
         if (d.lamp) d.lamp.setTexture("lamp_green"); // lamp flips green on open
-        this.dust.emitParticleAt(d.zone.centerX, d.baseY + d.h / 2 - 4, 8); // dust puff at the floor
+        // dust jets venting from both sides of the frame at the floor
+        const fy = d.baseY + d.h / 2 - 4;
+        this.dust.emitParticleAt(d.zone.centerX - TILE * 0.4, fy, 6);
+        this.dust.emitParticleAt(d.zone.centerX + TILE * 0.4, fy, 6);
         if (d.isExit) sfx.exitDoor(d.zone.centerX, d.baseY);
         else sfx.door(d.zone.centerX, d.baseY);
         this.tweens.add({ targets: d.img, y: d.baseY - d.h + 10, duration: 600, ease: "sine.inOut" });
@@ -1645,23 +1774,32 @@ export default class GameScene extends Phaser.Scene {
     this.updateCrane(delta);
     this.updateWorld2(time, delta, dt);
 
-    // ropes
+    // ropes: slight catenary sag, a hook head at the far end, and speed-lines
+    // while the grappler is zipping. Reeling gets the same rope + pull dust.
     this.rope.clear();
+    this.hooks.forEach((h) => h.setVisible(false));
     for (const p of this.players) {
       if (p.zip) {
-        this.rope.lineStyle(3, p.idx === 0 ? COLORS.beep : COLORS.boop, 0.9);
-        this.rope.lineBetween(p.x, p.y - 8, p.zip.x, p.zip.y);
+        const col = p.idx === 0 ? COLORS.beep : COLORS.boop;
+        this.drawRope(p.x, p.y - 8, p.zip.x, p.zip.y, col, 0.9, p.zip.arrived ? 1 : 0.35);
+        this.placeHook(p.idx, p.zip.x, p.zip.y, p.x, p.y - 8);
+        if (!p.zip.arrived && (this._zipTick = (this._zipTick || 0) + 1) % 2 === 0) {
+          this.zipLines.emitParticleAt(p.x, p.y - 6, 1);
+        }
       }
       if (p.reeled) {
-        this.rope.lineStyle(3, p.reeled.idx === 0 ? COLORS.beep : COLORS.boop, 0.9);
-        this.rope.lineBetween(p.reeled.x, p.reeled.y - 8, p.x, p.y);
+        const col = p.reeled.idx === 0 ? COLORS.beep : COLORS.boop;
+        this.drawRope(p.reeled.x, p.reeled.y - 8, p.x, p.y, col, 0.9, 1);
+        this.placeHook(p.idx, p.x, p.y, p.reeled.x, p.reeled.y - 8);
+        if ((this._reelTick = (this._reelTick || 0) + 1) % 6 === 0) {
+          this.dust.emitParticleAt(p.x, p.body ? p.body.bottom : p.y + 20, 2);
+        }
       }
     }
     this.ropeFlashes = this.ropeFlashes.filter((f) => {
       f.t -= delta;
       if (f.t > 0) {
-        this.rope.lineStyle(3, 0xffffff, f.t / 200);
-        this.rope.lineBetween(f.x1, f.y1, f.x2, f.y2);
+        this.drawRope(f.x1, f.y1, f.x2, f.y2, 0xffffff, f.t / 200, 0.5);
         return true;
       }
       return false;
@@ -1845,8 +1983,22 @@ export default class GameScene extends Phaser.Scene {
       j.active = (time + j.offset) % j.period < j.on;
       j.gfx.clear();
       if (j.active) {
-        j.gfx.fillStyle(0xdfe8ff, 0.3 + 0.12 * Math.sin(time / 45));
-        j.gfx.fillRect(j.x - 9, j.topY, 18, j.len);
+        // soft-edge gradient plume: a wide faint halo + a bright core, both
+        // fading toward the tip, with a gentle alpha wobble.
+        const baseA = 0.34 + 0.1 * Math.sin(time / 45);
+        const segs = 6;
+        for (let s = 0; s < segs; s++) {
+          const ay = j.topY + (j.len * s) / segs;
+          const ah = j.len / segs + 1;
+          const fade = 1 - (s / segs) * 0.72;
+          j.gfx.fillStyle(0xcdd8ff, baseA * 0.42 * fade);
+          j.gfx.fillRect(j.x - 11, ay, 22, ah); // soft halo
+          j.gfx.fillStyle(0xeef4ff, baseA * fade);
+          j.gfx.fillRect(j.x - 5, ay, 10, ah);  // bright core
+        }
+        // drip droplets seeping from the nozzle, rate-limited per jet
+        j.dripCd = (j.dripCd || 0) - delta;
+        if (j.dripCd <= 0) { this.jetDrips.emitParticleAt(j.x, j.topY + 2, 1); j.dripCd = 200; }
         for (const p of this.players) {
           if (!p.dead && p.invuln <= 0 && Phaser.Geom.Rectangle.Overlaps(j.zone, bodyRect(p))) this.killPlayer(p);
         }
@@ -1854,6 +2006,7 @@ export default class GameScene extends Phaser.Scene {
     }
 
     for (const f of this.fans) {
+      if (f.col) f.col.setAlpha(0.06 + 0.05 * Math.sin(time / 130 + f.zone.x)); // column alpha wobble
       for (const p of this.players) {
         if (p.dead || p.carriedBy || p.zip) continue;
         if (Phaser.Geom.Rectangle.Overlaps(f.zone, bodyRect(p))) {
@@ -1911,6 +2064,31 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
+  // Draw a rope as a slightly sagging catenary (quadratic Bezier) into the shared
+  // rope Graphics, sampling the reusable point buffer (no per-frame allocation).
+  // sagScale scales the droop: ~1 slack, ~0.35 taut mid-zip.
+  drawRope(x1, y1, x2, y2, color, alpha, sagScale = 1) {
+    const dist = Math.hypot(x2 - x1, y2 - y1);
+    const sag = Phaser.Math.Clamp(dist * 0.13, 5, 42) * sagScale;
+    const mx = (x1 + x2) / 2;
+    const my = (y1 + y2) / 2 + sag; // control point pulled down by "gravity"
+    const pts = this._ropePts;
+    const n = pts.length - 1;
+    for (let i = 0; i <= n; i++) {
+      const t = i / n, u = 1 - t;
+      pts[i].x = u * u * x1 + 2 * u * t * mx + t * t * x2;
+      pts[i].y = u * u * y1 + 2 * u * t * my + t * t * y2;
+    }
+    this.rope.lineStyle(3, color, alpha);
+    this.rope.strokePoints(pts, false, false);
+  }
+
+  // Park a player's pooled hook head at the far rope end, angled along the rope.
+  placeHook(idx, hx, hy, fromX, fromY) {
+    this.hooks[idx].setVisible(true).setPosition(hx, hy)
+      .setRotation(Math.atan2(hy - fromY, hx - fromX) + Math.PI / 2);
+  }
+
   updateCamera(dt) {
     const cam = this.cameras.main;
     const alive = this.players.filter((p) => !p.dead);
@@ -1928,7 +2106,12 @@ export default class GameScene extends Phaser.Scene {
     this.camPos.x += (cx - this.camPos.x) * k;
     this.camPos.y += (cy - this.camPos.y) * k;
     this.camPos.zoom += (targetZoom - this.camPos.zoom) * k;
-    cam.setZoom(this.camPos.zoom);
+    // zoom-punch: a stomp adds a brief additive kick that decays to zero here.
+    // It only touches the RENDERED zoom — camPos.zoom (world coords the beat kit
+    // and the audio listener read) is never changed, so gameplay stays frozen.
+    if (this.zoomKick > 0.0005) this.zoomKick = Phaser.Math.Linear(this.zoomKick, 0, Math.min(1, dt * 16));
+    else this.zoomKick = 0;
+    cam.setZoom(this.camPos.zoom + this.zoomKick);
     cam.centerOn(this.camPos.x, this.camPos.y);
     // publish the camera midpoint + on-screen half-extents for proximity SFX
     setListener(this.camPos.x, this.camPos.y, this.scale.width / 2 / this.camPos.zoom, this.scale.height / 2 / this.camPos.zoom);

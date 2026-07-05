@@ -552,6 +552,43 @@ export default class BootScene extends Phaser.Scene {
       g.lineStyle(2, 0x8a5a10).strokeRect(3, 10, 20, 12);
     });
 
+    // --- Sprint 8 game-feel FX textures ------------------------------------
+    // Small hook head drawn at the far end of a grapple rope (claw + shaft).
+    make("hookhead", 16, 16, (g) => {
+      g.fillStyle(0xdfe8ff).fillRect(6, 1, 4, 7);        // shaft
+      g.lineStyle(3, 0xdfe8ff, 1);
+      g.beginPath();
+      g.arc(8, 10, 5, Math.PI * 0.1, Math.PI * 0.9, false); // claw curl
+      g.strokePath();
+      g.fillStyle(0xffffff).fillCircle(8, 8, 2.4);        // bright knuckle
+    });
+    // Short speed-line streak flicked off a zipping grappler (additive white).
+    make("streak", 16, 4, (g) => {
+      g.fillStyle(0xffffff, 0.9).fillRect(0, 1, 16, 2);
+      g.fillStyle(0xffffff, 0.5).fillRect(0, 0, 16, 4);
+    });
+    // Bolt/nut debris flung on death (small hex nut + glint).
+    make("bolt", 10, 10, (g) => {
+      const pts = [];
+      for (let i = 0; i < 6; i++) {
+        const a = (Math.PI / 3) * i;
+        pts.push({ x: 5 + Math.cos(a) * 4.5, y: 5 + Math.sin(a) * 4.5 });
+      }
+      g.fillStyle(0xc7d0e6).fillPoints(pts, true);
+      g.fillStyle(0x54607f).fillCircle(5, 5, 1.8);
+    });
+    // Vertical light column for the respawn beam-in (bright core, soft edges).
+    make("beamcol", 40, 160, (g) => {
+      g.fillStyle(0x9fe8ff, 0.16).fillRect(4, 0, 32, 160);
+      g.fillStyle(0xbfeeff, 0.28).fillRect(12, 0, 16, 160);
+      g.fillStyle(0xffffff, 0.55).fillRect(18, 0, 4, 160);
+    });
+    // Steam-jet drip droplet at the nozzle (soft blue-white teardrop).
+    make("drip", 6, 8, (g) => {
+      g.fillStyle(0xdfe8ff, 0.85).fillCircle(3, 5, 2.4);
+      g.fillStyle(0xffffff, 0.6).fillCircle(3, 4, 1.2);
+    });
+
     this.scene.start("Title");
   }
 }

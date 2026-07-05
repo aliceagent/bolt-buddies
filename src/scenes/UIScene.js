@@ -77,6 +77,14 @@ export default class UIScene extends Phaser.Scene {
     this.keyIcon = this.add.image(W / 2 + 68, 63, "key").setScale(0.6).setVisible(false);
     this.keyText = this.add.text(W / 2 + 82, 55, "", { fontFamily: FONT, fontSize: "15px", fontStyle: "bold", color: "#ffd94d" }).setVisible(false);
 
+    // pooled stars that fly from a collected core's screen position into its pip
+    this._flyHead = 0;
+    this.flyStars = [];
+    for (let i = 0; i < 4; i++) {
+      this.flyStars.push(this.add.image(0, 0, "star").setDepth(50)
+        .setBlendMode(Phaser.BlendModes.ADD).setVisible(false));
+    }
+
     // --- KOBI blip bar ---------------------------------------------------------
     this.buildBlipBar(W, H);
     this.blipQueue = [];
@@ -127,6 +135,27 @@ export default class UIScene extends Phaser.Scene {
         this.keyChip.setVisible(on);
         this.keyIcon.setVisible(on);
         this.keyText.setVisible(on).setText(on ? `x${n}` : "");
+      },
+      // a star flies from the core's world->screen position into its HUD pip,
+      // then pops the pip on arrival (bb:cores stays the fill authority).
+      coreFly: ({ x, y, index }) => {
+        const pip = this.corePips[index];
+        if (!pip) return;
+        const s = this.flyStars[this._flyHead];
+        this._flyHead = (this._flyHead + 1) % this.flyStars.length;
+        this.tweens.killTweensOf(s);
+        s.setVisible(true).setPosition(x, y).setScale(1.3).setAlpha(1);
+        this.tweens.add({
+          targets: s, x: pip.x, y: pip.y, scale: 0.4, alpha: 0.9,
+          duration: 460, ease: "cubic.in",
+          onComplete: () => {
+            s.setVisible(false);
+            if (this.coreState[index]) { // re-pop the pip as the star lands
+              pip.setScale(1.7);
+              this.tweens.add({ targets: pip, scale: 1, duration: 260, ease: "back.out" });
+            }
+          },
+        });
       },
       blip: (payload) => {
         const text = typeof payload === "string" ? payload : payload.text;
