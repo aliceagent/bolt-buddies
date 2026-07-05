@@ -22,9 +22,11 @@ const DEFAULT_LEVELS = ["1-1", "1-2", "1-3"];
 
 // Both role assignments. Roles are abstract (G=grapple, H=heavy); the runner maps
 // each to a player index. "A" = P1 takes the first (grapple) pedestal; "B" swaps.
+// W1 routes use G(rapple)/H(eavy); W2 routes use P(hase)/T(iny). Both alias
+// the same idea: the first-listed role takes the FIRST pedestal.
 const ASSIGNMENTS = [
-  { name: "A:P1=G", roles: { G: 0, H: 1 } },
-  { name: "B:P1=H", roles: { G: 1, H: 0 } },
+  { name: "A:P1=G", roles: { G: 0, H: 1, P: 0, T: 1 } },
+  { name: "B:P1=H", roles: { G: 1, H: 0, P: 1, T: 0 } },
 ];
 
 const levels = process.argv.slice(2).filter((a) => LEVEL_INDEX[a] !== undefined);

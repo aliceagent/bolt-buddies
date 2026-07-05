@@ -117,6 +117,12 @@ export class Driver {
         levers: s.levers.map((l) => ({ id: l.id, on: l.on })),
         bridges: s.bridges.map((b) => ({ id: b.id, open: b.open })),
         lifts: s.lifts.map((l) => ({ y: l.img.y, topY: l.topY, botY: l.botY })),
+        rollers: s.rollers.map((r) => ({
+          x: r.img.x, tx: r.img.x / T, dir: r.dir, state: r.state,
+          beam: r.beamRect ? { x: r.beamRect.x, w: r.beamRect.width } : null,
+        })),
+        wardens: s.wardens.map((w) => ({ id: w.id, defeated: w.defeated, x: w.img.x, tx: w.img.x / T })),
+        jets: s.jets.map((j) => ({ tx: j.x / T, active: !!j.active, period: j.period, on: j.on })),
         crane: s.crane
           ? {
               state: s.crane.state, x: s.crane.body.x, y: s.crane.body.y,
@@ -201,6 +207,23 @@ export class Driver {
     let lastHopAt = 0;
     let lastX = null;
     let stallSince = 0;
+    let hopN = 0;
+    // Two mount techniques, alternated: (0) jump while holding the direction —
+    // fine for lips and lone 2-tile ledges; (1) standing jump, then drift in at
+    // the apex — the only way up staircases of 2-tile risers with 1-tile treads
+    // (holding the direction pins the jumper into the NEXT riser mid-air).
+    const hop = async (dirKey) => {
+      if (hopN++ % 2 === 0) {
+        await this.tap(k.jump, hopHold);
+      } else {
+        await this.up(dirKey);
+        await this.down(k.jump);
+        await sleep(150);
+        await this.down(dirKey);
+        await sleep(Math.max(0, hopHold - 150));
+        await this.up(k.jump);
+      }
+    };
     while (now() < end) {
       const st = await this.state();
       if (st.complete) { // level finished mid-walk (physics paused); nothing more to do
@@ -234,7 +257,7 @@ export class Driver {
       if (pressing) {
         if (!blockedSince) blockedSince = t;
         if (t - blockedSince > 150 && t - lastHopAt > 500) {
-          await this.tap(k.jump, hopHold);
+          await hop(dirKey);
           lastHopAt = t;
           blockedSince = 0;
         }
@@ -246,7 +269,7 @@ export class Driver {
       if (lastX !== null && Math.abs(p.x - lastX) < 1.2) {
         if (!stallSince) stallSince = t;
         else if (t - stallSince > 400 && t - lastHopAt > 500) {
-          await this.tap(k.jump, hopHold);
+          await hop(dirKey);
           lastHopAt = t;
           stallSince = 0;
         }
@@ -526,6 +549,86 @@ export class Driver {
       this.log(`reelPartner ${role} attempt ${attempt + 1} didn't take; retrying`);
       await sleep(300);
     }
+  }
+
+  // --- world 2 primitives ------------------------------------------------------
+
+  // Walk two robots to targetTile together, keeping them inside hand-holding
+  // range (< 78px) so the shimmer-wall escort collider lets the buddy through.
+  // The buddy always presses toward the target (it just stalls at a wall when
+  // alone); the escorter throttles when it gets more than a hand-hold ahead.
+  async escortTogether(escorterRole, buddyRole, targetTile, opts = {}) {
+    const ei = this.idx(escorterRole);
+    const bi = this.idx(buddyRole);
+    const ke = this.keysFor(escorterRole);
+    const kb = this.keysFor(buddyRole);
+    const targetX = targetTile * TILE + 24;
+    const timeout = opts.timeout ?? 25000;
+    const tol = opts.tol ?? 16;
+    const gap = opts.gap ?? 56;
+    this.log(`escortTogether ${escorterRole}+${buddyRole} -> tile ${targetTile}`);
+    const end = now() + timeout;
+    const rel = async () => {
+      for (const k of [ke.left, ke.right, kb.left, kb.right]) await this.up(k);
+    };
+    while (now() < end) {
+      const st = await this.state();
+      const E = st.players[ei];
+      const B = st.players[bi];
+      if (E.dead || B.dead) {
+        await rel();
+        await this.awaitRespawn(E.dead ? escorterRole : buddyRole);
+        continue;
+      }
+      const eLeft = targetX - E.x;
+      const bLeft = targetX - B.x;
+      if (Math.abs(eLeft) <= tol && Math.abs(bLeft) <= tol) {
+        await rel();
+        await sleep(100);
+        return true;
+      }
+      const dirKey = (k, dx) => (dx > 0 ? k.right : k.left);
+      const offKey = (k, dx) => (dx > 0 ? k.left : k.right);
+      if (Math.abs(bLeft) > tol) {
+        await this.up(offKey(kb, bLeft));
+        await this.down(dirKey(kb, bLeft));
+      } else {
+        await this.up(kb.left);
+        await this.up(kb.right);
+      }
+      // escorter holds up if it's a hand-hold ahead of the buddy toward the target
+      const ahead = Math.abs(E.x - B.x) > gap && Math.abs(eLeft) < Math.abs(bLeft);
+      if (Math.abs(eLeft) > tol && !ahead) {
+        await this.up(offKey(ke, eLeft));
+        await this.down(dirKey(ke, eLeft));
+      } else {
+        await this.up(ke.left);
+        await this.up(ke.right);
+      }
+      await sleep(45);
+    }
+    await rel();
+    throw new BeatError(`escortTogether ${escorterRole}+${buddyRole}: timeout to tile ${targetTile}`);
+  }
+
+  // Wait until roller #idx can't catch a dash entered from `fromTile`'s side:
+  // patrolling (not alert) with its beam facing AWAY from that side.
+  async waitRollerSafe(idx, fromTile, opts = {}) {
+    const fromX = fromTile * TILE + 24;
+    this.log(`waitRollerSafe roller ${idx} (approach from tile ${fromTile})`);
+    await this.waitFor((s) => {
+      const r = s.rollers[idx];
+      return !!r && r.state === "patrol" && Math.sign(fromX - r.x) !== r.dir;
+    }, opts.timeout ?? 15000, `roller ${idx} safe`);
+  }
+
+  // Cross a timed steam jet: wait for a FRESH off-window (an active->inactive
+  // transition), then hurry to `toTile` (which must be past the jet).
+  async dashPastJet(role, jetIdx, toTile, opts = {}) {
+    this.log(`dashPastJet ${role} jet ${jetIdx} -> tile ${toTile}`);
+    await this.waitFor((s) => s.jets[jetIdx]?.active === true, opts.armTimeout ?? 8000, `jet ${jetIdx} on`).catch(() => {});
+    await this.waitFor((s) => s.jets[jetIdx]?.active === false, opts.timeout ?? 8000, `jet ${jetIdx} off`);
+    await this.walkTo(role, toTile, { tol: opts.tol ?? 10, timeout: opts.dashTimeout ?? 3000 });
   }
 
   // Read the x of the live bug nearest a given player index.

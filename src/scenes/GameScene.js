@@ -439,7 +439,10 @@ export default class GameScene extends Phaser.Scene {
             break;
           }
         }
-        const zone = new Phaser.Geom.Rectangle(e.x * TILE + 4, topRow * TILE, TILE - 8, (e.y - topRow) * TILE + 24);
+        // FL-008: zone must reach the FLOOR (e.y*TILE+48), not mid-tile (+24) —
+        // a standing Tiny's small body sits below +24, so walking into the fan
+        // did nothing; only falling through it (or jumping) caught the draft.
+        const zone = new Phaser.Geom.Rectangle(e.x * TILE + 4, topRow * TILE, TILE - 8, (e.y - topRow) * TILE + 48);
         const puffs = this.add.particles(px, py + 16, "px", {
           speedY: { min: -260, max: -160 }, speedX: { min: -20, max: 20 },
           scale: { start: 0.5, end: 0 }, lifespan: { min: 400, max: 900 },

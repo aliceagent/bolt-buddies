@@ -464,6 +464,24 @@ A red beat run is never just reported — it enters a fix loop until green:
   grappler), and reelPartner now fails fast if the grappler moves/zips
   instead of reeling.
 
+### FL-008 — Fan updraft can't catch a standing Tiny (2-2 walk-in)
+
+- **Triage class:** (a) gameplay bug, found by the first 2-2 beat route. The
+  fan zone's bottom edge was `e.y*TILE+24` (mid-tile) — but a standing Tiny's
+  small body tops out BELOW that line, so walking into the fan did nothing:
+  the route's Tiny stood in the column for 6s, grounded, unlifted (both
+  assignments). The W2 mechanics suite never caught it because its check
+  teleport-DROPS Tiny through the zone from above. Design intent (roadmap
+  2-2 walkthrough): "T walkTo 13.5 (fan column) → floats up" — a kid walking
+  Tiny in must lift, no jump required.
+- **Fix:** zone height `+24` → `+48` so the column reaches the floor. No
+  other fan behavior changes (top edge, tiny-only strength, breeze on others).
+- Kit hardening in the same pass: walkTo's auto-hop now ALTERNATES two mount
+  techniques — (0) jump-while-holding-direction (lips, lone ledges) and
+  (1) standing jump + apex drift-in, which is the only way up staircases of
+  2-tile risers with 1-tile treads (2-1/2-3 stair entries defeated the old
+  hop: the held direction pinned the jumper into the next riser mid-air).
+
 ## Maintenance rule (add to both other roadmaps' ground rules)
 
 From T2 onward, **every sprint (UI or sound) must leave the 12-run beat
