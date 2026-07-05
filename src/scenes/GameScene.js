@@ -143,6 +143,13 @@ export default class GameScene extends Phaser.Scene {
       gravityY: 600, emitting: false,
     }).setDepth(DEPTH.fx);
 
+    // pooled spark burst: lever flips & checkpoint activations flick sparks
+    this.sparks = this.add.particles(0, 0, "px", {
+      speed: { min: 120, max: 320 }, scale: { start: 0.7, end: 0 },
+      lifespan: 360, gravityY: 420, tint: 0xffd94d,
+      blendMode: Phaser.BlendModes.ADD, emitting: false,
+    }).setDepth(DEPTH.fx);
+
     // pooled run-dust: soft low puffs kicked up at the feet while running
     this.dust = this.add.particles(0, 0, "px", {
       speed: { min: 20, max: 70 }, angle: { min: 200, max: 340 },
@@ -330,28 +337,48 @@ export default class GameScene extends Phaser.Scene {
     const py = e.y * TILE + 24;
     switch (e.t) {
       case "pedestal": {
-        const img = this.add.image(px, py + 2, "pedestal").setDepth(DEPTH.entity);
         const info = SKILL_INFO[e.skill];
-        const icon = this.add.image(px, py - 34, `icon_${e.skill}`).setDepth(DEPTH.entity).setScale(1.2);
+        // holo-pillar: light beam rising from the base (additive, gentle pulse)
+        const beam = this.add.image(px, py - 52, "holobeam").setDepth(DEPTH.entity - 1)
+          .setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.2);
+        this.tweens.add({ targets: beam, alpha: { from: 0.12, to: 0.3 }, duration: 1200, yoyo: true, repeat: -1, ease: "sine.inOut" });
+        const img = this.add.image(px, py + 2, "pedestal").setDepth(DEPTH.entity);
+        // floating skill icon orbited by 2 sparkle particles (icon = container so
+        // handleAction's ped.icon.destroy() removes the sparkles too)
+        const iconImg = this.add.image(0, 0, `icon_${e.skill}`).setScale(1.2);
+        const orbit = this.add.container(0, 0);
+        orbit.add(this.add.image(15, 0, "px").setScale(0.6).setBlendMode(Phaser.BlendModes.ADD));
+        orbit.add(this.add.image(-15, 0, "px").setScale(0.6).setBlendMode(Phaser.BlendModes.ADD));
+        const icon = this.add.container(px, py - 34, [iconImg, orbit]).setDepth(DEPTH.entity);
         this.tweens.add({ targets: icon, y: py - 40, duration: 800, yoyo: true, repeat: -1, ease: "sine.inOut" });
+        this.tweens.add({ targets: orbit, angle: 360, duration: 1800, repeat: -1 });
         // stagger card heights so neighbouring pedestals' cards don't overlap
-        const cardY = py - 110 - this.pedestals.length * 92;
-        const card = this.add.text(px, cardY, `${info.name}\n${info.card}\n[ACTION to equip]`, {
-          fontFamily: FONT, fontSize: "13px", color: "#c6d2f2", align: "center",
-          backgroundColor: "#0a0f1eee", padding: { x: 8, y: 6 },
-        }).setOrigin(0.5).setDepth(DEPTH.fx);
-        this.pedestals.push({ x: px, y: py, skill: e.skill, taken: false, img, icon, card });
+        const cardY = py - 118 - this.pedestals.length * 96;
+        const ped = { x: px, y: py, skill: e.skill, taken: false, img, icon, beam };
+        this.buildItemCard(ped, px, cardY, info);
+        this.pedestals.push(ped);
         break;
       }
       case "anchor": {
+        // faint radius-hint circle, shown only while a grapple reticle targets it
+        const hint = this.add.graphics().setDepth(DEPTH.entity - 1).setVisible(false);
+        hint.lineStyle(2, COLORS.neon, 0.5).strokeCircle(px, py, 22);
+        hint.fillStyle(COLORS.neon, 0.06).fillCircle(px, py, 22);
         const img = this.add.image(px, py, "anchor").setDepth(DEPTH.entity);
         this.tweens.add({ targets: img, angle: 360, duration: 6000, repeat: -1 });
-        this.anchors.push({ x: px, y: py, img });
+        // inner slow pulse: a soft glow dot breathing at the hub
+        const pulse = this.add.image(px, py, "px").setDepth(DEPTH.entity)
+          .setScale(1.2).setBlendMode(Phaser.BlendModes.ADD);
+        this.tweens.add({ targets: pulse, scale: { from: 0.9, to: 2.2 }, alpha: { from: 0.7, to: 0.2 }, duration: 1100, yoyo: true, repeat: -1, ease: "sine.inOut" });
+        this.anchors.push({ x: px, y: py, img, hint, pulse });
         break;
       }
       case "lever": {
         const img = this.add.image(px, py + 4, "lever").setDepth(DEPTH.entity);
-        this.levers.push({ id: e.id, x: px, y: py, on: false, img });
+        // drawn handle, pivots at the base hub — a flip is a rotation tween
+        const handle = this.add.image(px, py + 8, "lever_handle")
+          .setOrigin(0.5, 1).setDepth(DEPTH.entity + 1).setAngle(-6);
+        this.levers.push({ id: e.id, x: px, y: py, on: false, img, handle });
         break;
       }
       case "plate": {
@@ -369,12 +396,26 @@ export default class GameScene extends Phaser.Scene {
         const h = (e.h || 3) * TILE;
         const cx = px;
         const cy = e.y * TILE + h / 2;
-        const img = this.doorGroup.create(cx, cy, "door");
+        const top = e.y * TILE;
+        const halfW = (TILE - 6) / 2;
+        // frame: side rails + top light-bar housing (static, behind the panel)
+        const frame = this.add.graphics().setDepth(DEPTH.entity - 1);
+        frame.fillStyle(0x161d30);
+        frame.fillRect(cx - halfW - 5, top, 5, h);
+        frame.fillRect(cx + halfW, top, 5, h);
+        frame.lineStyle(2, 0x2f4066);
+        frame.strokeRect(cx - halfW - 5, top, 5, h);
+        frame.strokeRect(cx + halfW, top, 5, h);
+        frame.fillStyle(0x2a3350).fillRect(cx - halfW - 5, top - 14, (halfW + 5) * 2, 12);
+        frame.lineStyle(1, 0x44548c).strokeRect(cx - halfW - 5, top - 14, (halfW + 5) * 2, 12);
+        const img = this.doorGroup.create(cx, cy, e.t === "exit" ? "door_exit" : "door");
         img.setDisplaySize(TILE - 6, h).refreshBody();
         img.setDepth(DEPTH.entity);
         if (e.t === "exit") img.setTint(0x77ffb0);
+        // status lamp on the light bar: red = closed, green = opening
+        const lamp = this.add.image(cx, top - 8, "lamp_red").setDepth(DEPTH.entity);
         const door = {
-          id: e.id || "exit", img, needs: e.needs || {}, latch: !!e.latch || e.t === "exit",
+          id: e.id || "exit", img, frame, lamp, needs: e.needs || {}, latch: !!e.latch || e.t === "exit",
           timer: e.timer || 0, closeAt: 0,
           open: false, isExit: e.t === "exit",
           zone: new Phaser.Geom.Rectangle(cx - TILE, e.y * TILE, TILE * 2, h),
@@ -383,9 +424,17 @@ export default class GameScene extends Phaser.Scene {
         this.doors.push(door);
         if (door.isExit) {
           this.exitDoor = door;
-          this.exitLabel = this.add.text(cx, e.y * TILE - 18, "EXIT", {
+          // EXIT light panel above the door with a soft glow pulse
+          const ly = top - 20;
+          const glow = this.add.image(cx, ly, "glowBlob").setDepth(DEPTH.entity - 1)
+            .setBlendMode(Phaser.BlendModes.ADD).setScale(0.5).setAlpha(0.3);
+          this.tweens.add({ targets: glow, alpha: { from: 0.16, to: 0.42 }, scale: { from: 0.46, to: 0.64 }, duration: 1100, yoyo: true, repeat: -1, ease: "sine.inOut" });
+          const panel = this.add.graphics().setDepth(DEPTH.entity);
+          panel.fillStyle(0x0a1f16, 0.95).fillRoundedRect(cx - 34, ly - 13, 68, 26, 7);
+          panel.lineStyle(2, COLORS.green).strokeRoundedRect(cx - 34, ly - 13, 68, 26, 7);
+          this.exitLabel = this.add.text(cx, ly, "EXIT", {
             fontFamily: FONT, fontSize: "14px", fontStyle: "bold", color: "#59ff9c",
-          }).setOrigin(0.5).setDepth(DEPTH.entity);
+          }).setOrigin(0.5).setDepth(DEPTH.entity + 1);
         }
         break;
       }
@@ -407,21 +456,41 @@ export default class GameScene extends Phaser.Scene {
         break;
       }
       case "key": {
-        const img = this.add.image(px, py, "key").setDepth(DEPTH.pickup);
-        this.tweens.add({ targets: img, y: py - 8, duration: 900, yoyo: true, repeat: -1, ease: "sine.inOut" });
-        this.keyItems.push(img);
+        const cont = this.add.container(px, py).setDepth(DEPTH.pickup);
+        const keyImg = this.add.image(0, 0, "key");
+        const glint = this.add.image(-2, 0, "glint").setAngle(28).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0);
+        cont.add([keyImg, glint]);
+        this.tweens.add({ targets: cont, y: py - 8, duration: 900, yoyo: true, repeat: -1, ease: "sine.inOut" });
+        // white diagonal glint sweeping across the key ~every 2s
+        this.tweens.add({
+          targets: glint, x: { from: -13, to: 13 }, alpha: { from: 0, to: 0.9 },
+          duration: 500, yoyo: true, repeat: -1, repeatDelay: 1200, ease: "sine.inOut",
+        });
+        this.keyItems.push(cont);
         break;
       }
       case "core": {
-        const img = this.add.image(px, py, "core").setDepth(DEPTH.pickup);
-        img.coreIndex = this.coreIdx++;
-        this.tweens.add({ targets: img, y: py - 8, angle: 8, duration: 1100, yoyo: true, repeat: -1, ease: "sine.inOut" });
-        this.coreItems.push(img);
+        const cont = this.add.container(px, py).setDepth(DEPTH.pickup);
+        cont.coreIndex = this.coreIdx++;
+        const glow = this.add.image(0, 0, "glowBlob").setScale(0.42).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.5);
+        const coreImg = this.add.image(0, 0, "core");
+        const orbit = this.add.container(0, 0);
+        orbit.add(this.add.image(14, 0, "px").setScale(0.7).setBlendMode(Phaser.BlendModes.ADD));
+        cont.add([glow, coreImg, orbit]);
+        this.tweens.add({ targets: cont, y: py - 8, duration: 1100, yoyo: true, repeat: -1, ease: "sine.inOut" }); // bob
+        this.tweens.add({ targets: coreImg, angle: 360, duration: 9000, repeat: -1 }); // slow spin
+        this.tweens.add({ targets: orbit, angle: 360, duration: 2200, repeat: -1 }); // orbiting sparkle
+        this.coreItems.push(cont);
         break;
       }
       case "checkpoint": {
-        const img = this.add.image(px, py - 9, "checkpoint").setDepth(DEPTH.entity).setAlpha(0.65);
-        this.checkpoints.push({ x: px, y: py, img, active: false });
+        const img = this.add.image(px, py - 9, "checkpoint").setDepth(DEPTH.entity).setAlpha(0.85);
+        // short light-cone fanning below the lamp, shown only while active
+        const cone = this.add.graphics().setDepth(DEPTH.entity - 1)
+          .setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
+        cone.fillStyle(COLORS.green, 0.16).fillTriangle(px, py - 30, px - 20, py + 8, px + 20, py + 8);
+        this.tweens.add({ targets: cone, alpha: { from: 0.55, to: 1 }, duration: 900, yoyo: true, repeat: -1, ease: "sine.inOut" });
+        this.checkpoints.push({ x: px, y: py, img, active: false, cone });
         break;
       }
       case "bug": {
@@ -446,16 +515,29 @@ export default class GameScene extends Phaser.Scene {
       }
       case "lift": {
         const w = e.w * TILE;
-        const img = this.add.tileSprite(e.x * TILE + w / 2, e.y * TILE + 10, w, 20, "liftplat").setDepth(DEPTH.entity);
+        const cx = e.x * TILE + w / 2;
+        const img = this.add.tileSprite(cx, e.y * TILE + 10, w, 20, "liftplat").setDepth(DEPTH.entity);
         this.physics.add.existing(img);
         img.body.setAllowGravity(false);
         img.body.setImmovable(true);
+        // weight requirement shown as N mini-robot pips that light as weight loads.
+        // `label` stays the container the lift loop's setAlpha(0/1) calls drive.
+        const N = e.threshold || 2;
+        const pips = [];
+        const spacing = 18;
+        const startX = -((N - 1) * spacing) / 2;
+        const label = this.add.container(cx, e.y * TILE + 34).setDepth(DEPTH.entity);
+        for (let i = 0; i < N; i++) {
+          const pip = this.add.image(startX + i * spacing, 0, "pip_off");
+          pips.push(pip);
+          label.add(pip);
+        }
+        // engine glow strip beneath the platform, lit while the lift is moving
+        const glow = this.add.image(cx, e.y * TILE + 22, "px").setDepth(DEPTH.entity - 1)
+          .setBlendMode(Phaser.BlendModes.ADD).setDisplaySize(w - 12, 9).setTint(0xffd9a0).setAlpha(0);
         const lift = {
           img, topY: e.toY * TILE + 10, botY: e.y * TILE + 10,
-          threshold: e.threshold || 2, holdTimer: 0,
-          label: this.add.text(e.x * TILE + w / 2, e.y * TILE + 34, `needs ${e.threshold} weight`, {
-            fontFamily: FONT, fontSize: "12px", color: "#8fa3d9",
-          }).setOrigin(0.5).setDepth(DEPTH.entity),
+          threshold: N, holdTimer: 0, label, pips, glow,
         };
         this.lifts.push(lift);
         break;
@@ -536,6 +618,40 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  // Item card: a proper panel — dark rounded body, skill-coloured title bar +
+  // border. Stored in pieces so `equipItemCard` can shrink it to a small tag.
+  buildItemCard(ped, x, cardY, info) {
+    const col = info.color;
+    const W = 236, H = 90, TB = 24;
+    const g = this.add.graphics();
+    g.fillStyle(0x0a0f1e, 0.96).fillRoundedRect(-W / 2, -H / 2, W, H, 10);
+    g.fillStyle(col, 0.9).fillRoundedRect(-W / 2, -H / 2, W, TB, { tl: 10, tr: 10, bl: 0, br: 0 });
+    g.lineStyle(2, col).strokeRoundedRect(-W / 2, -H / 2, W, H, 10);
+    const title = this.add.text(0, -H / 2 + 12, info.name, {
+      fontFamily: FONT, fontSize: "13px", fontStyle: "bold", color: "#0a0f1e",
+    }).setOrigin(0.5);
+    const body = this.add.text(0, 8, `${info.card}\n[ACTION to equip]`, {
+      fontFamily: FONT, fontSize: "12px", color: "#c6d2f2", align: "center",
+    }).setOrigin(0.5);
+    ped.card = this.add.container(x, cardY, [g, title, body]).setDepth(DEPTH.fx);
+    ped.cardG = g;
+    ped.cardTitle = title;
+    ped.cardBody = body;
+  }
+
+  // Once equipped the card shrinks to a compact skill tag (title only).
+  equipItemCard(ped) {
+    const col = SKILL_INFO[ped.skill].color;
+    ped.cardBody.destroy();
+    const W = 132, H = 30;
+    ped.cardG.clear();
+    ped.cardG.fillStyle(0x0a0f1e, 0.96).fillRoundedRect(-W / 2, -H / 2, W, H, 8);
+    ped.cardG.lineStyle(2, col).strokeRoundedRect(-W / 2, -H / 2, W, H, 8);
+    ped.cardTitle.setColor("#" + col.toString(16).padStart(6, "0")).setFontSize(12).setPosition(0, 0);
+    this.tweens.add({ targets: ped.card, scaleX: { from: 1.12, to: 1 }, scaleY: { from: 1.12, to: 1 }, duration: 260, ease: "back.out" });
+    this.time.delayedCall(6000, () => ped.card && ped.card.setAlpha(0.55));
+  }
+
   // --- actions ---------------------------------------------------------------
   handleAction(p) {
     if (this.actionHints && this.actionHints[p.idx]) {
@@ -552,8 +668,7 @@ export default class GameScene extends Phaser.Scene {
     if (ped) {
       ped.taken = true;
       ped.icon.destroy();
-      ped.card.setText(`${SKILL_INFO[ped.skill].name}\n${SKILL_INFO[ped.skill].hint}`);
-      this.time.delayedCall(6000, () => ped.card.setAlpha(0.35));
+      this.equipItemCard(ped);
       p.setSkill(ped.skill);
       sfx.equip();
       this.game.events.emit("bb:skill", { idx: p.idx, skill: ped.skill, name: SKILL_INFO[ped.skill].name });
@@ -676,8 +791,10 @@ export default class GameScene extends Phaser.Scene {
 
   pullLever(lev) {
     lev.on = true;
-    lev.img.setFlipX(true);
-    lev.img.setTint(0x9dffc4);
+    if (lev.handle) {
+      this.tweens.add({ targets: lev.handle, angle: 60, duration: 240, ease: "back.out" });
+      this.sparks.explode(10, lev.handle.x, lev.y - 22); // spark burst at the knob
+    }
     sfx.lever();
   }
 
@@ -685,7 +802,7 @@ export default class GameScene extends Phaser.Scene {
     const cands = [];
     for (const a of this.anchors) {
       if (p.zip && p.zip.arrived && Math.abs(p.zip.x - a.x) < 4 && Math.abs(p.zip.y - a.y - 44 + 44) < 50 && p.zip.y === a.y) continue;
-      cands.push({ kind: "anchor", x: a.x, y: a.y, bias: 60 });
+      cands.push({ kind: "anchor", x: a.x, y: a.y, obj: a, bias: 60 });
     }
     for (const l of this.levers) {
       if (!l.on && Math.abs(l.x - p.x) >= 54) cands.push({ kind: "lever", x: l.x, y: l.y, obj: l, bias: 40 });
@@ -1068,10 +1185,20 @@ export default class GameScene extends Phaser.Scene {
         if (!cp.active && Math.abs(cp.x - p.x) < 44 && Math.abs(cp.y - p.y) < 60) {
           this.checkpoints.forEach((o) => {
             o.active = false;
-            o.img.setAlpha(0.65).clearTint();
+            o.img.setTexture("checkpoint").setAlpha(0.85); // dim grey lamp
+            if (o.cone) o.cone.setVisible(false);
           });
           cp.active = true;
-          cp.img.setAlpha(1).setTint(0x9dffc4);
+          cp.img.setTexture("checkpoint_on").setAlpha(1); // green lamp
+          if (cp.cone) cp.cone.setVisible(true); // light-cone below
+          // expanding ring burst on activation
+          const ring = this.add.image(cp.x, cp.y - 31, "ring").setDepth(DEPTH.fx)
+            .setBlendMode(Phaser.BlendModes.ADD);
+          this.tweens.add({
+            targets: ring, scale: { from: 0.3, to: 2.6 }, alpha: { from: 0.85, to: 0 },
+            duration: 520, ease: "cubic.out", onComplete: () => ring.destroy(),
+          });
+          this.sparks.explode(8, cp.x, cp.y - 31);
           sfx.checkpoint();
           this.cpPos = this.players.map((_, i) => ({ x: cp.x - 14 + i * 28, y: cp.y - 10 }));
         }
@@ -1108,6 +1235,8 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // grapple reticles
+    // hide every anchor radius-hint; re-show only the one currently targeted
+    for (const a of this.anchors) if (a.hint) a.hint.setVisible(false);
     this.players.forEach((p, i) => {
       const ret = this.reticles[i];
       if (p.skill === "grapple" && !p.dead && !p.carrying && !p.carriedBy) {
@@ -1116,6 +1245,7 @@ export default class GameScene extends Phaser.Scene {
           ret.setVisible(true).setPosition(tgt.x, tgt.y);
           ret.setTint(p.idx === 0 ? COLORS.beep : COLORS.boop);
           ret.setAlpha(0.55 + 0.35 * Math.sin(time / 150));
+          if (tgt.kind === "anchor" && tgt.obj && tgt.obj.hint) tgt.obj.hint.setVisible(true);
           return;
         }
       }
@@ -1133,14 +1263,11 @@ export default class GameScene extends Phaser.Scene {
       const active = weight >= pl.threshold;
       if (active !== pl.active) {
         pl.active = active;
+        // LED strip lights (accent) via texture swap — setTint no-ops on Canvas
+        pl.img.setTexture(active ? "plate_on" : "plate");
         pl.img.scaleY = pl.baseScaleY * (active ? 0.45 : 1);
-        if (active) {
-          pl.img.setTint(0xccffcc);
-          sfx.platePress(pl.rect.centerX, pl.rect.centerY);
-        } else {
-          pl.img.clearTint();
-          sfx.plateRelease(pl.rect.centerX, pl.rect.centerY);
-        }
+        if (active) sfx.platePress(pl.rect.centerX, pl.rect.centerY);
+        else sfx.plateRelease(pl.rect.centerX, pl.rect.centerY);
       }
     }
 
@@ -1152,8 +1279,7 @@ export default class GameScene extends Phaser.Scene {
           const l = this.levers.find((v) => v.id === id);
           if (l && l.on) {
             l.on = false;
-            l.img.setFlipX(false);
-            l.img.clearTint();
+            if (l.handle) this.tweens.add({ targets: l.handle, angle: -6, duration: 200 });
           }
         });
       }
@@ -1181,6 +1307,8 @@ export default class GameScene extends Phaser.Scene {
         else d.openedOnce = true;
         this.opened.add(d.id);
         d.img.body.enable = false;
+        if (d.lamp) d.lamp.setTexture("lamp_green"); // lamp flips green on open
+        this.dust.emitParticleAt(d.zone.centerX, d.baseY + d.h / 2 - 4, 8); // dust puff at the floor
         if (d.isExit) sfx.exitDoor(d.zone.centerX, d.baseY);
         else sfx.door(d.zone.centerX, d.baseY);
         this.tweens.add({ targets: d.img, y: d.baseY - d.h + 10, duration: 600, ease: "sine.inOut" });
@@ -1189,6 +1317,7 @@ export default class GameScene extends Phaser.Scene {
         const blocked = this.players.some((p) => !p.dead && Phaser.Geom.Rectangle.Contains(d.zone, p.x, p.y));
         if (!blocked) {
           d.open = false;
+          if (d.lamp) d.lamp.setTexture("lamp_red"); // lamp back to red on close
           sfx.doorClose(d.zone.centerX, d.baseY);
           this.tweens.add({
             targets: d.img, y: d.baseY, duration: 400, ease: "sine.inOut",
@@ -1226,6 +1355,14 @@ export default class GameScene extends Phaser.Scene {
           p.x > lf.img.x - lf.img.width / 2 - 10 && p.x < lf.img.x + lf.img.width / 2 + 10)) weight += p.weight;
       }
       const body = lf.img.body;
+      // pips light up as weight accumulates toward the threshold
+      if (lf.pips) {
+        const lit = Math.min(Math.round(weight), lf.pips.length);
+        for (let i = 0; i < lf.pips.length; i++) {
+          const want = i < lit ? "pip_on" : "pip_off";
+          if (lf.pips[i].texture.key !== want) lf.pips[i].setTexture(want);
+        }
+      }
       const goingUp = lf.topY < lf.botY;
       const atTarget = goingUp ? lf.img.y <= lf.topY + 2 : lf.img.y >= lf.topY - 2;
       if (weight >= lf.threshold) {
@@ -1247,6 +1384,11 @@ export default class GameScene extends Phaser.Scene {
       // start/stop chirps at the edges of travel (the soft motor loop while it
       // moves is driven in updateLoops)
       const moving = Math.abs(body.velocity.y) > 1;
+      // engine glow strip under the platform while it travels
+      if (lf.glow) {
+        lf.glow.setPosition(lf.img.x, body.bottom + 4);
+        lf.glow.setAlpha(moving ? 0.55 : 0);
+      }
       if (moving && !lf.movingWas) sfx.liftStart(lf.img.x, lf.img.y);
       else if (!moving && lf.movingWas) sfx.liftStop(lf.img.x, lf.img.y);
       lf.movingWas = moving;

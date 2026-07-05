@@ -191,16 +191,49 @@ export default class BootScene extends Phaser.Scene {
       g.fillStyle(COLORS.neon).fillCircle(16, 16, 3.5);
       g.lineStyle(2, COLORS.neon, 0.4).strokeCircle(16, 16, 15);
     });
+    // Lever base plate + glowing pivot hub. The stick/knob is a SEPARATE
+    // `lever_handle` image (origin at its base pivot) so a flip is a rotation
+    // tween rather than a texture flipX — see GameScene.pullLever.
     make("lever", 36, 40, (g) => {
-      g.fillStyle(0x2a3350).fillRoundedRect(4, 30, 28, 10, 3);
-      g.lineStyle(4, 0x8fa3d9).lineBetween(18, 32, 6, 8);
-      g.fillStyle(COLORS.magenta).fillCircle(6, 8, 5);
+      g.fillStyle(0x1c2742).fillRoundedRect(2, 28, 32, 12, 4);
+      g.lineStyle(2, 0x44548c).strokeRoundedRect(2, 28, 32, 12, 4);
+      g.fillStyle(COLORS.neon, 0.22).fillCircle(18, 31, 9); // pivot glow
+      g.fillStyle(0x2a3350).fillCircle(18, 31, 5.5);
+      g.fillStyle(0x8fa3d9).fillCircle(18, 31, 2.6);
     });
+    // Drawn handle, pivot at bottom-centre (originY≈1). Bigger glowing knob.
+    make("lever_handle", 22, 42, (g) => {
+      g.lineStyle(5, 0x8fa3d9).lineBetween(11, 40, 11, 15);
+      g.fillStyle(COLORS.magenta, 0.3).fillCircle(11, 11, 10.5); // knob glow
+      g.fillStyle(COLORS.magenta).fillCircle(11, 11, 7);
+      g.fillStyle(0xffd0f2, 0.9).fillCircle(9, 9, 2.4); // specular
+    });
+    // Gold key with a fuller body + rim highlight; a sweeping glint is drawn as a
+    // separate `glint` streak animated over it in GameScene.
     make("key", 30, 30, (g) => {
-      g.lineStyle(4, 0xffd94d).strokeCircle(9, 10, 5.5);
-      g.lineStyle(4, 0xffd94d).lineBetween(13, 14, 25, 26);
+      g.lineStyle(5, 0xffd94d).strokeCircle(9, 10, 5.5);
+      g.fillStyle(0x3a2e08).fillCircle(9, 10, 2.2);
+      g.lineStyle(5, 0xffd94d).lineBetween(12, 13, 25, 26);
+      g.lineStyle(4, 0xffd94d);
       g.lineBetween(20, 21, 25, 16);
       g.lineBetween(22, 26, 27, 21);
+      g.lineStyle(1.5, 0xfff2b0, 0.85).strokeCircle(9, 10, 5.5);
+    });
+    // Thin soft white streak swept diagonally across the key ~every 2s.
+    make("glint", 12, 34, (g) => {
+      g.fillStyle(0xffffff, 0.85).fillRect(4, 0, 3, 34);
+      g.fillStyle(0xffffff, 0.32).fillRect(1, 0, 9, 34);
+    });
+    // Holo-pillar light beam rising from a pedestal base: bright/wide at the
+    // bottom, tapering and fading toward the top. Additive-blended in GameScene.
+    make("holobeam", 30, 132, (g) => {
+      const steps = 30;
+      for (let i = 0; i < steps; i++) {
+        const t = i / (steps - 1); // 0 = top
+        const halfW = 3 + 10 * t;
+        g.fillStyle(COLORS.neon, 0.04 + 0.26 * t);
+        g.fillRect(15 - halfW, Math.floor(i * (132 / steps)), halfW * 2, 132 / steps + 1);
+      }
     });
     make("core", 30, 30, (g) => {
       g.fillStyle(COLORS.neon, 0.25).fillCircle(15, 15, 14);
@@ -212,27 +245,86 @@ export default class BootScene extends Phaser.Scene {
       g.fillStyle(COLORS.neon).fillPoints(pts, true);
       g.fillStyle(0xffffff).fillCircle(15, 15, 3.4);
     });
+    // Sliding door PANEL only — the frame (side rails + top light bar) and the
+    // red/green status lamp are separate objects built per-door in GameScene, so
+    // the lamp colour reads under the Canvas renderer (setTint no-ops there).
     make("door", 48, 144, (g) => {
       g.fillStyle(0x222c4c).fillRect(2, 0, 44, 144);
       g.lineStyle(2, 0x44548c).strokeRect(3, 1, 42, 142);
       g.lineStyle(2, 0x44548c);
       for (let y = 18; y < 144; y += 24) g.lineBetween(6, y, 42, y);
-      g.fillStyle(COLORS.hazard).fillCircle(24, 72, 6);
+      g.fillStyle(0x2f3f6e);
+      g.fillCircle(24, 12, 2.4); g.fillCircle(24, 132, 2.4); // bolts
     });
+    // Exit door panel: green-baked so it reads as the goal under Canvas.
+    make("door_exit", 48, 144, (g) => {
+      g.fillStyle(0x1c4a38).fillRect(2, 0, 44, 144);
+      g.lineStyle(2, 0x59ff9c, 0.9).strokeRect(3, 1, 42, 142);
+      g.lineStyle(2, 0x2f8f5c);
+      for (let y = 18; y < 144; y += 24) g.lineBetween(6, y, 42, y);
+    });
+    // Door status lamps (swapped via setTexture: red = closed, green = opening).
+    const lamp = (glow, lens, hi) => (g) => {
+      g.fillStyle(0x2a3350).fillRoundedRect(0, 0, 20, 14, 4);
+      g.lineStyle(1, 0x44548c).strokeRoundedRect(0, 0, 20, 14, 4);
+      g.fillStyle(glow, 0.32).fillCircle(10, 7, 6.5);
+      g.fillStyle(lens).fillCircle(10, 7, 3.6);
+      g.fillStyle(hi, 0.9).fillCircle(8.6, 5.6, 1.2);
+    };
+    make("lamp_red", 20, 14, lamp(COLORS.hazard, 0xff5566, 0xffc2ca));
+    make("lamp_green", 20, 14, lamp(COLORS.green, 0x59ff9c, 0xd6ffe6));
+    // Pressure plate: top face with an LED strip. `plate` = dark/off,
+    // `plate_on` = lit accent — swapped by setTexture (Canvas-safe).
     make("plate", 48, 14, (g) => {
       g.fillStyle(0x2a3350).fillRect(0, 8, 48, 6);
-      g.fillStyle(COLORS.green, 0.95).fillRoundedRect(4, 2, 40, 8, 3);
+      g.fillStyle(0x1c2742).fillRoundedRect(4, 2, 40, 8, 3);
+      g.fillStyle(0x2f4066).fillRect(9, 4, 30, 2); // LED strip, unlit
     });
+    make("plate_on", 48, 14, (g) => {
+      g.fillStyle(0x2a3350).fillRect(0, 8, 48, 6);
+      g.fillStyle(0x1c2742).fillRoundedRect(4, 2, 40, 8, 3);
+      g.fillStyle(COLORS.green, 0.4).fillRect(7, 3, 34, 5); // lit glow
+      g.fillStyle(COLORS.green).fillRect(9, 4, 30, 2); // lit LED strip
+    });
+    // Holo-pillar pedestal column.
     make("pedestal", 48, 46, (g) => {
       g.fillStyle(0x222c4c).fillRect(14, 14, 20, 32);
+      g.lineStyle(1, 0x44548c).strokeRect(14, 14, 20, 32);
       g.fillStyle(0x2f3f6e).fillRect(8, 40, 32, 6);
       g.fillStyle(0x2f3f6e).fillRect(10, 8, 28, 8);
-      g.fillStyle(COLORS.neon, 0.75).fillCircle(24, 8, 7);
+      g.fillStyle(COLORS.neon, 0.3).fillCircle(24, 8, 10);
+      g.fillStyle(COLORS.neon, 0.85).fillCircle(24, 8, 6.5);
     });
+    // Checkpoint lamp housing: dim grey (inactive) + lit green (active).
     make("checkpoint", 26, 66, (g) => {
-      g.fillStyle(0x2a3350).fillRect(10, 8, 6, 54);
+      g.fillStyle(0x2a3350).fillRect(11, 20, 4, 42);
       g.fillStyle(0x2f3f6e).fillRect(4, 60, 18, 6);
-      g.fillStyle(0x8fa3d9).fillCircle(13, 8, 7);
+      g.fillStyle(0x39415e).fillRoundedRect(3, 2, 20, 18, 5);
+      g.lineStyle(2, 0x5a6aa0).strokeRoundedRect(3, 2, 20, 18, 5);
+      g.fillStyle(0x4a5578).fillCircle(13, 11, 5.5);
+      g.fillStyle(0x6b78a8).fillCircle(13, 11, 3);
+    });
+    make("checkpoint_on", 26, 66, (g) => {
+      g.fillStyle(0x2a3350).fillRect(11, 20, 4, 42);
+      g.fillStyle(0x2f3f6e).fillRect(4, 60, 18, 6);
+      g.fillStyle(0x39415e).fillRoundedRect(3, 2, 20, 18, 5);
+      g.lineStyle(2, COLORS.green).strokeRoundedRect(3, 2, 20, 18, 5);
+      g.fillStyle(COLORS.green, 0.32).fillCircle(13, 11, 9);
+      g.fillStyle(0x0f4a2c).fillCircle(13, 11, 5.5);
+      g.fillStyle(COLORS.green).fillCircle(13, 11, 3.6);
+      g.fillStyle(0xdfffe8, 0.9).fillCircle(11.6, 9.6, 1.3);
+    });
+    // Expanding ring (checkpoint activation burst) + mini-robot weight pips.
+    make("ring", 48, 48, (g) => g.lineStyle(4, COLORS.green).strokeCircle(24, 24, 20));
+    make("pip_off", 16, 18, (g) => {
+      g.fillStyle(0x39415e).fillRoundedRect(3, 3, 10, 10, 3);
+      g.fillStyle(0x2b3450).fillRect(3, 12, 10, 3);
+      g.fillStyle(0x2a3350).fillRect(5, 6, 6, 3);
+    });
+    make("pip_on", 16, 18, (g) => {
+      g.fillStyle(COLORS.amber).fillRoundedRect(3, 3, 10, 10, 3);
+      g.fillStyle(0x8a5a10).fillRect(3, 12, 10, 3);
+      g.fillStyle(0xfff2b0).fillRect(5, 6, 6, 3);
     });
 
     // --- enemies & set pieces ----------------------------------------------
