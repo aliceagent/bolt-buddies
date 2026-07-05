@@ -1,29 +1,16 @@
 {
-  "when": "2026-07-04T20:56:17.141Z",
+  "when": "2026-07-05T00:37:38.933Z",
   "levels": [
     "1-1",
-    "1-2",
     "1-3"
   ],
   "results": [
     {
       "id": "1-1",
       "assignment": "A:P1=G",
-      "result": "FAIL",
-      "complete": false,
-      "durationMs": 52832,
-      "deaths": 0,
-      "steps": 7,
-      "totalSteps": 9,
-      "failedStep": "ride the co-op lift; G carries H across to the terrace",
-      "error": "runJump G from 49 right failed"
-    },
-    {
-      "id": "1-1",
-      "assignment": "B:P1=H",
       "result": "PASS",
       "complete": true,
-      "durationMs": 46525,
+      "durationMs": 46828,
       "deaths": 0,
       "steps": 9,
       "totalSteps": 9,
@@ -31,26 +18,14 @@
       "error": ""
     },
     {
-      "id": "1-2",
-      "assignment": "A:P1=G",
-      "result": "PASS",
-      "complete": true,
-      "durationMs": 39302,
-      "deaths": 0,
-      "steps": 7,
-      "totalSteps": 7,
-      "failedStep": "",
-      "error": ""
-    },
-    {
-      "id": "1-2",
+      "id": "1-1",
       "assignment": "B:P1=H",
       "result": "PASS",
       "complete": true,
-      "durationMs": 38752,
+      "durationMs": 50260,
       "deaths": 0,
-      "steps": 7,
-      "totalSteps": 7,
+      "steps": 9,
+      "totalSteps": 9,
       "failedStep": "",
       "error": ""
     },
@@ -59,7 +34,7 @@
       "assignment": "A:P1=G",
       "result": "PASS",
       "complete": true,
-      "durationMs": 61361,
+      "durationMs": 59609,
       "deaths": 0,
       "steps": 6,
       "totalSteps": 6,
@@ -71,7 +46,7 @@
       "assignment": "B:P1=H",
       "result": "PASS",
       "complete": true,
-      "durationMs": 62663,
+      "durationMs": 59630,
       "deaths": 0,
       "steps": 6,
       "totalSteps": 6,

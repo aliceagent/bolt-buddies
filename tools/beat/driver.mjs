@@ -460,11 +460,24 @@ export class Driver {
     this.log(`reelPartner ${role}`);
     const k = this.keysFor(role);
     for (let attempt = 0; attempt < retries; attempt++) {
-      // an airborne chord zips the grappler TO the buddy — wait until we're
-      // planted (walkTo can return while still falling from a zip release),
-      // and the buddy must be settled too (a mid-assist-arc buddy from the
-      // previous reel isn't a stable reel target)
-      await this.waitFor((s) => s.players[i].grounded && !s.players[i].zip, 2500, `${role} grounded for reel`).catch(() => {});
+      // an airborne chord zips the grappler TO the buddy — the grappler must be
+      // TRULY settled before the chord fires (a grounded DOWN+ACTION can only
+      // reel or no-op; it can never zip). The old guard swallowed its timeout
+      // and fired anyway; and a zip left hanging by a flaky release keeps
+      // `grounded` false forever, so pop that first.
+      let settled = false;
+      for (let g = 0; g < 3 && !settled; g++) {
+        const cur = (await this.state()).players[i];
+        if (cur.zip) {
+          this.log(`reelPartner ${role}: still on a zip line — releasing it`);
+          await this.tap(k.jump, 90);
+        }
+        await this.waitFor((s) => s.players[i].grounded && !s.players[i].zip, 2500, `${role} grounded for reel`).catch(() => {});
+        const a = (await this.state()).players[i];
+        await sleep(130);
+        const b = (await this.state()).players[i];
+        settled = a.grounded && b.grounded && !b.zip && Math.hypot(b.x - a.x, b.y - a.y) < 3;
+      }
       if (partnerRole) {
         const pj = this.idx(partnerRole);
         await this.waitFor((s) => s.players[pj].grounded, 2500, `${partnerRole} settled for reel`).catch(() => {});
@@ -474,12 +487,22 @@ export class Driver {
       // into a plain zip and strands the grappler.
       const before = (await this.state()).players[i];
       await this.down(k.down);
-      await sleep(120);
+      await sleep(150);
       await this.act(role);
       await this.up(k.down);
       const after = (await this.state()).players[i];
       if (Math.hypot(after.x - before.x, after.y - before.y) > 40 || after.zip) {
-        throw new BeatError(`reelPartner ${role}: grappler moved/zipped instead of reeling (chord race?)`);
+        if (attempt === retries - 1) {
+          throw new BeatError(`reelPartner ${role}: grappler moved/zipped instead of reeling (chord race?)`);
+        }
+        // recoverable: let the stray zip finish, drop off it, settle, and walk
+        // back to the reel stance before the next attempt
+        this.log(`reelPartner ${role}: chord mis-fired (moved/zipped); recovering to stance`);
+        await this.waitFor((s) => !s.players[i].zip || s.players[i].zip.arrived, 3500, "stray zip over").catch(() => {});
+        if ((await this.state()).players[i].zip) await this.tap(k.jump, 90);
+        await this.waitFor((s) => s.players[i].grounded && !s.players[i].zip, 4000, `${role} back on ground`).catch(() => {});
+        await this.walkTo(role, before.tx, { tol: 8, timeout: 6000 }).catch(() => {});
+        continue;
       }
       if (!partnerRole) {
         await sleep(200);

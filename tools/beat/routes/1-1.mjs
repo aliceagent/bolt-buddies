@@ -145,7 +145,35 @@ export default [
         }
       }
       await bb.waitFor((s) => s.players[gi].carrying, 3000, "G carrying H");
-      await bb.runJump("G", 49, "right", { landTile: 52, retries: 4, runup: 3, jumpHold: 500, edgeX: 2384 });
+      // cold-fps misses drop the pair into the x50-51 landing pit; recover by
+      // re-riding the lift (weight 3 while carrying keeps it serviceable)
+      // retries:1 — runJump's internal walk-back assumes the runway is still
+      // underfoot, but a short landing drops G into the pit a level BELOW it,
+      // so in-place retries jump into the strip wall and burn the lift's 4s
+      // hold window. Fail fast instead and let the recovery re-ride the lift.
+      let across = false;
+      for (let cycle = 0; cycle < 3 && !across; cycle++) {
+        try {
+          await bb.runJump("G", 49, "right", { landTile: 52, retries: 1, runup: 3, jumpHold: 500, edgeX: 2384 });
+          across = true;
+        } catch (e) {
+          const G = await bb.player("G");
+          if (G.ty > 12 && G.tx > 45.5 && G.tx < 52.5) {
+            bb.log("terrace jump missed -> in the pit; re-riding the lift");
+            // Escape LEFT to the approach floor immediately, while the lift is
+            // still up. The lift parks flush with the shaft mouth (platform top
+            // == approach-floor level), so it can only be boarded from the left;
+            // the strip side is a dead end, and waiting in the shaft gets G
+            // wedged under the descending platform.
+            await bb.walkTo("G", 44.5, { tol: 10, timeout: 8000 });
+            await bb.waitFor((s) => s.lifts[0].y >= s.lifts[0].botY - 6, 12000, "lift home");
+            await bb.walkTo("G", 48, { tol: 8, timeout: 6000 }); // board; carry weight 3 sends it up
+            await bb.waitFor((s) => s.lifts[0].y <= s.lifts[0].topY + 40, 12000, "lift back at top");
+          } else if (cycle === 2) {
+            throw e;
+          }
+        }
+      }
       // set H down on the terrace: H taps its jump to detach with a little hop
       for (let i = 0; i < 4 && (await bb.state()).players[hi].carriedBy; i++) {
         await bb.tap(bb.keysFor("H").jump, 90);

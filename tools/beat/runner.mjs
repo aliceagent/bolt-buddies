@@ -106,6 +106,24 @@ async function main() {
   await page.goto(URL, { waitUntil: "networkidle" });
   await sleep(1500);
 
+  // Warmup pass: the very first level a fresh headless browser runs is measurably
+  // slower (JIT, texture generation, audio-context spin-up), which makes tight
+  // physics steps (run-jumps, reel timing) flaky on run 1 only. Load a level,
+  // let it simulate ~15s with a little real input, then discard — so the first
+  // scored run behaves like every later one.
+  process.stdout.write("warmup: running 1-1 idle pass ... ");
+  await startLevel(page, LEVEL_INDEX["1-1"]);
+  for (let i = 0; i < 6; i++) {
+    await page.keyboard.down("KeyD");
+    await sleep(900);
+    await page.keyboard.up("KeyD");
+    await page.keyboard.down("KeyA");
+    await sleep(900);
+    await page.keyboard.up("KeyA");
+    await sleep(600);
+  }
+  process.stdout.write("done\n");
+
   const results = [];
   for (const id of toRun) {
     for (const assignment of ASSIGNMENTS) {
