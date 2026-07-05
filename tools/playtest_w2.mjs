@@ -11,12 +11,8 @@
 import { chromium } from "playwright";
 import { mkdirSync } from "fs";
 
-// WEBGL, not ?canvas=1: the Phaser CANVAS renderer deadlocks headless in this
-// suite (renderer main thread blocks at 0% CPU around the 2-1 escort teleports
-// — a SwiftShader canvas-present wedge, the root of the old "Target crashed").
-// WebGL needs a warmup idle per fresh browser (slow-motion first seconds).
-const URL = process.env.BB_URL || "http://localhost:5173/";
-const WARMUP_MS = Number(process.env.BB_WARMUP_MS || 12000);
+const URL = process.env.BB_URL || "http://localhost:5173/?canvas=1";
+const WARMUP_MS = Number(process.env.BB_WARMUP_MS || 0);
 const SHOTS = process.env.BB_SHOTS || "tools/shots";
 const CHUNK_TIMEOUT_MS = 180000;
 mkdirSync(SHOTS, { recursive: true });
@@ -139,11 +135,15 @@ await runChunk("2-1", async ({ shot, scene, hold, tap, startLevel, st, tp, skill
   await hold("ArrowRight", 1200);
   check("tiny alone blocked by shimmer panel", (await st()).p[1].x < 15 * 48 + 40, `x=${(await st()).p[1].x}`);
 
-  // escort: tiny passes the panel while phase stands close
+  // escort: tiny passes the panel while phase stands close.
+  // DANGER WINDOW (root cause of the old "Target crashed"/hang): a page.evaluate
+  // issued ~200-400ms after this teleport pair PERMANENTLY wedges the headless
+  // renderer (deterministic 3/3, both renderers; fine at +1.2s). tp() already
+  // zeroes velocity, so the old setVelocity evaluate here was redundant — keep
+  // ALL evaluates out of the window and just wait it out before the walk.
   await tp(0, 14, 7);
   await tp(1, 13, 7);
-  await page.waitForTimeout(200);
-  await scene(() => window.__BB.scene.players[0].setVelocity(0, 0));
+  await page.waitForTimeout(1200);
   await hold("ArrowRight", 1500);
   check("escorted tiny passes shimmer panel", (await st()).p[1].x > 15 * 48 + 20, `x=${(await st()).p[1].x}`);
 

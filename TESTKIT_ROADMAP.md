@@ -173,20 +173,34 @@ artifacts, routes 1-1/1-2/1-3, both role assignments. Acceptance: 6/6 runs
 green twice in a row (stability), `npm run test:beat -- 1-1` works, failure
 artifacts demonstrated (force one by sabotaging a route locally, then revert).
 
-### KNOWN INFRA ISSUE (blocking W2 mechanics suite; assigned to Beat T2)
+### INFRA ISSUE — RESOLVED (Beat T2, deliverable 1)
 
-`tools/playtest_w2.mjs` reliably dies with a native "Target crashed" (headless
-tab crash, no page error) at/near the escort check — including solo on a quiet
-16GB box — while (a) the SAME steps hand-rolled in a fresh script pass, (b) an
-idle 2-1 session is stable (heap flat 268MB, 44fps), and (c) `playtest.mjs`
-runs the identical title→hub→screenshot flow green 42/42 repeatedly. A bisect
-harness (`tools/_w2bisect.mjs`, gitignored) hangs in ALL variants including
-minimal — suggesting the crash arms very early in the suite's specific
-title→hub→2-1 path. Suspects to eliminate: screenshot capture on the canvas
-renderer in W2 scenes, the hub→game transition with a W2 theme, SwiftShader
-canvas limits. The last fully-green 30/30 predates the FL fix series, whose
-diff touches no W2 mechanic codepaths (grapple-only chords/range/assist).
-**Beat T2's first deliverable is making this suite reliably green again.**
+The W2 suite's native "Target crashed" is fixed; the suite is 30/30 green,
+verified 3× consecutively. Root cause, established by chunk isolation →
+per-await instrumentation → a 3/3-deterministic minimal reproducer:
+
+- **Trigger:** a CDP `page.evaluate` issued ~200–400 ms after the escort-setup
+  teleport pair in 2-1 (`tp(0,14,7)` + `tp(1,13,7)`, phase and tiny adjacent
+  at the shimmer panel) **permanently wedges the headless renderer** — main
+  thread blocks at 0 % CPU, every later evaluate hangs, and the tab eventually
+  gets killed as "Target crashed". The same evaluate at +1.2 s is always safe.
+- Renderer-independent (canvas and WebGL both wedge), position-specific, and
+  a **test-harness interaction bug, not a game bug**: real players never
+  teleport mid-frame, idle sessions are stable, and W1's suite drives the
+  identical evaluate machinery green 42/42.
+- This also explains every earlier mystery: "hand-rolled steps pass" (their
+  first evaluate came seconds later), the bisect harness hanging in all
+  variants (its probes landed inside the window), and the original crash
+  arming "early" (it was the teleport pair, detonating on the next evaluate).
+
+**Fixes in `tools/playtest_w2.mjs`:** (1) the redundant `setVelocity` evaluate
+inside the danger window was removed — `tp()` already zeroes velocity — and
+the post-teleport wait extended to 1.2 s; (2) as permanent hardening, the
+suite now runs **chunked**: each level in its own fresh browser with a hard
+per-chunk timeout and one crash-retry, all 30 checks preserved (a chunk that
+dies twice contributes one synthetic FAIL so the exit code stays honest).
+Kit rule going forward: **never issue a `page.evaluate` within ~1 s of a
+teleport that repositions both players.**
 
 ### Beat Sprint T2 — World 2 matrix + full wiring
 Escort/fan/jet/roller/carry-throw primitives proven, routes 2-1/2-2/2-3,
