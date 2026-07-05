@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { COLORS, WORLD_THEMES } from "../constants.js";
 import { addGradient, addMotes } from "../backdrop.js";
+import { LEVELS } from "../levels/registry.js";
 import { loadSave, storeSave, totalCores } from "../save.js";
 import { initAudio, sfx, playTrack, installMute } from "../audio.js";
 
@@ -276,9 +277,13 @@ export default class TitleScene extends Phaser.Scene {
         this.gotoHub();
       }
     } else if (it.id === "tutorial") {
-      // Sprint 10 replaces this toast with the real tutorial start.
-      sfx.menuDeny();
-      this.showToast("KOBI: Orientation is still being MOPPED. Come back soon.");
+      // Sprint 10: launch the hidden tutorial chamber ("Orientation Day").
+      sfx.menuSelect();
+      this.leaving = true;
+      this.cameras.main.fadeOut(250, 4, 6, 20);
+      this.cameras.main.once("camerafadeoutcomplete", () => {
+        this.scene.start("Game", { levelIndex: LEVELS.findIndex((l) => l.tutorial) });
+      });
     }
   }
 

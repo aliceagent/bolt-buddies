@@ -541,6 +541,14 @@ export default class BootScene extends Phaser.Scene {
       [[22, 0, 22, 9], [22, 35, 22, 44], [0, 22, 9, 22], [35, 22, 44, 22]].forEach(([a, b, c, d]) => g.lineBetween(a, b, c, d));
     });
     make("px", 6, 6, (g) => g.fillStyle(0xffffff).fillRect(0, 0, 6, 6));
+    // Rounded key-cap (Sprint 10 tutorial glyph prompts). Neutral body drawn here;
+    // the coloured border + letter are drawn per-player in GameScene.addGlyphs
+    // (setTint no-ops under Canvas, so the player colour is a drawn overlay).
+    make("keycap", 36, 36, (g) => {
+      g.fillStyle(0x0a0f1e, 0.96).fillRoundedRect(1, 1, 34, 34, 8); // body
+      g.fillStyle(0x1a2338, 0.95).fillRoundedRect(3, 2, 30, 26, 7); // raised face
+      g.fillStyle(0xffffff, 0.08).fillRoundedRect(5, 4, 26, 8, 4); // top gloss
+    });
     make("icon_grapple", 26, 26, (g) => {
       g.lineStyle(3, COLORS.neon).lineBetween(4, 4, 17, 17);
       g.lineStyle(3, COLORS.neon).strokeCircle(18, 18, 6);

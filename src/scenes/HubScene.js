@@ -23,8 +23,12 @@ export default class HubScene extends Phaser.Scene {
     const W = this.scale.width;
     const H = this.scale.height;
     this.save = loadSave();
-    if (this.sel === null) this.sel = Math.min(this.save.unlocked - 1, LEVELS.length - 1);
-    this.sel = Phaser.Math.Clamp(this.sel, 0, LEVELS.length - 1);
+    // Sprint 10: hidden defs (the tutorial) are appended to LEVELS but never laid
+    // out as hub nodes — the sector map keeps exactly the 12 real chambers, so the
+    // cursor must clamp to the node count, not LEVELS.length.
+    this.hubCount = LEVELS.filter((l) => !l.hidden).length;
+    if (this.sel === null) this.sel = Math.min(this.save.unlocked - 1, this.hubCount - 1);
+    this.sel = Phaser.Math.Clamp(this.sel, 0, this.hubCount - 1);
 
     addGradient(this, 1);
     this.add.tileSprite(0, 0, W, H, "bggrid").setOrigin(0).setAlpha(0.22).setDepth(-8);
@@ -203,7 +207,7 @@ export default class HubScene extends Phaser.Scene {
   }
 
   move(d) {
-    const next = Phaser.Math.Clamp(this.sel + d, 0, LEVELS.length - 1);
+    const next = Phaser.Math.Clamp(this.sel + d, 0, this.hubCount - 1);
     if (next !== this.sel) {
       this.sel = next;
       sfx.menuMove();

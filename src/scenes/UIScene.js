@@ -111,6 +111,7 @@ export default class UIScene extends Phaser.Scene {
     this.winCores = [];
     this.winCoreQ = [];
     const slots = this.add.graphics();
+    this.winSlots = slots;
     [0, 1, 2].forEach((i) => {
       const cx = -80 + i * 80, cy = 4;
       slots.fillStyle(0x0a0f1e, 0.6).fillCircle(cx, cy, 27);
@@ -187,8 +188,16 @@ export default class UIScene extends Phaser.Scene {
       },
       complete: (info) => {
         this.completed = info; // set synchronously (before animation) — continue stays instant
+        const tut = !!info.tutorial; // Sprint 10: tutorial variant — no save, back to Title
         this.overlay.setVisible(true);
-        this.winSub.setText(`"${info.name}" — data-cores found:`);
+        this.winTitle.setText(tut ? "ORIENTATION COMPLETE!" : "CHAMBER CLEAR!");
+        this.winTitle.setFontSize(tut ? "38px" : "44px");
+        this.winSub.setText(tut ? "You survived K.O.B.I.'s safety briefing." : `"${info.name}" — data-cores found:`);
+        // tutorial hides the data-core reader + progress tag (nothing is saved)
+        this.winSlots.setVisible(!tut);
+        this.winCoreQ.forEach((q) => q.setVisible(!tut));
+        this.winCores.forEach((img) => img.setVisible(!tut));
+        this.savedTag.setVisible(!tut);
         // reset animation state
         this.winDim.setAlpha(0);
         this.winPanel.setScale(0.6).setAlpha(0);
@@ -199,19 +208,21 @@ export default class UIScene extends Phaser.Scene {
         this.tweens.add({ targets: this.winDim, alpha: 0.85, duration: 220 });
         this.tweens.add({ targets: this.winPanel, scale: 1, alpha: 1, duration: 260, ease: "back.out" });
         this.tweens.add({ targets: this.winTitle, scale: 1, duration: 340, ease: "back.out", delay: 120 });
-        // cores reveal one-by-one: collected pop + chime, uncollected stay dim "?"
-        info.cores.forEach((got, i) => {
-          this.time.delayedCall(420 + i * 240, () => {
-            if (got) {
-              this.winCoreQ[i].setAlpha(0);
-              this.winCores[i].setAlpha(1).setScale(1.7);
-              this.tweens.add({ targets: this.winCores[i], scale: 1, duration: 300, ease: "back.out" });
-              sfx.core();
-            }
+        if (!tut) {
+          // cores reveal one-by-one: collected pop + chime, uncollected stay dim "?"
+          info.cores.forEach((got, i) => {
+            this.time.delayedCall(420 + i * 240, () => {
+              if (got) {
+                this.winCoreQ[i].setAlpha(0);
+                this.winCores[i].setAlpha(1).setScale(1.7);
+                this.tweens.add({ targets: this.winCores[i], scale: 1, duration: 300, ease: "back.out" });
+                sfx.core();
+              }
+            });
           });
-        });
-        // "progress saved" tag after the last core, then the pulsing prompt
-        this.time.delayedCall(420 + 3 * 240, () => { this.savedTag.setAlpha(1); sfx.saveTick(); });
+          // "progress saved" tag after the last core, then the pulsing prompt
+          this.time.delayedCall(420 + 3 * 240, () => { this.savedTag.setAlpha(1); sfx.saveTick(); });
+        }
         this.tweens.add({ targets: this.winPrompt, alpha: 0.3, duration: 500, yoyo: true, repeat: -1 });
       },
     };
@@ -229,15 +240,17 @@ export default class UIScene extends Phaser.Scene {
     this.input.keyboard.on("keydown", (ev) => {
       if (this.completed && !this.continuing && ["Space", "KeyE", "KeyL", "Enter"].includes(ev.code)) {
         this.continuing = true;
+        const tut = !!this.completed.tutorial; // Sprint 10: tutorial returns to Title
         const next = this.completed.index + 1;
         const unlock = this.completed.newlyUnlocked;
         duckMusic(false); // drop any lingering blip duck on the way out
         // the UI camera fade paints fullscreen black over both scenes (UI renders
-        // above Game), so this reads as a clean 250ms fade to the Hub.
+        // above Game), so this reads as a clean 250ms fade to the next screen.
         this.cameras.main.fadeOut(250, 4, 6, 20);
         this.cameras.main.once("camerafadeoutcomplete", () => {
           this.scene.stop("Game");
-          this.scene.start("Hub", { sel: next, unlock });
+          if (tut) this.scene.start("Title");
+          else this.scene.start("Hub", { sel: next, unlock });
           this.scene.stop();
         });
       }

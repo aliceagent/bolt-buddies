@@ -46,6 +46,7 @@ export default class GameScene extends Phaser.Scene {
     this.coreItems = [];
     this.keyItems = [];
     this.checkpoints = [];
+    this.triggers = []; // Sprint 10: one-shot AABB zones (blip and/or key-glyph reveal)
     this.pods = [];
     this.ropeFlashes = [];
     this.crane = null;
@@ -89,6 +90,9 @@ export default class GameScene extends Phaser.Scene {
     this.cpPos = def.spawns.map(([tx, ty]) => ({ x: tx * TILE + 24, y: ty * TILE + 24 }));
 
     def.entities.forEach((e) => this.spawnEntity(e));
+
+    // Sprint 10: static key-glyph clusters declared in the level def (tutorial).
+    (def.glyphs || []).forEach((gz) => this.addGlyphs(gz.x * TILE + 24, gz.y * TILE + 24, gz.caps));
 
     // physics wiring
     const rideCb = (pl, mv) => {
@@ -654,6 +658,18 @@ export default class GameScene extends Phaser.Scene {
         this.checkpoints.push({ x: px, y: py, img, active: false, cone });
         break;
       }
+      case "trigger": {
+        // Sprint 10: a one-shot AABB zone (tile coords). When any player enters it
+        // fires its KOBI blip and/or reveals a floating key-glyph cluster. Checked
+        // cheaply in the per-player update loop and skipped once fired.
+        this.triggers.push({
+          rect: new Phaser.Geom.Rectangle(e.x * TILE, e.y * TILE, (e.w || 1) * TILE, (e.h || 1) * TILE),
+          blip: e.blip || null,
+          glyphs: e.glyphs || null, // { x, y, caps } in tile coords, revealed on entry
+          fired: false,
+        });
+        break;
+      }
       case "bug": {
         const bug = this.bugs.create(px, py + 8, "bug");
         bug.setDepth(DEPTH.entity);
@@ -806,6 +822,38 @@ export default class GameScene extends Phaser.Scene {
         break;
       }
     }
+  }
+
+  // Sprint 10: render a floating key-glyph prompt — key-cap images + letter texts
+  // in a gently-bobbing container. `caps` is e.g. [{k:'A'},{k:'D'},{gap:8},{k:'←'}].
+  // Each cap is coloured by its player: cap.p (0=P1 beep-blue, 1=P2 boop-orange);
+  // when omitted, arrow glyphs default to P2, everything else to P1. Colours are
+  // DRAWN (border + text), not tinted — setTint no-ops under the Canvas renderer.
+  addGlyphs(x, y, caps) {
+    const CAP = 34, GAP = 7;
+    // measure total width so the cluster is centred on (x, y)
+    let total = 0;
+    for (const c of caps) total += c.gap ? c.gap : CAP + GAP;
+    total -= GAP;
+    const cont = this.add.container(x, y).setDepth(DEPTH.fx);
+    let cx = -total / 2 + CAP / 2;
+    for (const c of caps) {
+      if (c.gap) { cx += c.gap; continue; }
+      const p = c.p != null ? c.p : (/[←→↑↓]/.test(c.k) ? 1 : 0);
+      const col = p === 0 ? COLORS.beep : COLORS.boop;
+      const hex = p === 0 ? "#4dc9ff" : "#ffa14d";
+      const cap = this.add.image(cx, 0, "keycap");
+      const bdr = this.add.graphics();
+      bdr.lineStyle(2.5, col, 1).strokeRoundedRect(cx - 17, -17, 34, 34, 8);
+      const t = this.add.text(cx, -1, c.k, {
+        fontFamily: FONT, fontSize: "17px", fontStyle: "bold", color: hex,
+      }).setOrigin(0.5);
+      cont.add([cap, bdr, t]);
+      cx += CAP + GAP;
+    }
+    // gentle vertical bob
+    this.tweens.add({ targets: cont, y: y - 6, duration: 1100, yoyo: true, repeat: -1, ease: "sine.inOut" });
+    return cont;
   }
 
   // Item card: a proper panel — dark rounded body, skill-coloured title bar +
@@ -1543,6 +1591,18 @@ export default class GameScene extends Phaser.Scene {
           this.cpPos = this.players.map((_, i) => ({ x: cp.x - 14 + i * 28, y: cp.y - 10 }));
         }
       });
+      // one-shot triggers (Sprint 10): cheap AABB, skipped once fired
+      for (const tr of this.triggers) {
+        if (tr.fired) continue;
+        if (!Phaser.Geom.Rectangle.Contains(tr.rect, p.x, p.y)) continue;
+        tr.fired = true;
+        if (tr.blip) this.game.events.emit("bb:blip", tr.blip);
+        if (tr.glyphs) {
+          const cont = this.addGlyphs(tr.glyphs.x * TILE + 24, tr.glyphs.y * TILE + 24, tr.glyphs.caps);
+          cont.setAlpha(0);
+          this.tweens.add({ targets: cont, alpha: 1, duration: 260 });
+        }
+      }
     }
 
     // reeling
@@ -1641,6 +1701,14 @@ export default class GameScene extends Phaser.Scene {
         }
       }
       if (d.latch && d.openedOnce) shouldOpen = true;
+      // Sprint 10: a door may be LATCHED permanently open by a named lever even
+      // after its momentary condition (e.g. a held pressure plate) lapses — the
+      // tutorial's "you first, then me" gate: heavy holds the plate so the buddy
+      // slips through, the buddy pulls the far lever, and heavy is freed.
+      if (d.needs.latchLever && this.levers.find((l) => l.id === d.needs.latchLever)?.on) {
+        d.openedOnce = true;
+        shouldOpen = true;
+      }
       if (shouldOpen && !d.open) {
         d.open = true;
         if (d.timer) d.closeAt = time + d.timer;
@@ -2114,15 +2182,21 @@ export default class GameScene extends Phaser.Scene {
     this.complete = true;
     stopLoops(); // silence all ambience the instant the level is cleared
     sfx.win();
-    const before = loadSave().unlocked;
-    completeLevel(this.levelIndex, this.def.id, this.coresGot);
-    const newlyUnlocked = loadSave().unlocked > before;
+    // Sprint 10: the tutorial NEVER touches the save (no unlock/core writes) — its
+    // clear overlay reads "ORIENTATION COMPLETE!" and continue returns to Title.
+    let newlyUnlocked = false;
+    if (!this.def.tutorial) {
+      const before = loadSave().unlocked;
+      completeLevel(this.levelIndex, this.def.id, this.coresGot);
+      newlyUnlocked = loadSave().unlocked > before;
+    }
     playJingle("jingle_clear"); // stops the level track, plays the clear cadence
     this.physics.pause();
-    if (this.def.blips.clear) this.game.events.emit("bb:blip", this.def.blips.clear);
+    if (this.def.blips && this.def.blips.clear) this.game.events.emit("bb:blip", this.def.blips.clear);
     this.time.delayedCall(500, () => {
       this.game.events.emit("bb:complete", {
-        index: this.levelIndex, id: this.def.id, name: this.def.name, cores: this.coresGot, newlyUnlocked,
+        index: this.levelIndex, id: this.def.id, name: this.def.name, cores: this.coresGot,
+        newlyUnlocked, tutorial: !!this.def.tutorial,
       });
     });
   }

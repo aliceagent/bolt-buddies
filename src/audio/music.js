@@ -630,6 +630,8 @@ const TRACKS = {
 // which composed track backs each level (GameScene picks by def.id). Worlds 3/4
 // are reserve — their levels are WIP but the mapping is ready for drop-in.
 const LEVEL_TRACK = {
+  // Sprint 10: the tutorial reuses the calm hub track (no bespoke composition).
+  "tut": "hub",
   "1-1": "w1l1", "1-2": "w1l2", "1-3": "w1l3",
   "2-1": "w2l1", "2-2": "w2l2", "2-3": "w2l3",
   "3-1": "w3", "3-2": "w3", "3-3": "w3",

@@ -4,6 +4,7 @@ import level1_3 from "./level1_3.js";
 import level2_1 from "./level2_1.js";
 import level2_2 from "./level2_2.js";
 import level2_3 from "./level2_3.js";
+import tutorial from "./tutorial.js";
 
 export const WORLD_INFO = [
   { name: "Assembly Wing", emoji: "🔧", skills: "Grapple + Heavyweight" },
@@ -26,6 +27,9 @@ export const LEVELS = [
   { id: "4-1", name: "Lights Out", world: 4, wip: true },
   { id: "4-2", name: "The Laser Garden", world: 4, wip: true },
   { id: "4-3", name: "KOBI's Heart", world: 4, wip: true },
+  // Sprint 10: the tutorial is APPENDED LAST (registry indices 0-11 unchanged, so
+  // the beat matrix + hub node layout are untouched) and flagged hidden+tutorial.
+  tutorial,
 ];
 
 export const KOBI_HUB_LINES = [
