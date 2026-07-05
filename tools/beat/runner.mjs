@@ -18,7 +18,7 @@ const RUN_BUDGET_MS = 4 * 60 * 1000; // 4 minutes per run
 
 // level id -> registry index
 const LEVEL_INDEX = { "1-1": 0, "1-2": 1, "1-3": 2, "2-1": 3, "2-2": 4, "2-3": 5 };
-const DEFAULT_LEVELS = ["1-1", "1-2", "1-3"];
+const DEFAULT_LEVELS = ["1-1", "1-2", "1-3", "2-1", "2-2", "2-3"]; // full 12-run matrix
 
 // Both role assignments. Roles are abstract (G=grapple, H=heavy); the runner maps
 // each to a player index. "A" = P1 takes the first (grapple) pedestal; "B" swaps.

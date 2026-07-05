@@ -3,7 +3,7 @@ import { TILE, COLORS, PHYS, DEPTH, SKILL_INFO, WORLD_THEMES } from "../constant
 import { LEVELS } from "../levels/registry.js";
 import { makeGrid } from "../levels/builder.js";
 import { completeLevel } from "../save.js";
-import { sfx } from "../audio.js";
+import { sfx, installMute } from "../audio.js";
 import { addGradient, addMotes } from "../backdrop.js";
 import Player from "../objects/Player.js";
 
@@ -138,6 +138,10 @@ export default class GameScene extends Phaser.Scene {
       speed: { min: 60, max: 260 }, scale: { start: 1, end: 0 }, lifespan: 450,
       gravityY: 600, emitting: false,
     }).setDepth(DEPTH.fx);
+
+    // M mutes from in-game too; the visible corner icon is drawn by the UI
+    // overlay (unzoomed), so this scene only wires the key.
+    installMute(this, { icon: false });
 
     this.scene.launch("UI", { levelIndex: this.levelIndex });
     this.time.delayedCall(400, () => this.game.events.emit("bb:blip", def.blips.start));

@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { COLORS } from "../constants.js";
 import { LEVELS } from "../levels/registry.js";
-import { sfx } from "../audio.js";
+import { sfx, installMute } from "../audio.js";
 
 const FONT = "'Courier New', monospace";
 
@@ -84,6 +84,10 @@ export default class UIScene extends Phaser.Scene {
     this.events.once("shutdown", () => {
       Object.entries(this.h).forEach(([k, fn]) => E.off(`bb:${k}`, fn));
     });
+
+    // global mute: the UI overlay owns the in-game M key + corner icon (drawn
+    // here, not in GameScene, so the camera zoom never scales it)
+    installMute(this);
 
     this.input.keyboard.on("keydown", (ev) => {
       if (this.completed && ["Space", "KeyE", "KeyL", "Enter"].includes(ev.code)) {

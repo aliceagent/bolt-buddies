@@ -4,6 +4,8 @@ import TitleScene from "./scenes/TitleScene.js";
 import HubScene from "./scenes/HubScene.js";
 import GameScene from "./scenes/GameScene.js";
 import UIScene from "./scenes/UIScene.js";
+import { engineState } from "./audio/engine.js";
+import { musicState } from "./audio/music.js";
 
 const game = new Phaser.Game({
   // ?canvas=1 forces the canvas renderer (the automated playtest uses it —
@@ -28,3 +30,6 @@ const game = new Phaser.Game({
 
 // handle used by the automated playtest harness (tools/playtest.mjs)
 window.__BB = { game };
+// audio test surface (tools/playtest_audio.mjs): engine settings/state getter +
+// live music state ({ current, playing, bar, section }).
+window.__BB.audio = { engine: engineState, music: musicState };

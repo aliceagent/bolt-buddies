@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { COLORS, WORLD_THEMES } from "../constants.js";
 import { addGradient, addMotes } from "../backdrop.js";
-import { initAudio, sfx } from "../audio.js";
+import { initAudio, sfx, playTrack, installMute } from "../audio.js";
 
 const FONT = "'Courier New', monospace";
 
@@ -61,6 +61,11 @@ export default class TitleScene extends Phaser.Scene {
     this.add.text(W / 2, 690, "grab a buddy — this game needs two players on one keyboard", {
       fontFamily: FONT, fontSize: "15px", color: "#5a6a94",
     }).setOrigin(0.5);
+
+    // title music: requested now, actually starts on the first keydown (below)
+    // once the AudioContext is unlocked — autoplay-safe.
+    playTrack("title");
+    installMute(this);
 
     this.input.keyboard.addCapture("SPACE"); // keep Space from scrolling the page
     this.input.keyboard.on("keydown", (ev) => {

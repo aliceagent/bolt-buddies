@@ -3,7 +3,7 @@ import { COLORS, WORLD_THEMES } from "../constants.js";
 import { LEVELS, WORLD_INFO, KOBI_HUB_LINES } from "../levels/registry.js";
 import { loadSave, totalCores } from "../save.js";
 import { addGradient, addMotes } from "../backdrop.js";
-import { initAudio, sfx } from "../audio.js";
+import { initAudio, sfx, installMute } from "../audio.js";
 
 const FONT = "'Courier New', monospace";
 
@@ -90,6 +90,8 @@ export default class HubScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     this.updateSelection();
+
+    installMute(this);
 
     this.input.keyboard.addCapture("SPACE"); // keep Space from scrolling the page
     this.input.keyboard.on("keydown", (ev) => {
