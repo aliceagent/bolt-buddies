@@ -28,6 +28,6 @@ export {
 
 export { sfx, tone, noise, slide, rateLimit } from "./audio/sfx.js";
 
-export { playTrack, stopMusic, setMusicLayer, musicState } from "./audio/music.js";
+export { playTrack, stopMusic, setMusicLayer, playJingle, trackForLevel, musicState } from "./audio/music.js";
 
 export { installMute } from "./audio/mute.js";

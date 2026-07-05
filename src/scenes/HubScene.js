@@ -3,7 +3,7 @@ import { COLORS, WORLD_THEMES } from "../constants.js";
 import { LEVELS, WORLD_INFO, KOBI_HUB_LINES } from "../levels/registry.js";
 import { loadSave, totalCores } from "../save.js";
 import { addGradient, addMotes } from "../backdrop.js";
-import { initAudio, sfx, installMute } from "../audio.js";
+import { initAudio, sfx, installMute, playTrack, playJingle } from "../audio.js";
 
 const FONT = "'Courier New', monospace";
 
@@ -15,6 +15,7 @@ export default class HubScene extends Phaser.Scene {
 
   init(data) {
     this.sel = data && typeof data.sel === "number" ? data.sel : null;
+    this.justUnlocked = !!(data && data.unlock);
   }
 
   create() {
@@ -92,6 +93,11 @@ export default class HubScene extends Phaser.Scene {
     this.updateSelection();
 
     installMute(this);
+
+    // map-room music (crossfades from a level track); if we arrived here having
+    // just unlocked a new chamber, ring the unlock fanfare over the hub track.
+    playTrack("hub");
+    if (this.justUnlocked) this.time.delayedCall(350, () => playJingle("jingle_unlock"));
 
     this.input.keyboard.addCapture("SPACE"); // keep Space from scrolling the page
     this.input.keyboard.on("keydown", (ev) => {

@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { COLORS } from "../constants.js";
 import { LEVELS } from "../levels/registry.js";
-import { sfx, installMute } from "../audio.js";
+import { sfx, installMute, duckMusic } from "../audio.js";
 
 const FONT = "'Courier New', monospace";
 
@@ -83,6 +83,7 @@ export default class UIScene extends Phaser.Scene {
     Object.entries(this.h).forEach(([k, fn]) => E.on(`bb:${k}`, fn));
     this.events.once("shutdown", () => {
       Object.entries(this.h).forEach(([k, fn]) => E.off(`bb:${k}`, fn));
+      duckMusic(false); // never leave the bus ducked after the HUD is gone
     });
 
     // global mute: the UI overlay owns the in-game M key + corner icon (drawn
@@ -92,8 +93,9 @@ export default class UIScene extends Phaser.Scene {
     this.input.keyboard.on("keydown", (ev) => {
       if (this.completed && ["Space", "KeyE", "KeyL", "Enter"].includes(ev.code)) {
         const next = this.completed.index + 1;
+        duckMusic(false); // drop any lingering blip duck on the way out
         this.scene.stop("Game");
-        this.scene.start("Hub", { sel: next });
+        this.scene.start("Hub", { sel: next, unlock: this.completed.newlyUnlocked });
         this.scene.stop();
       }
     });
@@ -105,6 +107,7 @@ export default class UIScene extends Phaser.Scene {
       this.blipActive = { text: this.blipQueue.shift(), shown: 0, hold: 2600 };
       this.blipPanel.setVisible(true);
       this.blipText.setText("");
+      duckMusic(true); // duck the music bus while KOBI types
     }
     const b = this.blipActive;
     if (b) {
@@ -120,6 +123,7 @@ export default class UIScene extends Phaser.Scene {
           if (!this.blipQueue.length) {
             this.blipPanel.setVisible(false);
             this.blipText.setText("");
+            duckMusic(false); // blip cleared -> restore music level
           }
         }
       }

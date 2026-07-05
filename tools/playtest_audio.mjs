@@ -68,6 +68,55 @@ const a3 = await audio();
 check("M unmutes: muted=false", a3.muted === false, `muted=${a3.muted}`);
 check("M unmutes: masterGain restored", a3.masterGain > 0.9, `master=${a3.masterGain}`);
 
+// --- section-advance: the loop pointer must move over time (title still up) ----
+const s0 = await scene(() => window.__BB.audio.music);
+await page.waitForTimeout(3600); // > 1 bar at 90 BPM (~2.67s/bar)
+const s1 = await scene(() => window.__BB.audio.music);
+check(
+  "section pointer advances over time (bar or section moves)",
+  (s1.bar !== s0.bar || s1.section !== s0.section) && s1.bar >= 0,
+  `from bar=${s0.bar}/sec=${s0.section} to bar=${s1.bar}/sec=${s1.section}`
+);
+
+// helper: jump straight into a level (ctx already unlocked above)
+const startLevel = async (i) => {
+  await scene((idx) => {
+    const m = window.__BB.game.scene;
+    ["UI", "Game", "Title", "Hub"].forEach((k) => m.stop(k));
+    m.start("Game", { levelIndex: idx });
+  }, i);
+  await page.waitForTimeout(700);
+};
+
+// --- check 2: music is unique per scene/level --------------------------------
+check("title scene plays `title`", (await scene(() => window.__BB.audio.music.current)) === "title");
+await startLevel(0); // 1-1
+check("entering 1-1 plays `w1l1`", (await scene(() => window.__BB.audio.music.current)) === "w1l1", await scene(() => window.__BB.audio.music.current));
+await startLevel(4); // 2-2
+check("entering 2-2 plays `w2l2`", (await scene(() => window.__BB.audio.music.current)) === "w2l2", await scene(() => window.__BB.audio.music.current));
+
+// --- check 7: 1-3 crane defeat turns the `tension` layer off ------------------
+await startLevel(2); // 1-3
+check("1-3 plays `w1l3`", (await scene(() => window.__BB.audio.music.current)) === "w1l3", await scene(() => window.__BB.audio.music.current));
+check("1-3 tension layer ON while crane lives", (await scene(() => window.__BB.audio.music.tension)) === true);
+// drive the real crane-defeat code path (3rd pod stomp)
+await scene(() => {
+  const s = window.__BB.scene;
+  const c = s.crane;
+  c.podsStomped = 2;
+  const pod = { active: true, x: c.body.x, y: c.floorY - 20, destroy() {} };
+  s.pods.push(pod);
+  s.stompPod(pod);
+});
+await page.waitForTimeout(150);
+check("1-3 crane defeat turns tension layer OFF", (await scene(() => window.__BB.audio.music.tension)) === false, `tension=${await scene(() => window.__BB.audio.music.tension)}`);
+
+// --- check 3: completing a level switches music to `jingle_clear` -------------
+await startLevel(0); // fresh 1-1
+await scene(() => window.__BB.scene.finishLevel());
+await page.waitForTimeout(200);
+check("finishLevel switches music to `jingle_clear`", (await scene(() => window.__BB.audio.music.current)) === "jingle_clear", await scene(() => window.__BB.audio.music.current));
+
 const fails = results.filter((r) => !r.ok);
 console.log(`\n${results.length - fails.length}/${results.length} checks passed`);
 await browser.close();

@@ -2,8 +2,8 @@ import Phaser from "phaser";
 import { TILE, COLORS, PHYS, DEPTH, SKILL_INFO, WORLD_THEMES } from "../constants.js";
 import { LEVELS } from "../levels/registry.js";
 import { makeGrid } from "../levels/builder.js";
-import { completeLevel } from "../save.js";
-import { sfx, installMute } from "../audio.js";
+import { completeLevel, loadSave } from "../save.js";
+import { sfx, installMute, playTrack, setMusicLayer, playJingle, trackForLevel } from "../audio.js";
 import { addGradient, addMotes } from "../backdrop.js";
 import Player from "../objects/Player.js";
 
@@ -142,6 +142,11 @@ export default class GameScene extends Phaser.Scene {
     // M mutes from in-game too; the visible corner icon is drawn by the UI
     // overlay (unzoomed), so this scene only wires the key.
     installMute(this, { icon: false });
+
+    // per-level music: requested in create (crossfades from the hub track). A
+    // no-op if this track is already playing, so death/respawn never restart it.
+    // 1-3 starts with the `tension` layer ON by default (crane alive).
+    playTrack(trackForLevel(def.id));
 
     this.scene.launch("UI", { levelIndex: this.levelIndex });
     this.time.delayedCall(400, () => this.game.events.emit("bb:blip", def.blips.start));
@@ -728,6 +733,7 @@ export default class GameScene extends Phaser.Scene {
       c.state = "dead";
       c.hpText.setText("");
       this.craneDefeated = true;
+      setMusicLayer("tension", false); // crane down -> calm coda
       sfx.crush();
       this.cameras.main.shake(400, 0.006);
       this.tweens.add({ targets: c.body, y: c.floorY - 40, angle: 8, duration: 900, ease: "bounce.out" });
@@ -1334,12 +1340,15 @@ export default class GameScene extends Phaser.Scene {
     if (this.complete) return;
     this.complete = true;
     sfx.win();
+    const before = loadSave().unlocked;
     completeLevel(this.levelIndex, this.def.id, this.coresGot);
+    const newlyUnlocked = loadSave().unlocked > before;
+    playJingle("jingle_clear"); // stops the level track, plays the clear cadence
     this.physics.pause();
     if (this.def.blips.clear) this.game.events.emit("bb:blip", this.def.blips.clear);
     this.time.delayedCall(500, () => {
       this.game.events.emit("bb:complete", {
-        index: this.levelIndex, id: this.def.id, name: this.def.name, cores: this.coresGot,
+        index: this.levelIndex, id: this.def.id, name: this.def.name, cores: this.coresGot, newlyUnlocked,
       });
     });
   }
