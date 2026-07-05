@@ -6,6 +6,7 @@ import GameScene from "./scenes/GameScene.js";
 import UIScene from "./scenes/UIScene.js";
 import { engineState } from "./audio/engine.js";
 import { musicState } from "./audio/music.js";
+import { sfx, sfxCounts, resetSfxCounts, kobi } from "./audio/sfx.js";
 
 const game = new Phaser.Game({
   // ?canvas=1 forces the canvas renderer (the automated playtest uses it —
@@ -33,3 +34,6 @@ window.__BB = { game };
 // audio test surface (tools/playtest_audio.mjs): engine settings/state getter +
 // live music state ({ current, playing, bar, section }).
 window.__BB.audio = { engine: engineState, music: musicState };
+// sfx test surface (tools/playtest_audio.mjs): the voice library, the per-voice
+// play counter (rate-limiter check), a reset, and the mood router.
+window.__BB.audio.sfx = { voices: sfx, kobi, counts: sfxCounts, reset: resetSfxCounts };

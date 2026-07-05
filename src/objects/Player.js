@@ -111,6 +111,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
           return;
         }
         z.arrived = true;
+        sfx.hangLatch(); // clicked onto the hang-anchor
         this.setPosition(z.x, z.y + 44);
         this.setVelocity(0, 0);
       } else {
@@ -144,7 +145,10 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     if (this.carriedBy) {
       const c = this.carriedBy;
       this.setPosition(c.x, c.y - c.displayHeight / 2 - this.displayHeight / 2 + 10);
-      if (Phaser.Input.Keyboard.JustDown(K.jump)) this.scene.detachCarry(c, this, true);
+      if (Phaser.Input.Keyboard.JustDown(K.jump)) {
+        sfx.hopOff(); // carried buddy springs off
+        this.scene.detachCarry(c, this, true);
+      }
       return;
     }
     if (this.zip) {
@@ -173,7 +177,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     body.velocity.x = Phaser.Math.Linear(body.velocity.x, target, Math.min(1, (delta / 1000) * k));
     if (onGround && !this.wasGround) {
       if (this.skill === "heavy" && (this.stomping || this.lastVy > 700)) this.scene.heavyImpact(this, this.stomping);
-      else if (this.lastVy > 480) sfx.land();
+      else if (this.lastVy > 480) sfx.land(this.x, this.y);
       this.stomping = false;
     }
     this.wasGround = onGround;

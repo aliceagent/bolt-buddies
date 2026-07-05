@@ -97,7 +97,10 @@ export default class HubScene extends Phaser.Scene {
     // map-room music (crossfades from a level track); if we arrived here having
     // just unlocked a new chamber, ring the unlock fanfare over the hub track.
     playTrack("hub");
-    if (this.justUnlocked) this.time.delayedCall(350, () => playJingle("jingle_unlock"));
+    if (this.justUnlocked) {
+      sfx.saveTick(); // progress-saved toast tick
+      this.time.delayedCall(350, () => playJingle("jingle_unlock"));
+    }
 
     this.input.keyboard.addCapture("SPACE"); // keep Space from scrolling the page
     this.input.keyboard.on("keydown", (ev) => {
@@ -128,7 +131,7 @@ export default class HubScene extends Phaser.Scene {
     const next = Phaser.Math.Clamp(this.sel + d, 0, LEVELS.length - 1);
     if (next !== this.sel) {
       this.sel = next;
-      sfx.blip();
+      sfx.menuMove();
       this.updateSelection();
     }
   }
@@ -144,16 +147,16 @@ export default class HubScene extends Phaser.Scene {
   enter() {
     const n = this.nodes[this.sel];
     if (!n.unlocked) {
-      sfx.denied();
+      sfx.lockedDeny();
       this.toastText.setText("KOBI: That wing is LOCKED. Doors are my whole THING.");
       return;
     }
     if (n.lvl.wip) {
-      sfx.denied();
+      sfx.menuDeny();
       this.toastText.setText("KOBI: This wing is still under construction. Even I have limits. (coming soon)");
       return;
     }
-    sfx.door();
+    sfx.levelEnter();
     this.scene.start("Game", { levelIndex: n.idx });
   }
 }

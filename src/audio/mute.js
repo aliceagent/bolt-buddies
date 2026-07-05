@@ -7,6 +7,7 @@
 // `{ icon: false }` from GameScene and let UI draw it.
 
 import { toggleMute, getAudioSettings } from "./engine.js";
+import { sfx } from "./sfx.js";
 
 function drawMuteIcon(scene) {
   const W = scene.scale.width;
@@ -41,7 +42,17 @@ export function installMute(scene, { icon = true } = {}) {
     // debounce across the simultaneously-active Game + UI scenes
     if (now - (window.__bbMuteAt || 0) < 150) return;
     window.__bbMuteAt = now;
-    toggleMute();
+    // Mute chirp must be AUDIBLE: when muting, play it while the master gain is
+    // still up (before toggle); when unmuting, toggle first (gain restored) then
+    // play. masterGain ramps over ~8ms, so the onset lands either way.
+    const wasMuted = getAudioSettings().muted;
+    if (wasMuted) {
+      toggleMute();
+      sfx.muteChirp(false);
+    } else {
+      sfx.muteChirp(true);
+      toggleMute();
+    }
     scene.game.events.emit("bb:mute");
   });
 

@@ -5,6 +5,15 @@ import { sfx, installMute, duckMusic } from "../audio.js";
 
 const FONT = "'Courier New', monospace";
 
+// Default KOBI mood from the line's tone when a blip carries no explicit tag:
+// he's smug (gloating) most of the time, spits when a plan backfires (angry),
+// and deflates in defeat. Explicit { mood } on the event always wins.
+function moodForText(t) {
+  if (/fine!\s*fine|give up|you win|maintenance tunnels/i.test(t)) return "defeated";
+  if (/!!|cheating|paycheck|how dare/i.test(t)) return "angry";
+  return "gloating";
+}
+
 // HUD lives in its own scene so GameScene's camera zoom never touches it.
 export default class UIScene extends Phaser.Scene {
   constructor() {
@@ -69,8 +78,10 @@ export default class UIScene extends Phaser.Scene {
         this.keyIcon.setVisible(n > 0);
         this.keyText.setText(n > 0 ? `x${n}` : "");
       },
-      blip: (text) => {
-        this.blipQueue.push(text);
+      blip: (payload) => {
+        const text = typeof payload === "string" ? payload : payload.text;
+        const mood = (typeof payload === "object" && payload.mood) || moodForText(text);
+        this.blipQueue.push({ text, mood });
       },
       complete: (info) => {
         this.completed = info;
@@ -104,7 +115,8 @@ export default class UIScene extends Phaser.Scene {
   update(time, delta) {
     // typewriter blips
     if (!this.blipActive && this.blipQueue.length) {
-      this.blipActive = { text: this.blipQueue.shift(), shown: 0, hold: 2600 };
+      const item = this.blipQueue.shift();
+      this.blipActive = { text: item.text, mood: item.mood || "gloating", shown: 0, hold: 2600 };
       this.blipPanel.setVisible(true);
       this.blipText.setText("");
       duckMusic(true); // duck the music bus while KOBI types
@@ -114,7 +126,7 @@ export default class UIScene extends Phaser.Scene {
       if (b.shown < b.text.length) {
         b.shown = Math.min(b.text.length, b.shown + delta * 0.055);
         const s = b.text.slice(0, Math.floor(b.shown));
-        if (s.length !== this.blipText.text.length && s.length % 3 === 0) sfx.blip();
+        if (s.length !== this.blipText.text.length && s.length % 3 === 0) sfx.kobi(b.mood);
         this.blipText.setText(s);
       } else {
         b.hold -= delta;

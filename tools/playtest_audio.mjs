@@ -117,6 +117,42 @@ await scene(() => window.__BB.scene.finishLevel());
 await page.waitForTimeout(200);
 check("finishLevel switches music to `jingle_clear`", (await scene(() => window.__BB.audio.music.current)) === "jingle_clear", await scene(() => window.__BB.audio.music.current));
 
+// --- S3 SFX pass: rate limiter, voice library, KOBI moods --------------------
+// The sfx test surface is global (window.__BB.audio.sfx) and independent of the
+// active scene; the ctx was unlocked by the KeyZ tap at the top of this run.
+
+// spot check A: the new voice library is exposed
+const voices = await scene(() => Object.keys(window.__BB.audio.sfx.voices));
+const need = ["squish", "craneYank", "fanFlutter", "coresFanfare", "rollerZap", "wardenTopple", "phaseIn", "hangLatch", "kobi"];
+check(
+  "sfx module exposes the new S3 voices",
+  need.every((n) => voices.includes(n)),
+  `missing: ${need.filter((n) => !voices.includes(n)).join(",") || "none"}`
+);
+
+// check 8: 20 rapid squish() calls schedule <= 5 actual plays (rate limiter)
+const squishCount = await scene(() => {
+  window.__BB.audio.sfx.reset();
+  for (let i = 0; i < 20; i++) window.__BB.audio.sfx.voices.squish();
+  return window.__BB.audio.sfx.counts.squish || 0;
+});
+check("rate limiter: 20 rapid squish calls -> <= 5 plays", squishCount >= 1 && squishCount <= 5, `plays=${squishCount}`);
+
+// spot check B: a mood-tagged blip selects the matching KOBI voice
+const moodCounts = await scene(() => {
+  window.__BB.audio.sfx.reset();
+  window.__BB.audio.sfx.kobi("angry");
+  window.__BB.audio.sfx.kobi("defeated");
+  window.__BB.audio.sfx.kobi("defeated");
+  const c = window.__BB.audio.sfx.counts;
+  return { angry: c.kobi_angry || 0, defeated: c.kobi_defeated || 0, gloating: c.kobi_gloating || 0 };
+});
+check(
+  "KOBI mood router: angry/defeated tags hit the right voice",
+  moodCounts.angry === 1 && moodCounts.defeated === 2 && moodCounts.gloating === 0,
+  JSON.stringify(moodCounts)
+);
+
 const fails = results.filter((r) => !r.ok);
 console.log(`\n${results.length - fails.length}/${results.length} checks passed`);
 await browser.close();

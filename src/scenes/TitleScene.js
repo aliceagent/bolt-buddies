@@ -71,7 +71,7 @@ export default class TitleScene extends Phaser.Scene {
     this.input.keyboard.on("keydown", (ev) => {
       initAudio();
       if (["Space", "KeyE", "KeyL", "Enter"].includes(ev.code)) {
-        sfx.pickup();
+        sfx.menuSelect();
         this.scene.start("Hub");
       }
     });

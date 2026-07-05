@@ -26,7 +26,11 @@ export {
   engineState,
 } from "./audio/engine.js";
 
-export { sfx, tone, noise, slide, rateLimit } from "./audio/sfx.js";
+export {
+  sfx, tone, noise, slide, rateLimit, kobi,
+  setListener, clearListener, proximity, setLoop, stopLoops,
+  sfxCounts, resetSfxCounts,
+} from "./audio/sfx.js";
 
 export { playTrack, stopMusic, setMusicLayer, playJingle, trackForLevel, musicState } from "./audio/music.js";
 

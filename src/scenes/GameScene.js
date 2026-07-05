@@ -3,7 +3,7 @@ import { TILE, COLORS, PHYS, DEPTH, SKILL_INFO, WORLD_THEMES } from "../constant
 import { LEVELS } from "../levels/registry.js";
 import { makeGrid } from "../levels/builder.js";
 import { completeLevel, loadSave } from "../save.js";
-import { sfx, installMute, playTrack, setMusicLayer, playJingle, trackForLevel } from "../audio.js";
+import { sfx, installMute, playTrack, setMusicLayer, playJingle, trackForLevel, setListener, clearListener, proximity, setLoop, stopLoops } from "../audio.js";
 import { addGradient, addMotes } from "../backdrop.js";
 import Player from "../objects/Player.js";
 
@@ -142,6 +142,8 @@ export default class GameScene extends Phaser.Scene {
     // M mutes from in-game too; the visible corner icon is drawn by the UI
     // overlay (unzoomed), so this scene only wires the key.
     installMute(this, { icon: false });
+    // tear down ambience loops + the proximity listener when the level unloads
+    this.events.once("shutdown", () => { stopLoops(); clearListener(); });
 
     // per-level music: requested in create (crossfades from the hub track). A
     // no-op if this track is already playing, so death/respawn never restart it.
@@ -501,7 +503,7 @@ export default class GameScene extends Phaser.Scene {
       ped.card.setText(`${SKILL_INFO[ped.skill].name}\n${SKILL_INFO[ped.skill].hint}`);
       this.time.delayedCall(6000, () => ped.card.setAlpha(0.35));
       p.setSkill(ped.skill);
-      sfx.pickup();
+      sfx.equip();
       this.game.events.emit("bb:skill", { idx: p.idx, skill: ped.skill, name: SKILL_INFO[ped.skill].name });
       if (this.players.every((q) => q.skill) && this.def.blips.skills) {
         this.game.events.emit("bb:blip", this.def.blips.skills);
@@ -560,6 +562,7 @@ export default class GameScene extends Phaser.Scene {
         return;
       }
     } else if (p.skill === "heavy" && !p.grounded && !p.zip) {
+      sfx.stompLaunch(); // heavy winds up the dive
       p.startStomp();
       return;
     }
@@ -581,7 +584,7 @@ export default class GameScene extends Phaser.Scene {
     p.carrying = q;
     q.carriedBy = p;
     q.body.enable = false;
-    sfx.pickup();
+    sfx.grab();
   }
 
   throwPartner(p) {
@@ -593,7 +596,9 @@ export default class GameScene extends Phaser.Scene {
     q.body.reset(p.x + p.facing * 10, p.y - p.displayHeight / 2 - 20);
     const heavyThrower = p.skill === "heavy";
     const flyBoost = q.skill === "tiny" ? 1.9 : 1; // Tiny is built to be luggage
+    let highToss = false;
     if (p.keys.jump.isDown) {
+      highToss = true;
       q.setVelocity(p.facing * 120, -PHYS.tossY * (q.skill === "tiny" ? 1.08 : 1)); // high toss
     } else {
       q.setVelocity(
@@ -603,7 +608,8 @@ export default class GameScene extends Phaser.Scene {
     }
     q.pickupCd = 450;
     p.pickupCd = 450;
-    sfx.throwIt();
+    if (highToss) sfx.tossHigh();
+    else sfx.throwIt();
   }
 
   detachCarry(carrier, carried, hop) {
@@ -682,7 +688,7 @@ export default class GameScene extends Phaser.Scene {
     const radius = strong ? 100 : 74;
     const fx = p.x;
     const fy = p.body.bottom;
-    sfx.stomp();
+    sfx.stomp(fx, fy);
     this.cameras.main.shake(strong ? 160 : 90, strong ? 0.005 : 0.002);
     this.boom.explode(strong ? 20 : 10, fx, fy);
     this.crackies.children.each((tile) => {
@@ -703,14 +709,14 @@ export default class GameScene extends Phaser.Scene {
 
   squishBug(bug) {
     this.boom.explode(12, bug.x, bug.y);
-    sfx.pop();
+    sfx.squish(bug.x, bug.y);
     bug.destroy();
   }
 
   // --- crane fight ---------------------------------------------------------------
   yankCranePlate(plate) {
     plate.attached = false;
-    sfx.yank();
+    sfx.craneYank(plate.img.x, plate.img.y);
     this.tweens.add({
       targets: plate.img, x: plate.img.x + Phaser.Math.Between(-160, 160), y: plate.img.y - 200,
       angle: 720, alpha: 0, duration: 700, onComplete: () => plate.img.destroy(),
@@ -725,7 +731,7 @@ export default class GameScene extends Phaser.Scene {
 
   stompPod(pod) {
     this.boom.explode(18, pod.x, pod.y);
-    sfx.pop();
+    sfx.podCrunch(pod.x, pod.y);
     pod.destroy();
     const c = this.crane;
     c.podsStomped++;
@@ -734,11 +740,11 @@ export default class GameScene extends Phaser.Scene {
       c.hpText.setText("");
       this.craneDefeated = true;
       setMusicLayer("tension", false); // crane down -> calm coda
-      sfx.crush();
+      sfx.craneDefeat(c.body.x, c.body.y);
       this.cameras.main.shake(400, 0.006);
       this.tweens.add({ targets: c.body, y: c.floorY - 40, angle: 8, duration: 900, ease: "bounce.out" });
       c.body.setTint(0x666a80);
-      this.game.events.emit("bb:blip", this.def.blips.craneDown || "KOBI: MY CRANE!");
+      this.game.events.emit("bb:blip", { text: this.def.blips.craneDown || "KOBI: MY CRANE!", mood: "angry" });
     }
   }
 
@@ -752,16 +758,21 @@ export default class GameScene extends Phaser.Scene {
     });
     c.hpText.setPosition(b.x, b.y - 58);
     c.hpText.setText(c.state === "rest" ? "YANK A PLATE!" : "");
+    // an exposed core pod pulses a warning alarm until it's crunched
+    if (this.pods.some((p) => p.active)) sfx.podAlarm(b.x, c.floorY);
     c.timer -= delta;
     switch (c.state) {
       case "patrol": {
         const target = this.nearestAlivePlayerX(b.x);
         const tx = Phaser.Math.Clamp(target, c.minX, c.maxX);
-        b.x += Phaser.Math.Clamp(tx - b.x, -150 * dt, 150 * dt);
+        const step = Phaser.Math.Clamp(tx - b.x, -150 * dt, 150 * dt);
+        b.x += step;
+        if (Math.abs(step) > 0.5) sfx.craneServo(b.x, b.y); // rate-limited patrol servo
         if (c.timer <= 0) {
           c.state = "telegraph";
           c.timer = 650;
           b.setTint(0xffb3b3);
+          sfx.craneAlarm(b.x, b.y); // two-tone "I'm about to SLAM" telegraph
         }
         break;
       }
@@ -784,7 +795,7 @@ export default class GameScene extends Phaser.Scene {
         if (bottom >= c.floorY - 6) {
           c.state = "rest";
           c.timer = 2600;
-          sfx.crush();
+          sfx.craneSlam(b.x, c.floorY);
           this.cameras.main.shake(120, 0.004);
         }
         break;
@@ -818,7 +829,7 @@ export default class GameScene extends Phaser.Scene {
     p.dead = true;
     p.body.enable = false;
     p.setVisible(false);
-    sfx.die();
+    sfx.die(p.x, p.y);
     this.boom.explode(16, p.x, p.y);
     this.time.delayedCall(900, () => {
       const cp = this.cpPos[p.idx];
@@ -829,6 +840,7 @@ export default class GameScene extends Phaser.Scene {
       p.setVisible(true);
       p.invuln = 1500;
       p.wasGround = false;
+      sfx.respawn(); // beam back in
     });
   }
 
@@ -873,7 +885,10 @@ export default class GameScene extends Phaser.Scene {
       if (hint) hint.setPosition(p.x, p.y - 64 - p.idx * 34 + Math.sin(time / 300) * 4);
 
       // ghost shimmer while inside a phase-wall
+      const wasInWall = p.inPhaseWall;
       p.inPhaseWall = this.tileAt(p.x, p.y) === "~";
+      if (p.inPhaseWall && !wasInWall) sfx.phaseIn();
+      else if (!p.inPhaseWall && wasInWall) sfx.phaseOut();
       if (p.invuln <= 0) p.setAlpha(p.inPhaseWall ? 0.55 : 1);
 
       // conveyor drift (Heavyweight stands his ground)
@@ -906,6 +921,8 @@ export default class GameScene extends Phaser.Scene {
           this.coresGot[c.coreIndex] = true;
           this.boom.explode(10, c.x, c.y);
           sfx.core();
+          // bonus fanfare the moment the third core of the level is collected
+          if (this.coresGot.every(Boolean)) this.time.delayedCall(220, () => sfx.coresFanfare());
           c.destroy();
           this.game.events.emit("bb:cores", this.coresGot);
         }
@@ -913,7 +930,7 @@ export default class GameScene extends Phaser.Scene {
       this.keyItems.forEach((k) => {
         if (k.active && Math.hypot(k.x - p.x, k.y - p.y) < 42) {
           this.keysHeld++;
-          sfx.key();
+          sfx.key(k.x, k.y);
           k.destroy();
           this.game.events.emit("bb:keys", this.keysHeld);
         }
@@ -926,7 +943,7 @@ export default class GameScene extends Phaser.Scene {
           });
           cp.active = true;
           cp.img.setAlpha(1).setTint(0x9dffc4);
-          sfx.blip();
+          sfx.checkpoint();
           this.cpPos = this.players.map((_, i) => ({ x: cp.x - 14 + i * 28, y: cp.y - 10 }));
         }
       });
@@ -990,9 +1007,10 @@ export default class GameScene extends Phaser.Scene {
         pl.img.scaleY = pl.baseScaleY * (active ? 0.45 : 1);
         if (active) {
           pl.img.setTint(0xccffcc);
-          sfx.blip();
+          sfx.platePress(pl.rect.centerX, pl.rect.centerY);
         } else {
           pl.img.clearTint();
+          sfx.plateRelease(pl.rect.centerX, pl.rect.centerY);
         }
       }
     }
@@ -1022,7 +1040,7 @@ export default class GameScene extends Phaser.Scene {
             d.keysGiven = (d.keysGiven || 0) + give;
             this.keysHeld -= give;
             this.game.events.emit("bb:keys", this.keysHeld);
-            sfx.key();
+            sfx.lockTurn(d.zone.centerX, d.baseY);
           }
           if ((d.keysGiven || 0) >= d.needs.keys) shouldOpen = this.evalNeeds(d.needs, d);
         }
@@ -1034,13 +1052,15 @@ export default class GameScene extends Phaser.Scene {
         else d.openedOnce = true;
         this.opened.add(d.id);
         d.img.body.enable = false;
-        sfx.door();
+        if (d.isExit) sfx.exitDoor(d.zone.centerX, d.baseY);
+        else sfx.door(d.zone.centerX, d.baseY);
         this.tweens.add({ targets: d.img, y: d.baseY - d.h + 10, duration: 600, ease: "sine.inOut" });
       } else if (!shouldOpen && d.open) {
         // momentary doors close again — but never on top of someone
         const blocked = this.players.some((p) => !p.dead && Phaser.Geom.Rectangle.Contains(d.zone, p.x, p.y));
         if (!blocked) {
           d.open = false;
+          sfx.doorClose(d.zone.centerX, d.baseY);
           this.tweens.add({
             targets: d.img, y: d.baseY, duration: 400, ease: "sine.inOut",
             onComplete: () => {
@@ -1056,12 +1076,12 @@ export default class GameScene extends Phaser.Scene {
       if (!br.open && this.evalNeeds(br.needs)) {
         br.open = true;
         this.opened.add(br.id);
-        sfx.door();
         br.tiles.forEach((t, i) => {
           this.tweens.add({ targets: t, alpha: 1, duration: 300, delay: i * 70 });
           this.time.delayedCall(i * 70, () => {
             t.body.enable = true;
             this.boom.explode(4, t.x, t.y - 10);
+            sfx.bridgeTick(t.x, t.y); // one materialise tick per tile, rising left-to-right
           });
         });
       }
@@ -1094,6 +1114,12 @@ export default class GameScene extends Phaser.Scene {
           lf.label.setAlpha(1);
         }
       }
+      // start/stop chirps at the edges of travel (the soft motor loop while it
+      // moves is driven in updateLoops)
+      const moving = Math.abs(body.velocity.y) > 1;
+      if (moving && !lf.movingWas) sfx.liftStart(lf.img.x, lf.img.y);
+      else if (!moving && lf.movingWas) sfx.liftStop(lf.img.x, lf.img.y);
+      lf.movingWas = moving;
     }
 
     // crushers
@@ -1127,7 +1153,7 @@ export default class GameScene extends Phaser.Scene {
             body.setVelocityY(0);
             cr.state = "rest";
             cr.timer = 1300;
-            sfx.crush();
+            sfx.crush(img.x, img.y);
             this.cameras.main.shake(70, 0.0015);
           }
           break;
@@ -1135,7 +1161,10 @@ export default class GameScene extends Phaser.Scene {
         case "rest":
           body.setVelocityY(0);
           cr.timer -= delta;
-          if (cr.timer <= 0) cr.state = "rise";
+          if (cr.timer <= 0) {
+            cr.state = "rise";
+            sfx.crusherServo(img.x, img.y); // servo whine as it hauls back up
+          }
           break;
         case "rise":
           body.setVelocityY(-140);
@@ -1159,6 +1188,10 @@ export default class GameScene extends Phaser.Scene {
       else if (bug.body.blocked.right || bug.x > bug.maxX) bug.setVelocityX(-60);
       else if (!floorAhead && bug.body.blocked.down) bug.setVelocityX(-dir * 60);
       bug.setFlipX(bug.body.velocity.x < 0);
+      // idle skitter chitter when a player is nearby (rate-limited + proximity)
+      if (this.players.some((p) => !p.dead && Math.abs(p.x - bug.x) < 160 && Math.abs(p.y - bug.y) < 120)) {
+        sfx.bugSkitter(bug.x, bug.y);
+      }
       for (const p of this.players) {
         if (p.dead || p.invuln > 0 || p.carriedBy) continue;
         if (Math.abs(p.x - bug.x) < 38 && Math.abs(p.y - bug.y) < 36) {
@@ -1167,10 +1200,11 @@ export default class GameScene extends Phaser.Scene {
             if (p.skill === "heavy") this.squishBug(bug);
             else {
               p.setVelocityY(-380);
-              sfx.bounce();
+              sfx.bugBounce(bug.x, bug.y);
             }
           } else if (p.skill === "heavy") {
             bug.setVelocityX(p.x > bug.x ? -60 : 60); // bonk, turn away
+            sfx.bugBonk(bug.x, bug.y);
           } else {
             this.killPlayer(p);
           }
@@ -1216,7 +1250,46 @@ export default class GameScene extends Phaser.Scene {
     }
 
     this.players.forEach((p) => (p.standingOn = null));
+    this.updateLoops();
     this.updateCamera(dt);
+  }
+
+  // Ambience loops: one persistent gain-wrapped source per emitter KIND, whose
+  // gain is set each frame from the nearest emitter's proximity (silent when
+  // off-screen). No per-frame node creation — setLoop just ramps a live gain.
+  updateLoops() {
+    if (this.beltSprites.length) {
+      let prox = 0;
+      for (const p of this.players) {
+        if (p.dead) continue;
+        const c = this.tileAt(p.x, p.body.bottom + 6);
+        if ((c === "<" || c === ">") && p.grounded) prox = Math.max(prox, proximity(p.x, p.y));
+      }
+      setLoop("conveyor", prox);
+    }
+    if (this.rollers.length) {
+      let prox = 0;
+      for (const r of this.rollers) prox = Math.max(prox, proximity(r.img.x, r.img.y));
+      setLoop("motor", prox);
+    }
+    if (this.jets.length) {
+      let prox = 0;
+      for (const j of this.jets) if (j.active) prox = Math.max(prox, proximity(j.x, j.topY + j.len / 2));
+      setLoop("hiss", prox);
+    }
+    if (this.fans.length) {
+      let prox = 0;
+      for (const f of this.fans) {
+        const inCol = this.players.some((p) => !p.dead && !p.carriedBy && Phaser.Geom.Rectangle.Contains(f.zone, p.x, p.y));
+        if (inCol) prox = Math.max(prox, proximity(f.zone.centerX, f.zone.centerY));
+      }
+      setLoop("fan", prox);
+    }
+    if (this.lifts.length) {
+      let prox = 0;
+      for (const lf of this.lifts) if (Math.abs(lf.img.body.velocity.y) > 1) prox = Math.max(prox, proximity(lf.img.x, lf.img.y));
+      setLoop("lift", prox);
+    }
   }
 
   // --- world 2: rollers, wardens, steam jets, fans -----------------------------
@@ -1253,11 +1326,12 @@ export default class GameScene extends Phaser.Scene {
       if (r.state === "patrol" && seen) {
         r.state = "alert";
         r.timer = 500;
-        sfx.blip();
+        sfx.rollerAlert(img.x, img.y); // rising "?!" chirp
       } else if (r.state === "alert") {
         r.timer -= delta;
         if (!seen) r.state = "patrol";
         else if (r.timer <= 0) {
+          sfx.rollerZap(img.x, img.y); // discharge crack
           this.killPlayer(seen);
           r.state = "cool";
           r.timer = 900;
@@ -1281,12 +1355,12 @@ export default class GameScene extends Phaser.Scene {
           if (w.shoveCd > 0 || Math.abs(dx) > 44) continue;
           p.setVelocity(w.facing * 430, -230); // firm but polite shove
           w.shoveCd = 500;
-          sfx.denied();
+          sfx.wardenShove(w.img.x, w.img.y); // thud + comic HMPH buzz
           this.tweens.add({ targets: w.img, x: w.x + w.facing * 4, duration: 70, yoyo: true });
         } else {
           w.defeated = true;
           this.boom.explode(16, w.img.x, w.img.y);
-          sfx.pop();
+          sfx.wardenTopple(w.img.x, w.img.y); // descending slide-whistle topple
           w.img.body.enable = false;
           this.tweens.add({ targets: w.img, angle: -w.facing * 84, alpha: 0.25, y: w.img.y + 18, duration: 500 });
           this.game.events.emit("bb:blip", "KOBI: WARDEN DOWN?! You went THROUGH the WALL?! That is CHEATING and also very clever.");
@@ -1319,6 +1393,7 @@ export default class GameScene extends Phaser.Scene {
         if (p.dead || p.carriedBy || p.zip) continue;
         if (Phaser.Geom.Rectangle.Overlaps(f.zone, bodyRect(p))) {
           if (p.skill === "tiny") {
+            if (!p.grounded) sfx.fanFlutter(p.x, p.y); // rate-limited updraft flutter
             p.body.velocity.y = Math.max(p.body.velocity.y - 2100 * dt, -275);
             // FL-010: gentle keyless centering — airborne momentum never decays,
             // so without this, riding the one-tile draft demands frame-perfect
@@ -1339,6 +1414,7 @@ export default class GameScene extends Phaser.Scene {
   finishLevel() {
     if (this.complete) return;
     this.complete = true;
+    stopLoops(); // silence all ambience the instant the level is cleared
     sfx.win();
     const before = loadSave().unlocked;
     completeLevel(this.levelIndex, this.def.id, this.coresGot);
@@ -1372,5 +1448,7 @@ export default class GameScene extends Phaser.Scene {
     this.camPos.zoom += (targetZoom - this.camPos.zoom) * k;
     cam.setZoom(this.camPos.zoom);
     cam.centerOn(this.camPos.x, this.camPos.y);
+    // publish the camera midpoint + on-screen half-extents for proximity SFX
+    setListener(this.camPos.x, this.camPos.y, this.scale.width / 2 / this.camPos.zoom, this.scale.height / 2 / this.camPos.zoom);
   }
 }
