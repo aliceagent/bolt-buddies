@@ -47,4 +47,18 @@ The repo works out of the box: framework **Vite**, build `npm run build`, output
 
 ## Automated playtest
 
-`npm run playtest` drives both robots through mechanic checks in headless Chromium (requires the dev server on port 5173, or set `BB_URL`).
+`npm run playtest` runs the full verification stack in headless Chromium
+(requires the dev server on port 5173, or set `BB_URL`):
+
+1. **World 1 mechanics suite** (`tools/playtest.mjs`, 42 checks) — scene flow,
+   movement, every W1 gadget/enemy/device interaction.
+2. **World 2 mechanics suite** (`tools/playtest_w2.mjs`, 30 checks) — phase
+   walls & escort, ducts, rollers, wardens, jets, fans, the throw finale.
+   Runs chunked: each level in its own browser (see TESTKIT_ROADMAP.md).
+3. **Beat matrix** (`tools/beat/runner.mjs`, 12 runs) — plays every level of
+   Worlds 1-2 start-to-finish with real keyboard input only, in BOTH role
+   assignments, proving each level is beatable like a human would play it.
+
+`npm run test:beat -- 1-3 2-2` runs the beat matrix for a subset of levels.
+Failures write artifacts (screenshot + state dump + step log) to
+`tools/beat/failures/`.

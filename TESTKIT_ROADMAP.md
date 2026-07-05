@@ -482,6 +482,28 @@ A red beat run is never just reported — it enters a fix loop until green:
   2-tile risers with 1-tile treads (2-1/2-3 stair entries defeated the old
   hop: the held direction pinned the jumper into the next riser mid-air).
 
+### FL-009 — Both W2 tunnels were walk-in SEALED (2-1 and 2-3)
+
+- **Triage class:** (c) level design, found by the first W2 beat routes and
+  masked until now because the W2 mechanics suite TELEPORTS robots into the
+  tunnels. The stair columns at each level's entrance ran floor-to-slab, so
+  the under-slab lane could not be entered on foot at all: 2-1's Tiny stalled
+  at the stairs (its whole lane unreachable), and 2-3's Phase was auto-hopped
+  up the stairs onto the WRONG lane, then stuck at a tiny-only pinch (probe
+  artifact: phase airborne at x15.7 on the slab top). Both levels were
+  unbeatable by real input.
+- **Fix (per each level's documented lane concept):**
+  - 2-1: the stair columns' floor tiles become duct tiles (`d`) — Tiny
+    crawls in at floor level exactly like the tunnel's interior pinches;
+    Phase still climbs the stairs (ducts are solid to big robots).
+  - 2-3: the stair columns' lower halves become shimmer (`~`) — Phase
+    ghosts through at floor level into its lane; Tiny still climbs them
+    (shimmer collides like solid for non-phase robots).
+- Kit note in the same pass: 2-2's fan only catches a robot STANDING in the
+  one-tile column; the route now nudges Tiny in with pulses and stands still
+  instead of walking through at full speed (game behavior is correct — a kid
+  who stands on the fan lifts; FL-008 fixed the standing-height zone).
+
 ## Maintenance rule (add to both other roadmaps' ground rules)
 
 From T2 onward, **every sprint (UI or sound) must leave the 12-run beat

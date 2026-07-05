@@ -39,35 +39,38 @@ export default [
     },
   },
   {
-    name: "roller yard: T strolls; P shelters pillar-to-pillar, pulls lvE",
+    name: "roller yard: escorted pillar-hops (Tiny can't pass shimmer alone)",
     fn: async (bb) => {
-      // Rollers can't see Tiny — it walks straight to the exit side.
-      await bb.walkTo("T", 56, { tol: 12, timeout: 12000 });
-      // P dash 1 (x46 -> pillar x50): roller0 (patrol 47-52) must face away
+      // The walkthrough's "T strolls any time" is wrong: the shimmer pillars
+      // at x50/x54 collide for non-phase robots and Tiny's jump is a hair
+      // short of clearing them — the yard is an ESCORTED crossing (rollers
+      // still only threaten P; T rides along inside the hand-hold radius).
+      // hop 1 (x46 -> pillar x50): roller0 (patrol 47-52) must face away
       // from the left approach; its beam is otherwise the whole corridor.
+      await bb.walkTo("T", 48.3, { tol: 10, timeout: 12000 });
+      await bb.walkTo("P", 48.3, { tol: 10, timeout: 12000 });
       await bb.waitRollerSafe(0, 46);
-      await bb.walkTo("P", 50, { tol: 8, timeout: 5000 });
-      // P dash 2 (pillar x50 -> pillar x54 with lvE inside): roller0 must face
+      await bb.escortTogether("P", "T", 50.1, { timeout: 9000 });
+      // hop 2 (pillar x50 -> pillar x54 with lvE inside): roller0 must face
       // back left (beam away / blocked by pillar 50) AND roller1 (52-57) must
       // face right (beam away from the 50->54 corridor). Combined predicate —
       // two sequential waits could each pass at different moments.
       await bb.waitFor((s) => {
         const r0 = s.rollers[0], r1 = s.rollers[1];
         return r0.state === "patrol" && r1.state === "patrol" && r0.dir === -1 && r1.dir === 1;
-      }, 20000, "both rollers facing away from the 50->54 corridor");
-      await bb.walkTo("P", 54, { tol: 8, timeout: 5000 });
+      }, 25000, "both rollers facing away from the 50->54 corridor");
+      await bb.escortTogether("P", "T", 54, { timeout: 9000 });
       await bb.act("P"); // lvE tucked inside the pillar
       await bb.waitFor((s) => s.doors.find((d) => d.id === "exit")?.open, 4000, "exit open");
     },
   },
   {
-    name: "P dashes to the exit; both finish",
+    name: "escorted dash to the exit; both finish",
     fn: async (bb) => {
-      // dash 3 (x54 -> exit x57): only roller1 matters — its beam must face
+      // hop 3 (x54 -> exit x57): only roller1 matters — its beam must face
       // away from P's start side (the pillar at 54)
       await bb.waitRollerSafe(1, 54);
-      await bb.walkTo("P", 57.4, { tol: 8, timeout: 5000 });
-      await bb.walkTo("T", 57.4, { tol: 8, timeout: 6000 });
+      await bb.escortTogether("P", "T", 57.4, { timeout: 9000 });
       await bb.waitFor((s) => s.complete, 5000, "level complete");
     },
   },

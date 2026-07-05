@@ -13,8 +13,13 @@ export default {
   build(g) {
     g.rect(0, 0, 0, 13, "#"); // left wall
     g.rect(0, 14, 59, 17, "#"); // ground
-    g.rect(10, 12, 10, 13, "#"); // stairs to the slab top
-    g.rect(11, 10, 11, 13, "#");
+    // FL-009: stairs double as the tunnel's left wall — keep them climbable for
+    // Phase but give Tiny a floor-level duct crawl into its lane (the tunnel
+    // was walk-in sealed; only the old teleporting suite ever got inside).
+    g.rect(10, 12, 10, 12, "#"); // stairs to the slab top
+    g.set(10, 13, "d");
+    g.rect(11, 10, 11, 12, "#");
+    g.set(11, 13, "d");
     g.rect(12, 8, 44, 9, "#"); // the long slab: tunnel below, walkway on top
     // tunnel vent pinches (Tiny only)
     for (const x of [15, 25, 35]) {

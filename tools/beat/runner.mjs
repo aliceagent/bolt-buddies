@@ -81,6 +81,13 @@ async function runOne(page, id, assignment) {
     }
   }
   await bb.releaseAll().catch(() => {});
+  // paranoid full purge: a step abandoned mid-tap (budget race, thrown
+  // primitive) can leave a key PHYSICALLY down that the driver never tracked —
+  // and the page persists across runs, poisoning every later route.
+  for (const c of ["KeyA", "KeyD", "KeyW", "KeyS", "KeyE", "Space",
+    "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "KeyL"]) {
+    await page.keyboard.up(c).catch(() => {});
+  }
   let complete = false;
   try { complete = (await bb.state())?.complete === true; } catch { /* page gone */ }
 

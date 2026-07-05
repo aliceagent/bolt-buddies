@@ -1,82 +1,32 @@
 {
-  "when": "2026-07-05T06:38:37.344Z",
+  "when": "2026-07-05T07:12:42.998Z",
   "levels": [
-    "2-1",
-    "2-2",
-    "2-3"
+    "2-2"
   ],
   "results": [
     {
-      "id": "2-1",
-      "assignment": "A:P1=G",
-      "result": "FAIL",
-      "complete": false,
-      "durationMs": 21852,
-      "deaths": 0,
-      "steps": 1,
-      "totalSteps": 6,
-      "failedStep": "P climbs the stairs, crosses panel x15, pulls lvP1 -> dT1",
-      "error": "walkTo P -> tile 18 timed out"
-    },
-    {
-      "id": "2-1",
-      "assignment": "B:P1=H",
-      "result": "FAIL",
-      "complete": false,
-      "durationMs": 22367,
-      "deaths": 0,
-      "steps": 1,
-      "totalSteps": 6,
-      "failedStep": "P climbs the stairs, crosses panel x15, pulls lvP1 -> dT1",
-      "error": "walkTo P -> tile 18 timed out"
-    },
-    {
       "id": "2-2",
       "assignment": "A:P1=G",
-      "result": "FAIL",
-      "complete": false,
-      "durationMs": 10494,
+      "result": "PASS",
+      "complete": true,
+      "durationMs": 38698,
       "deaths": 0,
-      "steps": 2,
+      "steps": 7,
       "totalSteps": 7,
-      "failedStep": "fan lifts T to the deck",
-      "error": "waitFor timed out: T lifted to deck height"
+      "failedStep": "",
+      "error": ""
     },
     {
       "id": "2-2",
       "assignment": "B:P1=H",
-      "result": "FAIL",
-      "complete": false,
-      "durationMs": 10873,
+      "result": "PASS",
+      "complete": true,
+      "durationMs": 38566,
       "deaths": 0,
-      "steps": 2,
+      "steps": 7,
       "totalSteps": 7,
-      "failedStep": "fan lifts T to the deck",
-      "error": "waitFor timed out: T lifted to deck height"
-    },
-    {
-      "id": "2-3",
-      "assignment": "A:P1=G",
-      "result": "FAIL",
-      "complete": false,
-      "durationMs": 19840,
-      "deaths": 0,
-      "steps": 1,
-      "totalSteps": 6,
-      "failedStep": "P ambushes w1 through panel x20, stages at lvB1; T stages at tDoorA",
-      "error": "walkTo T -> tile 24.7 timed out"
-    },
-    {
-      "id": "2-3",
-      "assignment": "B:P1=H",
-      "result": "FAIL",
-      "complete": false,
-      "durationMs": 20254,
-      "deaths": 0,
-      "steps": 1,
-      "totalSteps": 6,
-      "failedStep": "P ambushes w1 through panel x20, stages at lvB1; T stages at tDoorA",
-      "error": "walkTo T -> tile 24.7 timed out"
+      "failedStep": "",
+      "error": ""
     }
   ],
   "pageErrors": []

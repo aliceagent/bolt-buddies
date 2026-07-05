@@ -14,8 +14,12 @@ export default {
   build(g) {
     g.rect(0, 0, 0, 13, "#"); // left wall
     g.rect(0, 14, 51, 17, "#"); // ground up to the gap
-    g.rect(9, 12, 9, 13, "#"); // stairs to the slab
-    g.rect(10, 10, 10, 13, "#");
+    // FL-009: the stair columns sealed Phase's tunnel. Their lower halves are
+    // now shimmer — Phase ghosts through at floor level into its lane; Tiny
+    // still climbs them like solid steps (shimmer collides for non-phase).
+    g.rect(9, 12, 9, 13, "~"); // stairs to the slab (lower = phase door)
+    g.rect(10, 10, 10, 11, "#");
+    g.rect(10, 12, 10, 13, "~");
     g.rect(11, 9, 45, 10, "#"); // maze slab: Tiny on top, Phase in the tunnel
     // top lane vent pinches
     for (const x of [16, 30, 40]) {

@@ -573,6 +573,10 @@ export class Driver {
     };
     while (now() < end) {
       const st = await this.state();
+      if (st.complete) { // level finished mid-escort (physics pauses) — success
+        await rel();
+        return true;
+      }
       const E = st.players[ei];
       const B = st.players[bi];
       if (E.dead || B.dead) {
