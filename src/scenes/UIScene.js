@@ -20,7 +20,7 @@ export default class UIScene extends Phaser.Scene {
     const H = this.scale.height;
     const lvl = LEVELS[this.levelIndex];
 
-    this.p1Text = this.add.text(16, 12, "P1 BEEP — action: E", { fontFamily: FONT, fontSize: "17px", fontStyle: "bold", color: "#4dc9ff" });
+    this.p1Text = this.add.text(16, 12, "P1 BEEP — action: SPACE", { fontFamily: FONT, fontSize: "17px", fontStyle: "bold", color: "#4dc9ff" });
     this.p2Text = this.add.text(W - 16, 12, "P2 BOOP — action: L", { fontFamily: FONT, fontSize: "17px", fontStyle: "bold", color: "#ffa14d" }).setOrigin(1, 0);
     this.add.text(W / 2, 14, `${lvl.id}  "${lvl.name.toUpperCase()}"`, { fontFamily: FONT, fontSize: "16px", color: "#8fa3d9" }).setOrigin(0.5, 0);
 
@@ -49,7 +49,7 @@ export default class UIScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.winSub = this.add.text(W / 2, H / 2 - 45, "", { fontFamily: FONT, fontSize: "18px", color: "#c6d2f2" }).setOrigin(0.5);
     this.winCores = [0, 1, 2].map((i) => this.add.image(W / 2 - 40 + i * 40, H / 2 + 15, "core").setAlpha(0.2));
-    this.winPrompt = this.add.text(W / 2, H / 2 + 95, "press E or L to continue", {
+    this.winPrompt = this.add.text(W / 2, H / 2 + 95, "press SPACE or L to continue", {
       fontFamily: FONT, fontSize: "20px", color: "#8fa3d9",
     }).setOrigin(0.5);
     this.overlay.add([dim, panel, this.winTitle, this.winSub, ...this.winCores, this.winPrompt]);
@@ -62,7 +62,7 @@ export default class UIScene extends Phaser.Scene {
     this.h = {
       skill: ({ idx, skill, name }) => {
         const t = idx === 0 ? this.p1Text : this.p2Text;
-        t.setText(`${idx === 0 ? "P1 BEEP" : "P2 BOOP"} — ${name} (${idx === 0 ? "E" : "L"})`);
+        t.setText(`${idx === 0 ? "P1 BEEP" : "P2 BOOP"} — ${name} (${idx === 0 ? "SPACE" : "L"})`);
       },
       cores: (got) => got.forEach((v, i) => this.corePips[i].setAlpha(v ? 1 : 0.2)),
       keys: (n) => {
@@ -86,7 +86,7 @@ export default class UIScene extends Phaser.Scene {
     });
 
     this.input.keyboard.on("keydown", (ev) => {
-      if (this.completed && ["KeyE", "KeyL", "Enter"].includes(ev.code)) {
+      if (this.completed && ["Space", "KeyE", "KeyL", "Enter"].includes(ev.code)) {
         const next = this.completed.index + 1;
         this.scene.stop("Game");
         this.scene.start("Hub", { sel: next });

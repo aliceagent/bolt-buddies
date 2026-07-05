@@ -10,7 +10,7 @@ The full design document lives in [`GAME_DESIGN.md`](./GAME_DESIGN.md).
 
 |            | Move  | Jump | Action |
 | ---------- | ----- | ---- | ------ |
-| **P1 Beep** | A / D | W    | E      |
+| **P1 Beep** | A / D | W    | SPACE (E also works) |
 | **P2 Boop** | ← / → | ↑    | L      |
 
 The **Action** button is context-sensitive: equip a pedestal gadget, fire your skill (zip / stomp), pull a lever, or — next to your buddy — pick them up and throw them. Hold **jump** while throwing for a high toss.

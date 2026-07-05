@@ -4,7 +4,7 @@ A test harness that **plays the game like a human** and proves every level can
 be beaten. Unlike `tools/playtest*.mjs` (mechanic checks that teleport players
 and force states), the beat kit is **input-only**: it may READ game state
 (`window.__BB.scene`) to decide when and where to move, but it may only ever
-act through real keyboard events — the same E/L/WASD/arrows a player presses.
+act through real keyboard events — the same SPACE/L/WASD/arrows a player presses (the kit drives P1 via the silent E fallback binding).
 No `body.reset`, no `setSkill`, no state mutation of any kind.
 
 Because "every level must be solvable with either assignment" is a design

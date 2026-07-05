@@ -76,7 +76,8 @@ export default class GameScene extends Phaser.Scene {
       return p;
     });
     const kb = this.input.keyboard;
-    this.players[0].keys = kb.addKeys({ left: "A", right: "D", jump: "W", act: "E", down: "S" });
+    this.players[0].keys = kb.addKeys({ left: "A", right: "D", jump: "W", act: "SPACE", down: "S" });
+    this.players[0].keys.actAlt = kb.addKey("E"); // silent fallback: E still works, SPACE is what we teach
     this.players[1].keys = kb.addKeys({ left: "LEFT", right: "RIGHT", jump: "UP", act: "L", down: "DOWN" });
     this.escKey = kb.addKey("ESC");
     this.rKey = kb.addKey("R");
@@ -118,14 +119,15 @@ export default class GameScene extends Phaser.Scene {
     this.wardens.forEach((w) => this.physics.add.collider(this.players, w.img));
     this.reticles = this.players.map(() => this.add.image(0, 0, "reticle").setDepth(DEPTH.reticle).setVisible(false));
 
-    // floating "E = ACTION" / "L = ACTION" key hints above each robot until
+    // floating "SPACE = ACTION" / "L = ACTION" key hints above each robot until
     // that player first presses their action key — the button was unclear
     this.actionHints = this.players.map((p) => {
       const color = p.idx === 0 ? COLORS.beep : COLORS.boop;
+      const hw = p.idx === 0 ? 74 : 56; // half-width: P1's label is longer
       const g = this.add.graphics();
-      g.fillStyle(0x0a0f1e, 0.92).fillRoundedRect(-56, -15, 112, 30, 8);
-      g.lineStyle(2, color).strokeRoundedRect(-56, -15, 112, 30, 8);
-      const t = this.add.text(0, 0, p.idx === 0 ? "E = ACTION" : "L = ACTION", {
+      g.fillStyle(0x0a0f1e, 0.92).fillRoundedRect(-hw, -15, hw * 2, 30, 8);
+      g.lineStyle(2, color).strokeRoundedRect(-hw, -15, hw * 2, 30, 8);
+      const t = this.add.text(0, 0, p.idx === 0 ? "SPACE = ACTION" : "L = ACTION", {
         fontFamily: FONT, fontSize: "15px", fontStyle: "bold",
         color: p.idx === 0 ? "#4dc9ff" : "#ffa14d",
       }).setOrigin(0.5);
@@ -850,7 +852,7 @@ export default class GameScene extends Phaser.Scene {
 
     for (const p of this.players) {
       if (p.dead) continue;
-      if (J(p.keys.act)) this.handleAction(p);
+      if (J(p.keys.act) || (p.keys.actAlt && J(p.keys.actAlt))) this.handleAction(p);
       if (p.dead || p.carriedBy) continue;
 
       // action-key hint follows its robot

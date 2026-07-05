@@ -194,7 +194,7 @@ proud of it, the K is silent about what it stands for on Tuesdays, etc.).
   tiny KOBI eye peeking from a corner that blinks occasionally (cute, not scary),
   and a small "K.O.B.I. — Keeper Of Building Integrity" caption gag near it.
 - Replace "press E or L to start" with a **vertical button stack**, keyboard-driven
-  (W/S or ↑/↓ to move, E/L/Enter to select — either player can drive):
+  (W/S or ↑/↓ to move, SPACE/E/L/Enter to select — either player can drive):
   1. **CONTINUE** — shown only when a save exists (`loadSave().unlocked > 1` or any
      cores collected); goes to the Hub. When present it is the default selection.
   2. **NEW GAME** — always present. If a save exists, selecting it swaps the label
@@ -211,7 +211,7 @@ proud of it, the K is silent about what it stands for on Tuesdays, etc.).
   `window.__BB.menu = { items: [...], select(i), activate() }` from TitleScene.
 - IMPORTANT test compatibility: `tools/playtest.mjs` presses E on the title and
   expects to reach the Hub. Ensure the default selection with a fresh save (NEW
-  GAME, no save present) activates on the FIRST E/L/Enter press and lands in Hub.
+  GAME, no save present) activates on the FIRST SPACE/E/L/Enter press and lands in Hub.
 
 **Hub glow-up:**
 - Draw corridor connection lines between consecutive chamber nodes (lit for
@@ -311,7 +311,7 @@ Layout (56×18, flat and friendly, checkpoint before every station):
    Mostly. It is MOSTLY painless."
 3. **Station 3 — Action & pedestals (x21–28):** two pedestals (grapple + heavy)
    with the standard item cards; a `skills` gate exactly like real levels.
-   Trigger blip explains: walk up, press your ACTION key (E / L) to equip.
+   Trigger blip explains: walk up, press your ACTION key (SPACE / L) to equip.
 4. **Station 4 — Use your gadget (x29–40):** split mini-course mirroring 1-1:
    an anchor over a 5-tile gap for the grapple robot, and a cracked floor pocket
    (with a lever inside) for the heavy robot's stomp; the lever lowers a bridge

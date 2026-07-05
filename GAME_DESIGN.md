@@ -26,7 +26,7 @@
 
 | | Move | Jump | Action |
 |---|---|---|---|
-| **P1 Beep** | A / D | W | E |
+| **P1 Beep** | A / D | W | SPACE (E also works) |
 | **P2 Boop** | ← / → | ↑ | L |
 
 The **Action** button is context-sensitive:

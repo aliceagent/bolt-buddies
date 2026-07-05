@@ -131,7 +131,7 @@ gloating), locked-node deny, level-enter sting, save toast tick.
 - **SettingsScene** (keyboard-driven, matches game style): rows —
   `MUSIC VOLUME [◀ ██████░░░░ ▶] 60%`, `SFX VOLUME`, `MUTE ALL  [on/off]`,
   `BACK`. W/S or ↑/↓ selects, A/D or ←/→ adjusts in 10% steps (live audio
-  feedback tick at the new volume), E/L/Enter toggles/activates, ESC = back.
+  feedback tick at the new volume), SPACE/E/L/Enter toggles/activates, ESC = back.
   Opens from: Title (S key + a "S — sound settings" hint line; becomes a real
   menu button when UI Sprint 7 lands), Hub (S key + hint), and the pause menu.
   Remembers which scene to return to.

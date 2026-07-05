@@ -85,12 +85,13 @@ export default class HubScene extends Phaser.Scene {
       fontFamily: FONT, fontSize: "14px", fontStyle: "italic", color: "#ff4dd2",
     }).setOrigin(0.5).setAlpha(0.85);
 
-    this.add.text(W / 2, 108, "move: A/D or ←/→ (worlds: W/S or ↑/↓) · enter: E or L · title: ESC", {
+    this.add.text(W / 2, 108, "move: A/D or ←/→ (worlds: W/S or ↑/↓) · enter: SPACE or L · title: ESC", {
       fontFamily: FONT, fontSize: "13px", color: "#5a6a94",
     }).setOrigin(0.5);
 
     this.updateSelection();
 
+    this.input.keyboard.addCapture("SPACE"); // keep Space from scrolling the page
     this.input.keyboard.on("keydown", (ev) => {
       initAudio();
       const c = ev.code;
@@ -98,7 +99,7 @@ export default class HubScene extends Phaser.Scene {
       else if (c === "KeyD" || c === "ArrowRight") this.move(1);
       else if (c === "KeyW" || c === "ArrowUp") this.move(-3);
       else if (c === "KeyS" || c === "ArrowDown") this.move(3);
-      else if (c === "KeyE" || c === "KeyL" || c === "Enter") this.enter();
+      else if (c === "Space" || c === "KeyE" || c === "KeyL" || c === "Enter") this.enter();
       else if (c === "Escape") this.scene.start("Title");
     });
   }

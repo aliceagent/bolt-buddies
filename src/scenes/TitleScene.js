@@ -48,12 +48,12 @@ export default class TitleScene extends Phaser.Scene {
     panel.fillStyle(COLORS.panel, 0.9).fillRoundedRect(W / 2 - 340, 400, 680, 150, 12);
     panel.lineStyle(2, COLORS.panelEdge).strokeRoundedRect(W / 2 - 340, 400, 680, 150, 12);
     this.add.text(W / 2 - 170, 425, "P1 — BEEP", { fontFamily: FONT, fontSize: "22px", fontStyle: "bold", color: "#4dc9ff" }).setOrigin(0.5);
-    this.add.text(W / 2 - 170, 490, "move  A / D\njump  W\naction  E", { fontFamily: FONT, fontSize: "18px", color: "#c6d2f2", align: "center", lineSpacing: 6 }).setOrigin(0.5);
+    this.add.text(W / 2 - 170, 490, "move  A / D\njump  W\naction  SPACE", { fontFamily: FONT, fontSize: "18px", color: "#c6d2f2", align: "center", lineSpacing: 6 }).setOrigin(0.5);
     this.add.text(W / 2 + 170, 425, "P2 — BOOP", { fontFamily: FONT, fontSize: "22px", fontStyle: "bold", color: "#ffa14d" }).setOrigin(0.5);
     this.add.text(W / 2 + 170, 490, "move  ← / →\njump  ↑\naction  L", { fontFamily: FONT, fontSize: "18px", color: "#c6d2f2", align: "center", lineSpacing: 6 }).setOrigin(0.5);
     this.add.line(0, 0, W / 2, 415, W / 2, 535, COLORS.panelEdge).setOrigin(0);
 
-    const prompt = this.add.text(W / 2, 600, "press E or L to start", {
+    const prompt = this.add.text(W / 2, 600, "press SPACE or L to start", {
       fontFamily: FONT, fontSize: "26px", fontStyle: "bold", color: "#59ff9c",
     }).setOrigin(0.5);
     this.tweens.add({ targets: prompt, alpha: 0.25, duration: 600, yoyo: true, repeat: -1 });
@@ -62,9 +62,10 @@ export default class TitleScene extends Phaser.Scene {
       fontFamily: FONT, fontSize: "15px", color: "#5a6a94",
     }).setOrigin(0.5);
 
+    this.input.keyboard.addCapture("SPACE"); // keep Space from scrolling the page
     this.input.keyboard.on("keydown", (ev) => {
       initAudio();
-      if (["KeyE", "KeyL", "Enter", "Space"].includes(ev.code)) {
+      if (["Space", "KeyE", "KeyL", "Enter"].includes(ev.code)) {
         sfx.pickup();
         this.scene.start("Hub");
       }
