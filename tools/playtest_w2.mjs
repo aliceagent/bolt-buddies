@@ -11,7 +11,12 @@
 import { chromium } from "playwright";
 import { mkdirSync } from "fs";
 
-const URL = process.env.BB_URL || "http://localhost:5173/?canvas=1";
+// WEBGL, not ?canvas=1: the Phaser CANVAS renderer deadlocks headless in this
+// suite (renderer main thread blocks at 0% CPU around the 2-1 escort teleports
+// — a SwiftShader canvas-present wedge, the root of the old "Target crashed").
+// WebGL needs a warmup idle per fresh browser (slow-motion first seconds).
+const URL = process.env.BB_URL || "http://localhost:5173/";
+const WARMUP_MS = Number(process.env.BB_WARMUP_MS || 12000);
 const SHOTS = process.env.BB_SHOTS || "tools/shots";
 const CHUNK_TIMEOUT_MS = 180000;
 mkdirSync(SHOTS, { recursive: true });
@@ -30,7 +35,7 @@ async function makeCtx() {
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
   page.on("pageerror", (e) => console.log("PAGE ERROR:", e.message));
   await page.goto(URL, { waitUntil: "networkidle" });
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(1500 + WARMUP_MS); // WebGL warmup: first seconds run slow-motion
 
   const shot = (name) => page.screenshot({ path: `${SHOTS}/${name}.png` });
   const scene = (fn, ...args) => page.evaluate(fn, ...args);
