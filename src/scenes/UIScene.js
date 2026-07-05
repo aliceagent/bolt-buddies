@@ -1,9 +1,8 @@
 import Phaser from "phaser";
-import { COLORS, WORLD_THEMES } from "../constants.js";
+import { COLORS, WORLD_THEMES, FONT, FS, TEXT } from "../constants.js";
 import { LEVELS } from "../levels/registry.js";
 import { sfx, installMute, duckMusic } from "../audio.js";
 
-const FONT = "'Courier New', monospace";
 
 const SKILL_ICON = { grapple: "icon_grapple", heavy: "icon_heavy", phase: "icon_phase", tiny: "icon_tiny" };
 
@@ -49,20 +48,22 @@ export default class UIScene extends Phaser.Scene {
     this.pInfo = [this.buildPlayerPanel(0, W), this.buildPlayerPanel(1, W)];
 
     // --- centre level plate + world-accent underline ---------------------------
-    const plateStr = `${lvl.id} · ${lvl.name.toUpperCase()}`;
+    // tutorial has no chamber number ("tut"), so show just its name (matches the
+    // intro banner); real levels keep the "<id> · <NAME>" plate.
+    const plateStr = lvl.tutorial ? lvl.name.toUpperCase() : `${lvl.id} · ${lvl.name.toUpperCase()}`;
     const plateBg = this.add.graphics();
     this.plateText = this.add.text(W / 2, 13, plateStr, {
-      fontFamily: FONT, fontSize: "15px", fontStyle: "bold", color: "#cdd8f5",
+      fontFamily: FONT, fontSize: FS.body, fontStyle: "bold", color: "#cdd8f5",
     }).setOrigin(0.5, 0);
     const tw = this.plateText.width;
-    plateBg.fillStyle(0x0a0f1e, 0.7).fillRoundedRect(W / 2 - tw / 2 - 16, 9, tw + 32, 26, 9);
+    plateBg.fillStyle(COLORS.hudBg, 0.7).fillRoundedRect(W / 2 - tw / 2 - 16, 9, tw + 32, 26, 9);
     plateBg.lineStyle(1, theme.accent, 0.35).strokeRoundedRect(W / 2 - tw / 2 - 16, 9, tw + 32, 26, 9);
     this.add.rectangle(W / 2, 38, tw + 10, 3, theme.accent, 0.9);
 
     // --- core pip tray + key chip ---------------------------------------------
     const trayW = 92;
     const tray = this.add.graphics();
-    tray.fillStyle(0x0a0f1e, 0.66).fillRoundedRect(W / 2 - trayW / 2, 50, trayW, 26, 8);
+    tray.fillStyle(COLORS.hudBg, 0.66).fillRoundedRect(W / 2 - trayW / 2, 50, trayW, 26, 8);
     tray.lineStyle(1, theme.accent, 0.35).strokeRoundedRect(W / 2 - trayW / 2, 50, trayW, 26, 8);
     this.coreState = [false, false, false];
     this.corePips = [0, 1, 2].map((i) => {
@@ -72,10 +73,10 @@ export default class UIScene extends Phaser.Scene {
     });
     // key chip (hidden until at least one key is held)
     this.keyChip = this.add.graphics().setVisible(false);
-    this.keyChip.fillStyle(0x0a0f1e, 0.72).fillRoundedRect(W / 2 + 52, 50, 56, 26, 8);
+    this.keyChip.fillStyle(COLORS.hudBg, 0.72).fillRoundedRect(W / 2 + 52, 50, 56, 26, 8);
     this.keyChip.lineStyle(1, 0xffd94d, 0.6).strokeRoundedRect(W / 2 + 52, 50, 56, 26, 8);
     this.keyIcon = this.add.image(W / 2 + 68, 63, "key").setScale(0.6).setVisible(false);
-    this.keyText = this.add.text(W / 2 + 82, 55, "", { fontFamily: FONT, fontSize: "15px", fontStyle: "bold", color: "#ffd94d" }).setVisible(false);
+    this.keyText = this.add.text(W / 2 + 82, 55, "", { fontFamily: FONT, fontSize: FS.body, fontStyle: "bold", color: "#ffd94d" }).setVisible(false);
 
     // pooled stars that fly from a collected core's screen position into its pip
     this._flyHead = 0;
@@ -104,9 +105,9 @@ export default class UIScene extends Phaser.Scene {
     pg.lineStyle(3, this.accent, 1).strokeRoundedRect(-pw / 2, -ph / 2, pw, ph, 18);
     pg.lineStyle(7, this.accent, 0.16).strokeRoundedRect(-pw / 2 - 4, -ph / 2 - 4, pw + 8, ph + 8, 21);
     this.winTitle = this.add.text(0, -108, "CHAMBER CLEAR!", {
-      fontFamily: FONT, fontSize: "44px", fontStyle: "bold", color: "#59ff9c",
+      fontFamily: FONT, fontSize: FS.h2, fontStyle: "bold", color: TEXT.good,
     }).setOrigin(0.5);
-    this.winSub = this.add.text(0, -58, "", { fontFamily: FONT, fontSize: "18px", color: "#c6d2f2" }).setOrigin(0.5);
+    this.winSub = this.add.text(0, -58, "", { fontFamily: FONT, fontSize: FS.large, color: TEXT.body }).setOrigin(0.5);
     // three core slots: dim ring + "?" until revealed, then a core pops into place
     this.winCores = [];
     this.winCoreQ = [];
@@ -114,18 +115,18 @@ export default class UIScene extends Phaser.Scene {
     this.winSlots = slots;
     [0, 1, 2].forEach((i) => {
       const cx = -80 + i * 80, cy = 4;
-      slots.fillStyle(0x0a0f1e, 0.6).fillCircle(cx, cy, 27);
+      slots.fillStyle(COLORS.hudBg, 0.6).fillCircle(cx, cy, 27);
       slots.lineStyle(2, this.accent, 0.4).strokeCircle(cx, cy, 27);
-      const q = this.add.text(cx, cy, "?", { fontFamily: FONT, fontSize: "24px", fontStyle: "bold", color: "#4a5578" }).setOrigin(0.5);
+      const q = this.add.text(cx, cy, "?", { fontFamily: FONT, fontSize: FS.head, fontStyle: "bold", color: "#4a5578" }).setOrigin(0.5);
       const img = this.add.image(cx, cy, "core").setAlpha(0).setScale(0);
       this.winCoreQ.push(q);
       this.winCores.push(img);
     });
     this.savedTag = this.add.text(0, 74, "◇ PROGRESS SAVED", {
-      fontFamily: FONT, fontSize: "15px", fontStyle: "bold", color: accentHex,
+      fontFamily: FONT, fontSize: FS.body, fontStyle: "bold", color: accentHex,
     }).setOrigin(0.5).setAlpha(0);
     this.winPrompt = this.add.text(0, 116, "press SPACE or L to continue", {
-      fontFamily: FONT, fontSize: "20px", color: "#8fa3d9",
+      fontFamily: FONT, fontSize: FS.lead, color: TEXT.dim,
     }).setOrigin(0.5);
     this.winPanel = this.add.container(W / 2, H / 2, [pg, this.winTitle, this.winSub, slots, ...this.winCoreQ, ...this.winCores, this.savedTag, this.winPrompt]);
     this.overlay.add([this.winDim, this.winPanel]);
@@ -182,7 +183,11 @@ export default class UIScene extends Phaser.Scene {
         });
       },
       blip: (payload) => {
-        const text = typeof payload === "string" ? payload : payload.text;
+        const raw = typeof payload === "string" ? payload : payload.text;
+        // The blip bar already draws a fixed "KOBI" name tag, so strip the
+        // "KOBI: " speaker prefix the level strings carry (kept intact in the
+        // data so the hub ticker / toasts still read as attributed lines).
+        const text = raw.replace(/^\s*KOBI:\s*/i, "");
         const mood = (typeof payload === "object" && payload.mood) || moodForText(text);
         this.blipQueue.push({ text, mood });
       },
@@ -267,7 +272,7 @@ export default class UIScene extends Phaser.Scene {
     const hex = P_HEX[idx];
 
     const g = this.add.graphics();
-    g.fillStyle(0x0a0f1e, 0.72).fillRoundedRect(x, y, w, h, 11);
+    g.fillStyle(COLORS.hudBg, 0.72).fillRoundedRect(x, y, w, h, 11);
     g.lineStyle(2, col, 0.85).strokeRoundedRect(x, y, w, h, 11);
 
     // skill-icon chip
@@ -276,21 +281,21 @@ export default class UIScene extends Phaser.Scene {
     g.lineStyle(2, col, 0.7).strokeRoundedRect(chipX, y + 9, 30, 30, 7);
     const cCx = chipX + 15, cCy = y + 24;
     const icon = this.add.image(cCx, cCy, "core").setScale(0.86).setVisible(false);
-    const qmark = this.add.text(cCx, cCy, "?", { fontFamily: FONT, fontSize: "18px", fontStyle: "bold", color: hex }).setOrigin(0.5).setAlpha(0.6);
+    const qmark = this.add.text(cCx, cCy, "?", { fontFamily: FONT, fontSize: FS.large, fontStyle: "bold", color: hex }).setOrigin(0.5).setAlpha(0.6);
 
     // name + skill line
     const name = idx === 0 ? "P1 BEEP" : "P2 BOOP";
     const txX = left ? chipX + 38 : chipX - 8;
     const org = left ? 0 : 1;
-    this.add.text(txX, y + 8, name, { fontFamily: FONT, fontSize: "15px", fontStyle: "bold", color: hex }).setOrigin(org, 0);
-    const skillText = this.add.text(txX, y + 27, "no gadget yet", { fontFamily: FONT, fontSize: "12px", color: "#8fa3d9" }).setOrigin(org, 0);
+    this.add.text(txX, y + 8, name, { fontFamily: FONT, fontSize: FS.body, fontStyle: "bold", color: hex }).setOrigin(org, 0);
+    const skillText = this.add.text(txX, y + 27, "no gadget yet", { fontFamily: FONT, fontSize: FS.mini, color: TEXT.dim }).setOrigin(org, 0);
 
     // key-cap for the action key, tucked at the far edge
     const keyLabel = idx === 0 ? "SPACE" : "L";
     const kw = idx === 0 ? 58 : 30;
     const kx = left ? x + w - 10 - kw : x + 10;
     this.drawKeycap(g, kx, y + 14, kw, 22, col, 0.5);
-    this.add.text(kx + kw / 2, y + 25, keyLabel, { fontFamily: FONT, fontSize: "12px", fontStyle: "bold", color: hex }).setOrigin(0.5);
+    this.add.text(kx + kw / 2, y + 25, keyLabel, { fontFamily: FONT, fontSize: FS.mini, fontStyle: "bold", color: hex }).setOrigin(0.5);
 
     return { icon, qmark, skillText };
   }
@@ -316,7 +321,7 @@ export default class UIScene extends Phaser.Scene {
     this.blipBar = this.add.container(0, 0).setVisible(false);
 
     const bg = this.add.graphics();
-    bg.fillStyle(0x0a0f1e, 0.88).fillRoundedRect(x0, y0, w, h, 10);
+    bg.fillStyle(COLORS.hudBg, 0.88).fillRoundedRect(x0, y0, w, h, 10);
     bg.lineStyle(2, COLORS.magenta, 0.7).strokeRoundedRect(x0, y0, w, h, 10);
 
     // pulsing magenta border glow (only while a blip is on screen)
@@ -333,9 +338,9 @@ export default class UIScene extends Phaser.Scene {
     av.fillStyle(0x120306, 1).fillCircle(ax, ay, 3.5);      // pupil
     av.fillStyle(0xffffff, 0.9).fillCircle(ax - 3, ay - 3, 2); // catchlight
 
-    const name = this.add.text(x0 + 72, y0 + 7, "KOBI", { fontFamily: FONT, fontSize: "13px", fontStyle: "bold", color: "#ff8ae0" });
+    const name = this.add.text(x0 + 72, y0 + 7, "KOBI", { fontFamily: FONT, fontSize: FS.mini, fontStyle: "bold", color: "#ff8ae0" });
     this.blipText = this.add.text(x0 + 72, y0 + 26, "", {
-      fontFamily: FONT, fontSize: "17px", color: "#ffd7f4", wordWrap: { width: 806 },
+      fontFamily: FONT, fontSize: FS.large, color: "#ffd7f4", wordWrap: { width: 806 },
     });
 
     this.blipBar.add([this.blipGlow, bg, av, name, this.blipText]);
@@ -357,8 +362,8 @@ export default class UIScene extends Phaser.Scene {
     let x = 16;
     segs.forEach((s) => {
       this.drawKeycap(g, x, y, s.kw, 20, 0x5a6a99, 0.7);
-      this.add.text(x + s.kw / 2, y + 10, s.key, { fontFamily: FONT, fontSize: "12px", fontStyle: "bold", color: "#9fb0da" }).setOrigin(0.5);
-      const lbl = this.add.text(x + s.kw + 6, y + 10, s.label, { fontFamily: FONT, fontSize: "12px", color: "#5a6688" }).setOrigin(0, 0.5);
+      this.add.text(x + s.kw / 2, y + 10, s.key, { fontFamily: FONT, fontSize: FS.mini, fontStyle: "bold", color: "#9fb0da" }).setOrigin(0.5);
+      const lbl = this.add.text(x + s.kw + 6, y + 10, s.label, { fontFamily: FONT, fontSize: FS.mini, color: "#5a6688" }).setOrigin(0, 0.5);
       x += s.kw + 8 + lbl.width + 14;
     });
   }

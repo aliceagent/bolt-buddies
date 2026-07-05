@@ -1,12 +1,11 @@
 import Phaser from "phaser";
-import { COLORS, WORLD_THEMES } from "../constants.js";
+import { COLORS, WORLD_THEMES, FONT, FS, TEXT } from "../constants.js";
 import { addGradient, addMotes } from "../backdrop.js";
 import {
   initAudio, sfx, installMute,
   getAudioSettings, setMusicVolume, setSfxVolume, toggleMute,
 } from "../audio.js";
 
-const FONT = "'Courier New', monospace";
 
 // Keyboard-driven settings page (Sound Sprint S4). Matches the game's menu look:
 // Courier, the COLORS panel, and the gradient + motes backdrop shared by Title
@@ -37,7 +36,7 @@ export default class SettingsScene extends Phaser.Scene {
     addMotes(this, WORLD_THEMES[1].accent2);
 
     this.add.text(W / 2, 120, "SOUND SETTINGS", {
-      fontFamily: FONT, fontSize: "52px", fontStyle: "bold", color: "#35f0ff",
+      fontFamily: FONT, fontSize: FS.h1, fontStyle: "bold", color: TEXT.neon,
       stroke: "#0b3a44", strokeThickness: 8,
     }).setOrigin(0.5);
 
@@ -55,13 +54,13 @@ export default class SettingsScene extends Phaser.Scene {
 
     this.rows = rowY.map((y, i) => {
       const cursor = this.add.text(labelX - 34, y, "", {
-        fontFamily: FONT, fontSize: "22px", fontStyle: "bold", color: "#59ff9c",
+        fontFamily: FONT, fontSize: FS.head, fontStyle: "bold", color: TEXT.good,
       }).setOrigin(0.5, 0.5);
       const label = this.add.text(labelX, y, "", {
-        fontFamily: FONT, fontSize: "22px", fontStyle: "bold", color: "#c6d2f2",
+        fontFamily: FONT, fontSize: FS.head, fontStyle: "bold", color: TEXT.body,
       }).setOrigin(0, 0.5);
       const value = this.add.text(valueX, y, "", {
-        fontFamily: FONT, fontSize: "22px", color: "#eaf2ff",
+        fontFamily: FONT, fontSize: FS.head, color: TEXT.bright,
       }).setOrigin(0, 0.5);
       return { y, cursor, label, value };
     });
@@ -70,9 +69,10 @@ export default class SettingsScene extends Phaser.Scene {
     this.rows[2].label.setText("MUTE ALL");
     this.rows[3].label.setText("BACK");
 
-    this.add.text(W / 2, py + ph - 26,
+    // hint line sits BELOW the panel (was overlapping the BACK row + bottom edge)
+    this.add.text(W / 2, py + ph + 26,
       "W/S or up/down: select   ·   A/D or left/right: adjust   ·   SPACE/ENTER: toggle   ·   ESC: back", {
-      fontFamily: FONT, fontSize: "13px", color: "#5a6a94",
+      fontFamily: FONT, fontSize: FS.mini, color: TEXT.faint,
     }).setOrigin(0.5);
 
     this.render();
@@ -138,12 +138,12 @@ export default class SettingsScene extends Phaser.Scene {
     this.rows.forEach((r, i) => {
       const on = i === this.sel;
       r.cursor.setText(on ? ">" : "");
-      r.label.setColor(on ? "#59ff9c" : "#c6d2f2");
+      r.label.setColor(on ? TEXT.good : TEXT.body);
     });
     this.rows[0].value.setText(this.bar(s.music));
     this.rows[1].value.setText(this.bar(s.sfx));
     this.rows[2].value.setText(s.muted ? "[ ON ]" : "[ off ]");
-    this.rows[2].value.setColor(s.muted ? "#ff8a99" : "#eaf2ff");
+    this.rows[2].value.setColor(s.muted ? "#ff8a99" : TEXT.bright);
     this.rows[3].value.setText("");
   }
 

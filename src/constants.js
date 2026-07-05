@@ -1,5 +1,41 @@
 export const TILE = 48;
 
+// --- Typography -------------------------------------------------------------
+// Single source of truth for the game's font. Every scene imports this instead
+// of redeclaring a local `const FONT`.
+export const FONT = "'Courier New', monospace";
+
+// Size tokens (px strings, ready to drop straight into a Phaser text style).
+// One coherent scale swept across every `add.text` call so sibling UI shares a
+// rhythm. Roadmap named h1/h2/body/small; the extra rungs cover the real spread
+// (title screen hero down to fine-print captions) without near-duplicate sizes.
+export const FS = {
+  hero: "84px",   // TitleScene wordmark
+  h1: "52px",     // full-screen scene title (Settings)
+  h2: "44px",     // overlay headline (Pause, level-clear)
+  h3: "34px",     // hub header
+  title: "26px",  // section / menu / intro-banner titles
+  head: "22px",   // sub-heads, settings rows
+  lead: "20px",   // node labels, continue prompts
+  large: "18px",  // emphasised body (KOBI blip, panel qmark)
+  body: "15px",   // default body — the workhorse
+  small: "14px",  // secondary body
+  mini: "13px",   // captions, hint rows
+  tiny: "11px",   // fine print
+};
+
+// Recurring text colours (css strings for Phaser text `color`). Only hues used
+// in three or more places live here; genuine one-offs stay inline at the call.
+export const TEXT = {
+  bright: "#eaf2ff", // brightest headings
+  body: "#c6d2f2",   // light body copy
+  dim: "#8fa3d9",     // muted subtext
+  faint: "#5a6a94",   // faint hint rows
+  good: "#59ff9c",    // green confirm accent
+  neon: "#35f0ff",    // cyan accent
+  warn: "#ff9daa",    // soft-red warning
+};
+
 export const COLORS = {
   bg: 0x070b14,
   panel: 0x18213a,
@@ -16,6 +52,7 @@ export const COLORS = {
   steelHi: 0x30436e, // lighter top-left bevel on tiles
   steelLo: 0x121a30, // darker bottom-right bevel on tiles
   dark: 0x0b101f,
+  hudBg: 0x0a0f1e, // shared translucent backing for HUD plates, cards & intro banners
 };
 
 // Per-world background & mood palette (keyed by `def.world`, 1-4). Used to theme

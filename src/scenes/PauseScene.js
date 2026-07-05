@@ -1,8 +1,7 @@
 import Phaser from "phaser";
-import { COLORS } from "../constants.js";
+import { COLORS, FONT, FS, TEXT } from "../constants.js";
 import { sfx, installMute, pauseDuck } from "../audio.js";
 
-const FONT = "'Courier New', monospace";
 
 // In-game pause overlay (Sound Sprint S4). Launched ON TOP of the still-active
 // (but physics-paused) GameScene + UIScene, so it renders unzoomed with its own
@@ -34,19 +33,19 @@ export default class PauseScene extends Phaser.Scene {
     panel.lineStyle(3, COLORS.neon).strokeRoundedRect(px, py, pw, ph, 16);
 
     this.add.text(W / 2, py + 48, "PAUSED", {
-      fontFamily: FONT, fontSize: "44px", fontStyle: "bold", color: "#35f0ff",
+      fontFamily: FONT, fontSize: FS.h2, fontStyle: "bold", color: TEXT.neon,
     }).setOrigin(0.5);
 
     this.sel = 0;
     const labels = ["RESUME", "SETTINGS", "EXIT TO MAP"];
     const startY = py + 130;
     this.items = labels.map((t, i) => this.add.text(W / 2, startY + i * 52, t, {
-      fontFamily: FONT, fontSize: "26px", fontStyle: "bold", color: "#c6d2f2",
+      fontFamily: FONT, fontSize: FS.title, fontStyle: "bold", color: TEXT.body,
     }).setOrigin(0.5));
 
     this.add.text(W / 2, py + ph - 28,
       "W/S select · SPACE/ENTER choose · P or ESC resume", {
-      fontFamily: FONT, fontSize: "13px", color: "#5a6a94",
+      fontFamily: FONT, fontSize: FS.mini, color: TEXT.faint,
     }).setOrigin(0.5);
 
     this.render();
@@ -76,7 +75,7 @@ export default class PauseScene extends Phaser.Scene {
   render() {
     this.items.forEach((it, i) => {
       const on = i === this.sel;
-      it.setColor(on ? "#59ff9c" : "#c6d2f2");
+      it.setColor(on ? TEXT.good : TEXT.body);
       it.setText((on ? "> " : "  ") + it.text.replace(/^[>\s]+/, ""));
     });
   }

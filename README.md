@@ -47,6 +47,8 @@ crowds of enemies never turn into a wall of noise.
 - ✅ World 1 — Assembly Wing (Grapple + Heavyweight): levels 1-1, 1-2, 1-3 (crane set-piece)
 - ✅ World 2 — Maintenance Tunnels (Phase-Walk + Tiny): vents, shimmer-walls & hand-hold escorting, fans, steam jets, Patrol Rollers, Wall-Wardens, throw finale
 - ✅ Hub map, hidden data-cores, localStorage save
+- ✅ "Orientation Day" tutorial chamber (KOBI-narrated, reachable from the main menu)
+- ✅ UI polish pass: one shared typography scale (`FONT`/`FS`) and colour palette (`TEXT`), audited depth ordering, and a consistent world-accent language across HUD, hubs and intro banners
 - 🔜 Worlds 3–4, story scenes, polish (see roadmap in the design doc)
 
 ## Run locally
@@ -85,7 +87,12 @@ The repo works out of the box: framework **Vite**, build `npm run build`, output
    STATE (not sound): autoplay-safety, per-scene/per-level music, jingles, the
    1-3 tension layer, mute + the 0.8 master ceiling, settings persistence, the
    pause overlay, the SFX rate-limiter, KOBI moods, and the ±0.3 stereo pan.
-4. **Beat matrix** (`tools/beat/runner.mjs`, 12 runs) — plays every level of
+4. **Tutorial sanity pass** (`tools/tut_sanity.mjs`, 21 checks) — launches
+   "Orientation Day" from the TITLE menu's TUTORIAL button with real keys, drives
+   both robots through all 7 stations, and confirms hazard respawn, pedestal
+   equips, the bridge lever, the throw-to-ledge, the both-robots exit, that the
+   run writes NO save, and that continue returns to the Title menu (not the Hub).
+5. **Beat matrix** (`tools/beat/runner.mjs`, 12 runs) — plays every level of
    Worlds 1-2 start-to-finish with real keyboard input only, in BOTH role
    assignments, proving each level is beatable like a human would play it.
 

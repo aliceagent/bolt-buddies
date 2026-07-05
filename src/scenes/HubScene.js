@@ -1,11 +1,10 @@
 import Phaser from "phaser";
-import { COLORS, WORLD_THEMES } from "../constants.js";
+import { COLORS, WORLD_THEMES, FONT, FS, TEXT } from "../constants.js";
 import { LEVELS, WORLD_INFO, KOBI_HUB_LINES } from "../levels/registry.js";
 import { loadSave, totalCores } from "../save.js";
 import { addGradient, addMotes } from "../backdrop.js";
 import { initAudio, sfx, installMute, playTrack, playJingle } from "../audio.js";
 
-const FONT = "'Courier New', monospace";
 
 // Facility map: 4 wings x 3 chambers. Navigate with either player's keys.
 export default class HubScene extends Phaser.Scene {
@@ -35,10 +34,10 @@ export default class HubScene extends Phaser.Scene {
     addMotes(this, WORLD_THEMES[1].accent2);
     this.cameras.main.fadeIn(250, 4, 6, 20); // 250ms fade-in on entry
     this.add.text(W / 2, 46, "DYNACORE LABS — SECTOR MAP", {
-      fontFamily: FONT, fontSize: "34px", fontStyle: "bold", color: "#35f0ff",
+      fontFamily: FONT, fontSize: FS.h3, fontStyle: "bold", color: TEXT.neon,
     }).setOrigin(0.5);
     this.add.text(W / 2, 82, `data-cores recovered: ${totalCores(this.save)} / 36`, {
-      fontFamily: FONT, fontSize: "16px", color: "#8fa3d9",
+      fontFamily: FONT, fontSize: FS.body, color: TEXT.dim,
     }).setOrigin(0.5);
 
     // wing panels in a 2x2 grid
@@ -56,11 +55,11 @@ export default class HubScene extends Phaser.Scene {
       g.fillStyle(accent, 0.9).fillRoundedRect(px, py, panelW, 34, { tl: 12, tr: 12, bl: 0, br: 0 });
       g.fillStyle(accent, 0.12).fillRect(px, py + 34, panelW, panelH - 34);
       // big emoji badge
-      this.add.text(px + 30, py + 17, info.emoji, { fontFamily: FONT, fontSize: "26px" }).setOrigin(0.5);
+      this.add.text(px + 30, py + 17, info.emoji, { fontFamily: FONT, fontSize: FS.title }).setOrigin(0.5);
       this.add.text(px + 52, py + 17, `WORLD ${wi + 1} — ${info.name.toUpperCase()}`, {
-        fontFamily: FONT, fontSize: "18px", fontStyle: "bold", color: "#0a0e1a",
+        fontFamily: FONT, fontSize: FS.large, fontStyle: "bold", color: "#0a0e1a",
       }).setOrigin(0, 0.5);
-      this.add.text(px + 20, py + 52, info.skills, { fontFamily: FONT, fontSize: "14px", color: "#7f8fc0" });
+      this.add.text(px + 20, py + 52, info.skills, { fontFamily: FONT, fontSize: FS.small, color: "#7f8fc0" });
 
       // corridor connection lines between consecutive chambers in this wing
       const corridor = this.add.graphics();
@@ -81,7 +80,7 @@ export default class HubScene extends Phaser.Scene {
         const circle = this.add.graphics({ x: nx, y: ny });
         this.drawNode(circle, lvl, unlocked, false, completed);
         const label = this.add.text(nx, ny - 2, unlocked ? lvl.id : "", {
-          fontFamily: FONT, fontSize: "20px", fontStyle: "bold", color: "#eaf2ff",
+          fontFamily: FONT, fontSize: FS.lead, fontStyle: "bold", color: TEXT.bright,
         }).setOrigin(0.5);
         // core pips
         const cores = this.save.cores[lvl.id] || [false, false, false];
@@ -100,17 +99,17 @@ export default class HubScene extends Phaser.Scene {
     this.tweens.add({ targets: this.ring2, angle: 360, duration: 8000, repeat: -1 });
 
     this.nameText = this.add.text(W / 2, H - 92, "", {
-      fontFamily: FONT, fontSize: "22px", fontStyle: "bold", color: "#59ff9c",
+      fontFamily: FONT, fontSize: FS.head, fontStyle: "bold", color: TEXT.good,
     }).setOrigin(0.5);
     this.toastText = this.add.text(W / 2, H - 64, "", {
-      fontFamily: FONT, fontSize: "15px", color: "#ff9daa",
+      fontFamily: FONT, fontSize: FS.body, color: TEXT.warn,
     }).setOrigin(0.5);
 
     // KOBI marquee → scrolling ticker with a small eye prefix
     this.buildTicker(W, H);
 
     this.add.text(W / 2, 108, "move: A/D or ←/→ (worlds: W/S or ↑/↓) · enter: SPACE or L · O sound · ESC — main menu", {
-      fontFamily: FONT, fontSize: "13px", color: "#5a6a94",
+      fontFamily: FONT, fontSize: FS.mini, color: TEXT.faint,
     }).setOrigin(0.5);
 
     this.updateSelection();
@@ -153,7 +152,7 @@ export default class HubScene extends Phaser.Scene {
     eye.fillStyle(0x2a0a1e, 1).fillCircle(21, y, 2.5);
     const line = KOBI_HUB_LINES[Math.floor(Math.random() * KOBI_HUB_LINES.length)];
     const t = this.add.text(W, y, line, {
-      fontFamily: FONT, fontSize: "14px", fontStyle: "italic", color: "#ff4dd2",
+      fontFamily: FONT, fontSize: FS.small, fontStyle: "italic", color: "#ff4dd2",
     }).setOrigin(0, 0.5).setAlpha(0.9).setDepth(5);
     const dist = W + t.width + 40;
     this.tweens.add({

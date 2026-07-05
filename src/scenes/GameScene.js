@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { TILE, COLORS, PHYS, DEPTH, SKILL_INFO, WORLD_THEMES } from "../constants.js";
+import { TILE, COLORS, PHYS, DEPTH, SKILL_INFO, WORLD_THEMES, FONT, FS, TEXT } from "../constants.js";
 import { LEVELS } from "../levels/registry.js";
 import { makeGrid } from "../levels/builder.js";
 import { completeLevel, loadSave } from "../save.js";
@@ -7,7 +7,6 @@ import { sfx, installMute, playTrack, setMusicLayer, playJingle, trackForLevel, 
 import { addGradient, addMotes } from "../backdrop.js";
 import Player from "../objects/Player.js";
 
-const FONT = "'Courier New', monospace";
 const J = Phaser.Input.Keyboard.JustDown;
 
 export default class GameScene extends Phaser.Scene {
@@ -137,10 +136,10 @@ export default class GameScene extends Phaser.Scene {
       const color = p.idx === 0 ? COLORS.beep : COLORS.boop;
       const hw = p.idx === 0 ? 74 : 56; // half-width: P1's label is longer
       const g = this.add.graphics();
-      g.fillStyle(0x0a0f1e, 0.92).fillRoundedRect(-hw, -15, hw * 2, 30, 8);
+      g.fillStyle(COLORS.hudBg, 0.92).fillRoundedRect(-hw, -15, hw * 2, 30, 8);
       g.lineStyle(2, color).strokeRoundedRect(-hw, -15, hw * 2, 30, 8);
       const t = this.add.text(0, 0, p.idx === 0 ? "SPACE = ACTION" : "L = ACTION", {
-        fontFamily: FONT, fontSize: "15px", fontStyle: "bold",
+        fontFamily: FONT, fontSize: FS.body, fontStyle: "bold",
         color: p.idx === 0 ? "#4dc9ff" : "#ffa14d",
       }).setOrigin(0.5);
       return this.add.container(p.x, p.y - 64 - p.idx * 34, [g, t]).setDepth(DEPTH.fx);
@@ -298,18 +297,21 @@ export default class GameScene extends Phaser.Scene {
 
     const c = this.add.container(W / 2, offY).setScrollFactor(0).setDepth(DEPTH.fx + 50);
     const g = this.add.graphics();
-    g.fillStyle(0x0a0f1e, 0.94).fillRoundedRect(-bw / 2, -bh / 2, bw, bh, 14);
+    g.fillStyle(COLORS.hudBg, 0.94).fillRoundedRect(-bw / 2, -bh / 2, bw, bh, 14);
     g.lineStyle(3, accent, 1).strokeRoundedRect(-bw / 2, -bh / 2, bw, bh, 14);
     // accent end caps
     g.fillStyle(accent, 0.9).fillRoundedRect(-bw / 2, -bh / 2, 7, bh, { tl: 14, bl: 14, tr: 0, br: 0 });
     g.fillStyle(accent, 0.9).fillRoundedRect(bw / 2 - 7, -bh / 2, 7, bh, { tr: 14, br: 14, tl: 0, bl: 0 });
 
-    const head = this.add.text(0, -15, `CHAMBER ${def.id} — ${def.name.toUpperCase()}`, {
-      fontFamily: FONT, fontSize: "25px", fontStyle: "bold", color: "#eaf2ff",
+    // the tutorial has no chamber number ("tut"), so show just its name; real
+    // levels keep the "CHAMBER <id> — <NAME>" plate.
+    const headStr = def.tutorial ? def.name.toUpperCase() : `CHAMBER ${def.id} — ${def.name.toUpperCase()}`;
+    const head = this.add.text(0, -15, headStr, {
+      fontFamily: FONT, fontSize: FS.title, fontStyle: "bold", color: TEXT.bright,
     }).setOrigin(0.5);
     const pair = (def.skills || []).map((k) => (SKILL_INFO[k] ? SKILL_INFO[k].name : k.toUpperCase())).join("   +   ");
     const sub = this.add.text(0, 18, pair, {
-      fontFamily: FONT, fontSize: "15px", fontStyle: "bold", color: accentHex,
+      fontFamily: FONT, fontSize: FS.body, fontStyle: "bold", color: accentHex,
     }).setOrigin(0.5);
     c.add([g, head, sub]);
     this.introBanner = c;
@@ -578,7 +580,7 @@ export default class GameScene extends Phaser.Scene {
           panel.fillStyle(0x0a1f16, 0.95).fillRoundedRect(cx - 34, ly - 13, 68, 26, 7);
           panel.lineStyle(2, COLORS.green).strokeRoundedRect(cx - 34, ly - 13, 68, 26, 7);
           this.add.text(cx, ly, "EXIT", {
-            fontFamily: FONT, fontSize: "14px", fontStyle: "bold", color: "#59ff9c",
+            fontFamily: FONT, fontSize: FS.small, fontStyle: "bold", color: TEXT.good,
           }).setOrigin(0.5).setDepth(DEPTH.entity + 1);
 
           // "waiting for buddy" bubble floating above the EXIT sign — shows the
@@ -587,7 +589,7 @@ export default class GameScene extends Phaser.Scene {
           const by = top - 60;
           this.exitLabel = this.add.container(cx, by).setDepth(DEPTH.entity + 2).setVisible(false);
           const bbg = this.add.graphics();
-          bbg.fillStyle(0x0a0f1e, 0.92).fillRoundedRect(-34, -28, 68, 40, 9);
+          bbg.fillStyle(COLORS.hudBg, 0.92).fillRoundedRect(-34, -28, 68, 40, 9);
           bbg.lineStyle(2, 0xffffff, 0.55).strokeRoundedRect(-34, -28, 68, 40, 9);
           const bIcon = this.add.image(0, -8, "robot_b").setScale(0.5).setVisible(false);
           const oIcon = this.add.image(0, -8, "robot_o").setScale(0.5).setVisible(false);
@@ -817,7 +819,7 @@ export default class GameScene extends Phaser.Scene {
           body, plates, hoverY, minX: e.minX * TILE + 60, maxX: e.maxX * TILE - 60,
           floorY: 14 * TILE, state: "patrol", timer: 2000, podsStomped: 0,
           trolley, railY, railMin: (e.minX - 1) * TILE + 24, railMax: (e.maxX + 1) * TILE + 24,
-          hpText: this.add.text(body.x, hoverY - 60, "", { fontFamily: FONT, fontSize: "14px", fontStyle: "bold", color: "#ff9daa" }).setOrigin(0.5).setDepth(DEPTH.fx),
+          hpText: this.add.text(body.x, hoverY - 60, "", { fontFamily: FONT, fontSize: FS.small, fontStyle: "bold", color: TEXT.warn }).setOrigin(0.5).setDepth(DEPTH.fx),
         };
         break;
       }
@@ -846,7 +848,7 @@ export default class GameScene extends Phaser.Scene {
       const bdr = this.add.graphics();
       bdr.lineStyle(2.5, col, 1).strokeRoundedRect(cx - 17, -17, 34, 34, 8);
       const t = this.add.text(cx, -1, c.k, {
-        fontFamily: FONT, fontSize: "17px", fontStyle: "bold", color: hex,
+        fontFamily: FONT, fontSize: FS.large, fontStyle: "bold", color: hex,
       }).setOrigin(0.5);
       cont.add([cap, bdr, t]);
       cx += CAP + GAP;
@@ -862,16 +864,20 @@ export default class GameScene extends Phaser.Scene {
     const col = info.color;
     const W = 236, H = 90, TB = 24;
     const g = this.add.graphics();
-    g.fillStyle(0x0a0f1e, 0.96).fillRoundedRect(-W / 2, -H / 2, W, H, 10);
+    g.fillStyle(COLORS.hudBg, 0.96).fillRoundedRect(-W / 2, -H / 2, W, H, 10);
     g.fillStyle(col, 0.9).fillRoundedRect(-W / 2, -H / 2, W, TB, { tl: 10, tr: 10, bl: 0, br: 0 });
     g.lineStyle(2, col).strokeRoundedRect(-W / 2, -H / 2, W, H, 10);
     const title = this.add.text(0, -H / 2 + 12, info.name, {
-      fontFamily: FONT, fontSize: "13px", fontStyle: "bold", color: "#0a0f1e",
+      fontFamily: FONT, fontSize: FS.mini, fontStyle: "bold", color: "#0a0f1e",
     }).setOrigin(0.5);
     const body = this.add.text(0, 8, `${info.card}\n[ACTION to equip]`, {
-      fontFamily: FONT, fontSize: "12px", color: "#c6d2f2", align: "center",
+      fontFamily: FONT, fontSize: FS.mini, color: TEXT.body, align: "center",
     }).setOrigin(0.5);
-    ped.card = this.add.container(x, cardY, [g, title, body]).setDepth(DEPTH.fx);
+    // sit above the floating "SPACE/L = ACTION" hints (also DEPTH.fx): at spawn a
+    // robot stands under its pedestal and its hint would otherwise occlude the
+    // card's own "[ACTION to equip]" line. Card wins; the hints separate as the
+    // robots walk off. Still below the intro banner (DEPTH.fx + 50).
+    ped.card = this.add.container(x, cardY, [g, title, body]).setDepth(DEPTH.fx + 2);
     ped.cardG = g;
     ped.cardTitle = title;
     ped.cardBody = body;
@@ -883,7 +889,7 @@ export default class GameScene extends Phaser.Scene {
     ped.cardBody.destroy();
     const W = 132, H = 30;
     ped.cardG.clear();
-    ped.cardG.fillStyle(0x0a0f1e, 0.96).fillRoundedRect(-W / 2, -H / 2, W, H, 8);
+    ped.cardG.fillStyle(COLORS.hudBg, 0.96).fillRoundedRect(-W / 2, -H / 2, W, H, 8);
     ped.cardG.lineStyle(2, col).strokeRoundedRect(-W / 2, -H / 2, W, H, 8);
     ped.cardTitle.setColor("#" + col.toString(16).padStart(6, "0")).setFontSize(12).setPosition(0, 0);
     this.tweens.add({ targets: ped.card, scaleX: { from: 1.12, to: 1 }, scaleY: { from: 1.12, to: 1 }, duration: 260, ease: "back.out" });

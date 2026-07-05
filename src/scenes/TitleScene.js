@@ -1,11 +1,10 @@
 import Phaser from "phaser";
-import { COLORS, WORLD_THEMES } from "../constants.js";
+import { COLORS, WORLD_THEMES, FONT, FS, TEXT } from "../constants.js";
 import { addGradient, addMotes } from "../backdrop.js";
 import { LEVELS } from "../levels/registry.js";
 import { loadSave, storeSave, totalCores } from "../save.js";
 import { initAudio, sfx, playTrack, installMute } from "../audio.js";
 
-const FONT = "'Courier New', monospace";
 const ACCENT = WORLD_THEMES[1].accent; // world-1 amber accent for buttons
 
 export default class TitleScene extends Phaser.Scene {
@@ -59,7 +58,7 @@ export default class TitleScene extends Phaser.Scene {
   // --- neon logo: layered glow copies + per-letter flicker-on -----------------
   buildLogo(W, cy) {
     const text = "BOLT BUDDIES";
-    const style = { fontFamily: FONT, fontSize: "84px", fontStyle: "bold" };
+    const style = { fontFamily: FONT, fontSize: FS.hero, fontStyle: "bold" };
 
     // measure each glyph so we can place per-letter copies for the flicker
     const widths = [];
@@ -75,7 +74,7 @@ export default class TitleScene extends Phaser.Scene {
     // (soft, additive, dim) so the neon bleeds without doubling the glyphs.
     const halo = [[0, 0, 0.26], [3, 3, 0.14], [-3, -3, 0.14], [4, -4, 0.1], [-4, 4, 0.1]];
     halo.forEach(([dx, dy, a]) => {
-      this.add.text(W / 2 + dx, cy + dy, text, { ...style, color: "#35f0ff" })
+      this.add.text(W / 2 + dx, cy + dy, text, { ...style, color: TEXT.neon })
         .setOrigin(0.5).setAlpha(a)
         .setBlendMode(Phaser.BlendModes.ADD).setDepth(-2);
     });
@@ -104,7 +103,7 @@ export default class TitleScene extends Phaser.Scene {
 
   buildSubtitle(W, cy) {
     const sub = this.add.text(W / 2, cy, "a 2-player rescue mission", {
-      fontFamily: FONT, fontSize: "24px", color: "#8fa3d9",
+      fontFamily: FONT, fontSize: FS.head, color: TEXT.dim,
     }).setOrigin(0.5);
     // slow hue shimmer: sweep the colour around the wheel (setColor works under
     // canvas — it is a CSS string, not a WebGL tint).
@@ -143,7 +142,7 @@ export default class TitleScene extends Phaser.Scene {
   buildStory(W, cy) {
     this.add.text(W / 2, cy,
       'K.O.B.I. grabbed your robo-puppy BOLT. "NO PETS ALLOWED."\nChase him through the lab — neither of you can do it alone.',
-      { fontFamily: FONT, fontSize: "15px", color: "#c6d2f2", align: "center", lineSpacing: 6 }
+      { fontFamily: FONT, fontSize: FS.body, color: TEXT.body, align: "center", lineSpacing: 6 }
     ).setOrigin(0.5);
   }
 
@@ -167,10 +166,10 @@ export default class TitleScene extends Phaser.Scene {
       const cont = this.add.container(W / 2, y);
       const g = this.add.graphics();
       const label = this.add.text(0, 0, it.label, {
-        fontFamily: FONT, fontSize: "26px", fontStyle: "bold", color: "#eaf2ff",
+        fontFamily: FONT, fontSize: FS.title, fontStyle: "bold", color: TEXT.bright,
       }).setOrigin(0.5);
       const chev = this.add.text(-bw / 2 + 26, 0, "▶", {
-        fontFamily: FONT, fontSize: "20px", color: "#eaf2ff",
+        fontFamily: FONT, fontSize: FS.lead, color: TEXT.bright,
       }).setOrigin(0.5).setVisible(false);
       cont.add([g, label, chev]);
       it.cont = cont; it.g = g; it.labelObj = label; it.chev = chev; it.bw = bw; it.bh = bh;
@@ -290,7 +289,7 @@ export default class TitleScene extends Phaser.Scene {
   showToast(msg) {
     if (!this.toast) {
       this.toast = this.add.text(this.scale.width / 2, 690, "", {
-        fontFamily: FONT, fontSize: "16px", fontStyle: "italic", color: "#ff9daa",
+        fontFamily: FONT, fontSize: FS.body, fontStyle: "italic", color: TEXT.warn,
       }).setOrigin(0.5).setDepth(5);
     }
     this.toast.setText(msg).setAlpha(1);
@@ -305,13 +304,13 @@ export default class TitleScene extends Phaser.Scene {
     panel.fillStyle(COLORS.panel, 0.8).fillRoundedRect(W / 2 - 300, y, 600, 62, 10);
     panel.lineStyle(2, COLORS.panelEdge).strokeRoundedRect(W / 2 - 300, y, 600, 62, 10);
     panel.lineStyle(2, COLORS.panelEdge, 0.7).lineBetween(W / 2, y + 8, W / 2, y + 54);
-    this.add.text(W / 2 - 150, y + 14, "P1 — BEEP", { fontFamily: FONT, fontSize: "15px", fontStyle: "bold", color: "#4dc9ff" }).setOrigin(0.5);
-    this.add.text(W / 2 - 150, y + 40, "A / D · jump W · SPACE", { fontFamily: FONT, fontSize: "14px", color: "#c6d2f2" }).setOrigin(0.5);
-    this.add.text(W / 2 + 150, y + 14, "P2 — BOOP", { fontFamily: FONT, fontSize: "15px", fontStyle: "bold", color: "#ffa14d" }).setOrigin(0.5);
-    this.add.text(W / 2 + 150, y + 40, "← / → · jump ↑ · L", { fontFamily: FONT, fontSize: "14px", color: "#c6d2f2" }).setOrigin(0.5);
+    this.add.text(W / 2 - 150, y + 14, "P1 — BEEP", { fontFamily: FONT, fontSize: FS.body, fontStyle: "bold", color: "#4dc9ff" }).setOrigin(0.5);
+    this.add.text(W / 2 - 150, y + 40, "A / D · jump W · SPACE", { fontFamily: FONT, fontSize: FS.small, color: TEXT.body }).setOrigin(0.5);
+    this.add.text(W / 2 + 150, y + 14, "P2 — BOOP", { fontFamily: FONT, fontSize: FS.body, fontStyle: "bold", color: "#ffa14d" }).setOrigin(0.5);
+    this.add.text(W / 2 + 150, y + 40, "← / → · jump ↑ · L", { fontFamily: FONT, fontSize: FS.small, color: TEXT.body }).setOrigin(0.5);
 
     this.add.text(W / 2, y + 78, "W / ↑↓ move   ·   SPACE / E / L / Enter select   ·   S sound settings", {
-      fontFamily: FONT, fontSize: "14px", color: "#8fa3d9",
+      fontFamily: FONT, fontSize: FS.small, color: TEXT.dim,
     }).setOrigin(0.5);
   }
 
@@ -342,7 +341,7 @@ export default class TitleScene extends Phaser.Scene {
     this.time.delayedCall(1200 + Math.random() * 1500, blink);
 
     this.add.text(ex - 40, ey - 40, "K.O.B.I.\nKeeper Of\nBuilding Integrity", {
-      fontFamily: FONT, fontSize: "11px", fontStyle: "italic", color: "#c98fd9", align: "right",
+      fontFamily: FONT, fontSize: FS.tiny, fontStyle: "italic", color: "#c98fd9", align: "right",
     }).setOrigin(1, 0.5);
   }
 }
