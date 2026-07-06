@@ -72,7 +72,7 @@ export default {
     // --- Station 5 -----------------------------------------------------------
     { t: "checkpoint", x: 41, y: 13 },
     {
-      t: "trigger", x: 41, y: 12, w: 5, h: 3, once: true,
+      t: "trigger", id: "s5", x: 41, y: 12, w: 5, h: 3, once: true,
       blip: "KOBI: Robot stacking is FORBIDDEN. ...Oh, you already did it. Fine.",
     },
     { t: "core", x: 46, y: 9 }, // tutorial core — just for joy, never saved

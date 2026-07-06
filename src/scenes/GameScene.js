@@ -6,6 +6,7 @@ import { completeLevel, loadSave } from "../save.js";
 import { sfx, installMute, playTrack, setMusicLayer, playJingle, trackForLevel, setListener, clearListener, proximity, setLoop, stopLoops, pauseDuck } from "../audio.js";
 import { addGradient, addMotes } from "../backdrop.js";
 import Player from "../objects/Player.js";
+import { uxHints } from "../ux.js";
 
 const J = Phaser.Input.Keyboard.JustDown;
 
@@ -133,6 +134,10 @@ export default class GameScene extends Phaser.Scene {
     cam.fadeIn(250, 4, 6, 20);
 
     this.rope = this.add.graphics().setDepth(DEPTH.rope);
+    // U6 — throw-arc + rope-tether preview overlay. One shared Graphics on the
+    // rope's clear+redraw discipline; purely a read-only visual over physics.
+    this.hintGfx = this.add.graphics().setDepth(DEPTH.rope - 1);
+    this._arcPts = []; // reused sample buffer for the ballistic preview (no per-frame alloc)
     this.beamGfx = this.add.graphics().setDepth(DEPTH.fx - 1);
     this.wardens.forEach((w) => this.physics.add.collider(this.players, w.img));
     this.reticles = this.players.map(() => this.add.image(0, 0, "reticle").setDepth(DEPTH.reticle).setVisible(false));
@@ -710,6 +715,7 @@ export default class GameScene extends Phaser.Scene {
         // fires its KOBI blip and/or reveals a floating key-glyph cluster. Checked
         // cheaply in the per-player update loop and skipped once fired.
         this.triggers.push({
+          id: e.id || null, // optional handle (U6 reads the tutorial's station-5 trigger)
           rect: new Phaser.Geom.Rectangle(e.x * TILE, e.y * TILE, (e.w || 1) * TILE, (e.h || 1) * TILE),
           blip: e.blip || null,
           glyphs: e.glyphs || null, // { x, y, caps } in tile coords, revealed on entry
@@ -2591,6 +2597,8 @@ export default class GameScene extends Phaser.Scene {
       return false;
     });
 
+    this.updateHintPreview(delta); // U6 — throw arc + rope tether preview
+
     // exit: both buddies through the open door
     if (this.exitDoor && this.exitDoor.open) {
       const inState = this.players.map(
@@ -2855,6 +2863,7 @@ export default class GameScene extends Phaser.Scene {
   finishLevel() {
     if (this.complete) return;
     this.complete = true;
+    if (this.hintGfx) this.hintGfx.clear(); // drop any U6 preview before the clear overlay
     stopLoops(); // silence all ambience the instant the level is cleared
     sfx.win();
     // Sprint 10: the tutorial NEVER touches the save (no unlock/core writes) — its
@@ -2893,6 +2902,119 @@ export default class GameScene extends Phaser.Scene {
     }
     this.rope.lineStyle(3, color, alpha);
     this.rope.strokePoints(pts, false, false);
+  }
+
+  // U6 — read-only preview overlays drawn into the shared hintGfx (clear+redraw
+  // like the rope). Two affordances, both gated behind the global uxHints()
+  // kill-switch (U11 wires the real HINTS setting):
+  //   1. THROW ARC: while carrying, a faint dotted ballistic arc showing exactly
+  //      where the buddy would land, using the SAME throw constants + facing the
+  //      throw applies (heavy/tiny variants; high-toss while jump is held).
+  //   2. ROPE TETHER: a barely-there dashed line between a grounded, idle,
+  //      grapple-skilled player and a buddy that satisfies the DOWN-chord reel
+  //      acceptance — the "you could rope me" hint.
+  // Never reads or writes physics state beyond sampling; no bb:* events.
+  updateHintPreview(delta) {
+    const g = this.hintGfx;
+    g.clear();
+    if (!uxHints() || this.complete || this.leaving) return;
+
+    // Tutorial gate: the throw arc stays hidden until the station-5 trigger has
+    // fired, so the tutorial's own glyphs teach carry/throw first (F5-adjacent).
+    let arcAllowed = true;
+    if (this.def.tutorial) {
+      const s5 = this.triggers.find((t) => t.id === "s5");
+      arcAllowed = !!(s5 && s5.fired);
+    }
+
+    for (const p of this.players) {
+      // --- 1. throw arc (carrying) --------------------------------------------
+      if (arcAllowed && p.carrying && !p.dead) {
+        const q = p.carrying;
+        const heavyThrower = p.skill === "heavy";
+        const highToss = p.keys.jump.isDown;
+        // Release origin + launch velocity: an EXACT mirror of throwPartner().
+        const ox = p.x + p.facing * 10;
+        const oy = p.y - p.displayHeight / 2 - 20;
+        let vx, vy;
+        if (highToss) {
+          vx = p.facing * 120;
+          vy = -PHYS.tossY * (q.skill === "tiny" ? 1.08 : 1);
+        } else {
+          const flyBoost = q.skill === "tiny" ? 1.9 : 1;
+          vx = p.facing * (heavyThrower ? PHYS.heavyThrowX : PHYS.throwX) * flyBoost;
+          vy = -(heavyThrower ? PHYS.heavyThrowY : PHYS.throwY);
+        }
+        this.drawThrowArc(g, ox, oy, vx, vy, q.idx === 0 ? COLORS.beep : COLORS.boop);
+      }
+
+      // --- 2. rope tether (grapple, grounded, idle, buddy reelable) -----------
+      const moving = p.keys.left.isDown || p.keys.right.isDown || p.keys.jump.isDown ||
+        p.keys.down.isDown || p.keys.act.isDown || (p.keys.actAlt && p.keys.actAlt.isDown);
+      const still = p.skill === "grapple" && !p.dead && p.grounded &&
+        !p.carrying && !p.carriedBy && !p.zip && !p.reeled &&
+        Math.abs(p.body.velocity.x) < 8 && !moving;
+      p._tetherIdle = still ? (p._tetherIdle || 0) + delta : 0;
+      if (still && p._tetherIdle > 1000 && this.coachBuddyReelable(p)) {
+        const accent = (this.theme && this.theme.accent) || WORLD_THEMES[1].accent;
+        this.drawDashedTether(g, p.x, p.y - 8, p.partner.x, p.partner.y - 8, accent);
+      }
+    }
+  }
+
+  // Sample the throw trajectory into a dotted arc. This is NOT a naive parabola:
+  // once released, the buddy runs its OWN Player.update every frame, so the path
+  // is shaped by two forces the throw velocity alone hides —
+  //   * variable jump-cut: a released buddy isn't holding its jump key, so the
+  //     frame after launch `if (!jump && vy < -260) vy = -260` caps upward speed
+  //     (this is why even a -820 high-toss only rises a little without an assist);
+  //   * air-drag: with no directional key held, airborne vx eases toward 0 at
+  //     k = 0.4 (Player.js line 292-293), so horizontal reach bleeds off.
+  // Replicating both here (plus Arcade's post-update gravity + maxVelocity clamps)
+  // is what lands the final dot within a tile of the real throw. ~11 dots over
+  // ~1s, alpha fading along the arc; the last dot slightly larger.
+  drawThrowArc(g, x0, y0, vx0, vy0, color) {
+    const pts = this._arcPts;
+    pts.length = 0;
+    const sub = 1 / 120;              // integration substep
+    const stepMs = 90;               // ~90ms between dots -> ~11 dots across ~1s
+    const totalMs = 1000;
+    const JUMP_CUT = 260, DRAG_K = 0.4; // mirror Player.update airborne handling
+    let vx = Phaser.Math.Clamp(vx0, -1000, 1000); // body maxVelocity.x
+    let vy = vy0;
+    let x = x0, y = y0, tMs = 0, nextDot = stepMs;
+    while (tMs <= totalMs) {
+      vx += (0 - vx) * (sub * DRAG_K);            // air-drag toward 0 (no key held)
+      if (vy < -JUMP_CUT) vy = -JUMP_CUT;         // released buddy isn't holding jump
+      vy = Phaser.Math.Clamp(vy + PHYS.grav * sub, -PHYS.maxFall, PHYS.maxFall);
+      x += vx * sub;
+      y += vy * sub;
+      tMs += sub * 1000;
+      if (tMs >= nextDot) {
+        pts.push(x, y);
+        nextDot += stepMs;
+      }
+    }
+    const n = pts.length / 2;
+    for (let i = 0; i < n; i++) {
+      const last = i === n - 1;
+      const a = 0.5 * (1 - i / (n + 1)); // fade along the arc, start faint
+      g.fillStyle(color, last ? Math.max(a, 0.4) : a);
+      g.fillCircle(pts[i * 2], pts[i * 2 + 1], last ? 4 : 2.5);
+    }
+  }
+
+  // A barely-there dashed line (2px dashes, alpha 0.25) between two points.
+  drawDashedTether(g, x1, y1, x2, y2, color) {
+    const dist = Math.hypot(x2 - x1, y2 - y1);
+    if (dist < 1) return;
+    const ux = (x2 - x1) / dist, uy = (y2 - y1) / dist;
+    const dash = 8, gap = 7;
+    g.lineStyle(2, color, 0.25);
+    for (let d = 0; d < dist; d += dash + gap) {
+      const e = Math.min(d + dash, dist);
+      g.lineBetween(x1 + ux * d, y1 + uy * d, x1 + ux * e, y1 + uy * e);
+    }
   }
 
   // Park a player's pooled hook head at the far rope end, angled along the rope.
