@@ -9,6 +9,11 @@ import Player from "../objects/Player.js";
 
 const J = Phaser.Input.Keyboard.JustDown;
 
+// U1 coach: the throw hint fires only on the FIRST buddy pickup of a play
+// session. Module-scoped so it survives level changes but resets on reload —
+// a play session, never persisted to storage (per U1 spec).
+let throwHintShownSession = false;
+
 export default class GameScene extends Phaser.Scene {
   constructor() {
     super("Game");
@@ -144,6 +149,11 @@ export default class GameScene extends Phaser.Scene {
       }).setOrigin(0.5);
       return this.add.container(p.x, p.y - 64 - p.idx * 34, [g, t]).setDepth(DEPTH.fx);
     });
+
+    // U1 — contextual "coach" bubbles (pooled). The tutorial teaches every
+    // chord explicitly, so it opts out entirely.
+    this.coach = null;
+    if (!def.tutorial) this.buildCoach();
 
     this.boom = this.add.particles(0, 0, "px", {
       speed: { min: 60, max: 260 }, scale: { start: 1, end: 0 }, lifespan: 450,
@@ -996,6 +1006,7 @@ export default class GameScene extends Phaser.Scene {
     q.carriedBy = p;
     q.body.enable = false;
     sfx.grab();
+    this.showThrowHint(p); // U1(c): first-pickup-of-session throw hint
   }
 
   throwPartner(p) {
@@ -1397,6 +1408,274 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
+  // --- U1 coach system -----------------------------------------------------------
+  // Condition-driven, once-per-level-per-trigger, auto-dismissing glyph bubbles.
+  // Everything below is READ-ONLY over gameplay: it samples state, never mutates
+  // it, adds no bb:* events, and is skipped in the tutorial. Bubbles + re-show
+  // hints are pooled here in create() and reconfigured on trigger (no per-frame
+  // object allocation; heavy checks run on a shared ~4Hz timer).
+  buildCoach() {
+    const mkBubble = () => {
+      const bg = this.add.graphics();
+      const texts = [];
+      for (let i = 0; i < 6; i++) {
+        texts.push(this.add.text(0, 0, "", { fontFamily: FONT, fontStyle: "bold" })
+          .setOrigin(0.5).setVisible(false));
+      }
+      const c = this.add.container(0, 0, [bg, ...texts]).setDepth(DEPTH.fx + 3).setVisible(false);
+      return { c, bg, texts, active: false, key: null, until: 0, guard: 0, follow: null, halfH: 24 };
+    };
+    // Faint re-show clones of the floating "SPACE/L = ACTION" hint (U1(d)).
+    const reshow = this.players.map((p) => {
+      const color = p.idx === 0 ? COLORS.beep : COLORS.boop;
+      const hw = p.idx === 0 ? 74 : 56;
+      const g = this.add.graphics();
+      g.fillStyle(COLORS.hudBg, 0.92).fillRoundedRect(-hw, -15, hw * 2, 30, 8);
+      g.lineStyle(2, color).strokeRoundedRect(-hw, -15, hw * 2, 30, 8);
+      const t = this.add.text(0, 0, p.idx === 0 ? "SPACE = ACTION" : "L = ACTION", {
+        fontFamily: FONT, fontSize: FS.body, fontStyle: "bold",
+        color: p.idx === 0 ? "#4dc9ff" : "#ffa14d",
+      }).setOrigin(0.5);
+      return this.add.container(0, 0, [g, t]).setDepth(DEPTH.fx + 3).setVisible(false).setAlpha(0.3);
+    });
+    this.coach = {
+      bubbles: this.players.map(mkBubble),
+      reshow,
+      reshowUntil: [0, 0],
+      firedRope: [false, false],
+      firedUpzip: [false, false],
+      actEdge: [false, false],
+      nextCheck: 0,
+      lastCheck: 0,
+    };
+    for (const p of this.players) { p._coachIdle = 0; p._lastActPress = 0; }
+  }
+
+  drawCoachIcon(g, kind, cx, cy, idx) {
+    if (kind === "rope") {
+      g.lineStyle(3, COLORS.neon, 1);
+      g.lineBetween(cx - 7, cy - 7, cx + 3, cy + 3);
+      g.strokeCircle(cx + 5, cy + 6, 5);
+      g.fillStyle(COLORS.neon, 1).fillCircle(cx - 7, cy - 7, 2.5);
+    } else if (kind === "up") {
+      const col = idx === 0 ? COLORS.beep : COLORS.boop;
+      g.fillStyle(col, 1);
+      g.fillTriangle(cx, cy - 9, cx - 8, cy + 1, cx + 8, cy + 1);
+      g.fillRect(cx - 3, cy + 1, 6, 8);
+    }
+  }
+
+  // Configure + reveal a pooled bubble. Reuses addGlyphs conventions (keycap
+  // face + beep/boop border + bold letter) but sizes each cap to its label so
+  // multi-char caps like SPACE fit. All drawing happens here (on trigger), never
+  // per frame.
+  coachShow(idx, { tokens, caption, follow, key, dur, colorP }) {
+    const b = this.coach.bubbles[idx];
+    const bg = b.bg;
+    bg.clear();
+    const beepHex = "#4dc9ff", boopHex = "#ffa14d";
+    const GAP = 5, CAPH = 30, PAD = 11;
+    const els = [];
+    let ti = 0;
+    for (const tk of tokens) {
+      if (tk.icon) { els.push({ type: "icon", icon: tk.icon, w: 24 }); continue; }
+      if (tk.plus) {
+        const t = b.texts[ti++].setText("+").setFontSize(15).setColor("#8fa3d9").setVisible(true);
+        els.push({ type: "text", t, w: t.width + 6 });
+        continue;
+      }
+      if (tk.label) {
+        const t = b.texts[ti++].setText(tk.label).setFontSize(14).setColor("#c6d2f2").setVisible(true);
+        els.push({ type: "text", t, w: t.width + 6 });
+        continue;
+      }
+      const pp = tk.p != null ? tk.p : (/[←→↑↓]/.test(tk.cap) ? 1 : idx);
+      const hex = pp === 0 ? beepHex : boopHex;
+      const t = b.texts[ti++].setText(tk.cap).setFontSize(18).setColor(hex).setVisible(true);
+      els.push({ type: "cap", t, w: Math.max(30, t.width + 16), col: pp === 0 ? COLORS.beep : COLORS.boop });
+    }
+    let capT = null;
+    if (caption) capT = b.texts[ti++].setText(caption).setFontSize(13).setColor("#8fa3d9").setVisible(true);
+    for (let i = ti; i < b.texts.length; i++) b.texts[i].setVisible(false);
+
+    let rowW = 0;
+    for (const e of els) rowW += e.w;
+    rowW += GAP * (els.length - 1);
+    const contentW = Math.max(rowW, capT ? capT.width : 0);
+    const panelW = contentW + PAD * 2;
+    const panelH = (caption ? CAPH + 4 + 16 : CAPH) + 12;
+    b.halfH = panelH / 2;
+    const rowY = caption ? -panelH / 2 + 6 + CAPH / 2 : 0;
+    const capY = caption ? panelH / 2 - 6 - 8 : 0;
+
+    const col = colorP === 1 ? COLORS.boop : (colorP === 0 ? COLORS.beep : COLORS.neon);
+    bg.fillStyle(COLORS.hudBg, 0.92).fillRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 10);
+    bg.lineStyle(2, col, 0.9).strokeRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 10);
+
+    let x = -rowW / 2;
+    for (const e of els) {
+      const cx = x + e.w / 2;
+      if (e.type === "cap") {
+        bg.fillStyle(0x1a2338, 0.95).fillRoundedRect(cx - e.w / 2 + 1, rowY - CAPH / 2 + 1, e.w - 2, CAPH - 2, 7);
+        bg.lineStyle(2.5, e.col, 1).strokeRoundedRect(cx - e.w / 2, rowY - CAPH / 2, e.w, CAPH, 7);
+        e.t.setPosition(cx, rowY);
+      } else if (e.type === "text") {
+        e.t.setPosition(cx, rowY);
+      } else if (e.type === "icon") {
+        this.drawCoachIcon(bg, e.icon, cx, rowY, idx);
+      }
+      x += e.w + GAP;
+    }
+    if (capT) capT.setPosition(0, capY);
+
+    b.active = true;
+    b.key = key;
+    b.follow = follow;
+    b.until = this.time.now + dur;
+    b.guard = this.time.now + 160; // ignore the very press that spawned it
+    b.c.setVisible(true).setAlpha(0);
+    this.tweens.killTweensOf(b.c);
+    this.tweens.add({ targets: b.c, alpha: 1, duration: 200 });
+  }
+
+  showThrowHint(p) {
+    if (!this.coach || throwHintShownSession) return;
+    throwHintShownSession = true;
+    const i = p.idx;
+    const jumpCap = i === 0 ? "W" : "↑";
+    const actCap = i === 0 ? "SPACE" : "L";
+    this.coachShow(i, {
+      tokens: [{ cap: actCap, p: i }, { label: "THROW" }],
+      caption: `hold ${jumpCap} = high toss`,
+      follow: { obj: p, dy: -p.displayHeight / 2 - 30 },
+      key: "throw", dur: 5000, colorP: i,
+    });
+  }
+
+  // U1(a) accept-condition mirror of the DOWN-chord buddy reel (read-only).
+  coachBuddyReelable(p) {
+    const q = p.partner;
+    if (!q || q.dead || q.carriedBy || q.zip || q.reeled) return false;
+    const d = Math.hypot(q.x - p.x, q.y - p.y);
+    if (d <= 72 || d > PHYS.grappleRange) return false;
+    return this.hasLOS(p.x, p.y, q.x, q.y) || this.hasLOS(p.x, p.y - 44, q.x, q.y - 24);
+  }
+
+  // U1(b) accept-condition mirror of the UP-chord anchor zip (read-only).
+  coachAnchorAbove(p) {
+    for (const a of this.anchors) {
+      if (Math.abs(a.x - p.x) > 130 || a.y > p.y - 40) continue;
+      const d = Math.hypot(a.x - p.x, a.y - p.y);
+      if (d > PHYS.grappleRange || d < 30) continue;
+      if (!this.hasLOS(p.x, p.y, a.x, a.y)) continue;
+      return true;
+    }
+    return false;
+  }
+
+  // U1(d): is this player next to something its action key would operate?
+  coachAdjacentActionable(p) {
+    if (!p.skill && this.pedestals.some((d) => !d.taken && Math.abs(d.x - p.x) < 56 && Math.abs(d.y - p.y) < 70)) return true;
+    if (this.levers.some((l) => !l.on && Math.abs(l.x - p.x) < 54 && Math.abs(l.y - p.y) < 64)) return true;
+    if (this.doors.some((d) => !d.open && p.x > d.zone.x - 60 && p.x < d.zone.x + d.zone.width + 60 &&
+      p.y > d.zone.y - 20 && p.y < d.zone.y + d.zone.height + 30)) return true;
+    const q = p.partner;
+    if (q && !q.dead && !q.carriedBy && !q.carrying && p.grounded &&
+      Math.abs(q.x - p.x) < 58 && Math.abs(q.y - p.y) < 60) return true;
+    return false;
+  }
+
+  updateCoach(time) {
+    const co = this.coach;
+    if (!co) return;
+    const cam = this.cameras.main;
+    const scH = this.scale.height;
+    const zoom = cam.zoom || 1;
+    const wv = cam.worldView;
+
+    // Reposition + expire active bubbles every frame (cheap; no allocation).
+    for (let i = 0; i < this.players.length; i++) {
+      const b = co.bubbles[i];
+      if (!b.active) continue;
+      const f = b.follow;
+      let kill = time > b.until;
+      if (!kill && co.actEdge[i] && time > b.guard) kill = true;
+      if (!kill && f.obj && (f.obj.dead || (b.key === "rope" && f.obj.carriedBy))) kill = true;
+      if (kill) { b.active = false; b.follow = null; b.c.setVisible(false); this.tweens.killTweensOf(b.c); continue; }
+      let wx = f.obj ? f.obj.x + (f.dx || 0) : f.x;
+      let wy = f.obj ? f.obj.y + (f.dy || 0) : f.y;
+      // Keep clear of the KOBI blip bar (bottom of screen) and the top edge.
+      const maxWorldY = wv.y + (scH - 104) / zoom - b.halfH;
+      const minWorldY = wv.y + 34 / zoom + b.halfH;
+      wy = Phaser.Math.Clamp(wy, minWorldY, maxWorldY);
+      b.c.setPosition(wx, wy);
+    }
+
+    // Re-show hints: follow their robot, expire at 4s or on an action press.
+    for (let i = 0; i < this.players.length; i++) {
+      const r = co.reshow[i];
+      if (!r.visible) continue;
+      if (time > co.reshowUntil[i] || co.actEdge[i]) { r.setVisible(false); continue; }
+      const p = this.players[i];
+      r.setPosition(p.x, p.y - 64 - i * 34 + Math.sin(time / 300) * 4);
+    }
+
+    // Heavy trigger evaluation throttled to ~4Hz on a shared timer.
+    if (time >= co.nextCheck) {
+      const elapsed = co.lastCheck ? (time - co.lastCheck) / 1000 : 0.25;
+      co.lastCheck = time;
+      co.nextCheck = time + 250;
+      for (let i = 0; i < this.players.length; i++) {
+        const p = this.players[i];
+        if (p.dead) { p._coachIdle = 0; continue; }
+        const moveKey = p.keys.left.isDown || p.keys.right.isDown || p.keys.jump.isDown ||
+          p.keys.down.isDown || p.keys.act.isDown || (p.keys.actAlt && p.keys.actAlt.isDown);
+        const idle = p.grounded && !p.carriedBy && !p.carrying && !p.zip && !p.reeled &&
+          Math.abs(p.body.velocity.x) < 8 && !moveKey;
+        p._coachIdle = idle ? p._coachIdle + elapsed : 0;
+
+        const b = co.bubbles[i];
+        // (a) rope hint, then (b) up-zip hint — one bubble per player at a time.
+        if (p.skill === "grapple" && p._coachIdle > 2 && !b.active) {
+          if (!co.firedRope[i] && this.coachBuddyReelable(p)) {
+            const q = p.partner;
+            co.firedRope[i] = true;
+            const tokens = i === 0
+              ? [{ icon: "rope" }, { cap: "S" }, { plus: true }, { cap: "SPACE" }]
+              : [{ icon: "rope" }, { cap: "↓" }, { plus: true }, { cap: "L", p: 1 }];
+            this.coachShow(i, {
+              tokens, caption: "REEL YOUR BUDDY",
+              follow: { obj: q, dy: -q.displayHeight / 2 - 30 },
+              key: "rope", dur: 5000, colorP: i,
+            });
+          } else if (!co.firedUpzip[i] && this.coachAnchorAbove(p)) {
+            co.firedUpzip[i] = true;
+            const tokens = i === 0
+              ? [{ icon: "up" }, { cap: "W" }, { plus: true }, { cap: "SPACE" }]
+              : [{ icon: "up" }, { cap: "↑" }, { plus: true }, { cap: "L", p: 1 }];
+            this.coachShow(i, {
+              tokens, caption: "ZIP STRAIGHT UP",
+              follow: { obj: p, dy: -p.displayHeight / 2 - 30 },
+              key: "upzip", dur: 5000, colorP: i,
+            });
+          }
+        }
+
+        // (d) re-show the action hint: only after the original was dismissed
+        // (first press), when idle-adjacent to something actionable for >20s.
+        if (!co.reshow[i].visible && this.actionHints[i] == null &&
+          (time - p._lastActPress) > 20000 && this.coachAdjacentActionable(p)) {
+          co.reshow[i].setVisible(true).setAlpha(0.3).setPosition(p.x, p.y - 64 - i * 34);
+          co.reshowUntil[i] = time + 4000;
+          p._lastActPress = time; // re-arm the 20s window
+        }
+      }
+    }
+
+    co.actEdge[0] = false;
+    co.actEdge[1] = false;
+  }
+
   // --- conditions ---------------------------------------------------------------
   evalNeeds(needs, door) {
     if (!needs) return true;
@@ -1487,7 +1766,14 @@ export default class GameScene extends Phaser.Scene {
 
     for (const p of this.players) {
       if (p.dead) continue;
-      if (J(p.keys.act) || (p.keys.actAlt && J(p.keys.actAlt))) this.handleAction(p);
+      const actEdge = J(p.keys.act) || (p.keys.actAlt && J(p.keys.actAlt));
+      if (actEdge) this.handleAction(p);
+      // U1 coach: record this player's action-press edge (dismisses bubbles +
+      // re-arms the re-show idle timer). Read-only — never gates input.
+      if (this.coach) {
+        this.coach.actEdge[p.idx] = actEdge;
+        if (actEdge) p._lastActPress = time;
+      }
       if (p.dead || p.carriedBy) continue;
 
       // action-key hint follows its robot
@@ -1957,6 +2243,7 @@ export default class GameScene extends Phaser.Scene {
     }
 
     this.players.forEach((p) => (p.standingOn = null));
+    this.updateCoach(time);
     this.updateLoops();
     this.updateCamera(dt);
   }
