@@ -5,6 +5,7 @@ import {
   initAudio, sfx, installMute,
   getAudioSettings, setMusicVolume, setSfxVolume, toggleMute,
 } from "../audio.js";
+import { pads, showPadToast } from "../pad.js";
 
 
 // Keyboard-driven settings page (Sound Sprint S4). Matches the game's menu look:
@@ -89,6 +90,22 @@ export default class SettingsScene extends Phaser.Scene {
       else if (["Space", "KeyE", "KeyL", "Enter"].includes(c)) this.activate();
       else if (c === "Escape") this.back();
     });
+  }
+
+  // U7: pad1 drives the settings rows 1:1 with the keyboard handler — up/down
+  // select, left/right adjust, A confirm/toggle, B back.
+  update(time) {
+    pads.poll(time);
+    const p = pads.p(0);
+    if (pads.anyButtonJust()) initAudio();
+    const conn = pads.consumeConnected();
+    if (conn) conn.forEach((idx) => showPadToast(this, idx));
+    if (p.upJust) this.moveSel(-1);
+    else if (p.downJust) this.moveSel(1);
+    if (p.leftJust) this.adjust(-1);
+    else if (p.rightJust) this.adjust(1);
+    if (p.confirmJust) this.activate();
+    else if (p.backJust) this.back();
   }
 
   moveSel(d) {

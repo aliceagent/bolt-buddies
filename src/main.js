@@ -18,6 +18,11 @@ const game = new Phaser.Game({
   width: 1280,
   height: 720,
   backgroundColor: "#070b14",
+  // U7 (F13): enable Phaser's gamepad plugin so a real browser fires
+  // connect/disconnect events. All actual pad reads live in src/pad.js (it polls
+  // navigator.getGamepads directly for headless-mock determinism); this flag is
+  // additive and never touches the keyboard path.
+  input: { gamepad: true },
   physics: {
     default: "arcade",
     // generous overlapBias so the scaled-up Heavyweight body never embeds in

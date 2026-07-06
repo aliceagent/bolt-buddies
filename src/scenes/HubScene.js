@@ -4,6 +4,7 @@ import { LEVELS, WORLD_INFO, KOBI_HUB_LINES } from "../levels/registry.js";
 import { loadSave, totalCores } from "../save.js";
 import { addGradient, addMotes } from "../backdrop.js";
 import { initAudio, sfx, installMute, playTrack, playJingle } from "../audio.js";
+import { pads, showPadToast } from "../pad.js";
 
 
 // Facility map: 4 wings x 3 chambers. Navigate with either player's keys.
@@ -140,6 +141,23 @@ export default class HubScene extends Phaser.Scene {
       else if (c === "KeyO") { sfx.menuSelect(); this.scene.start("Settings", { returnTo: "Hub" }); }
       else if (c === "Escape") this.scene.start("Title");
     });
+  }
+
+  // U7: pad1 navigates the sector map 1:1 with the keyboard handler — d-pad/stick
+  // left/right = adjacent chamber, up/down = wing, A = enter, B = back to Title.
+  update(time) {
+    pads.poll(time);
+    const p = pads.p(0);
+    if (pads.anyButtonJust()) initAudio();
+    const conn = pads.consumeConnected();
+    if (conn) conn.forEach((idx) => showPadToast(this, idx));
+    if (this.entering) return;
+    if (p.leftJust) this.move(-1);
+    else if (p.rightJust) this.move(1);
+    if (p.upJust) this.move(-3);
+    else if (p.downJust) this.move(3);
+    if (p.confirmJust) this.enter();
+    else if (p.backJust) this.scene.start("Title");
   }
 
   buildTicker(W, H) {

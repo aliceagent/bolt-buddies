@@ -15,6 +15,20 @@ The full design document lives in [`GAME_DESIGN.md`](./GAME_DESIGN.md).
 
 The **Action** button is context-sensitive: equip a pedestal gadget, fire your skill (zip / stomp), pull a lever, or — next to your buddy — pick them up and throw them. Hold **jump** while throwing for a high toss.
 
+## Gamepad support 🎮
+
+Plug in one or two controllers for comfy couch co-op — **pad 1 drives P1 Beep, pad 2 drives P2 Boop**. Gamepads are fully additive: the keyboard keeps working exactly as above, and you can mix a pad and the keyboard freely.
+
+|          | Move | Jump | Action | Down chord | Pause |
+| -------- | ---- | ---- | ------ | ---------- | ----- |
+| Each pad | Left stick / D-pad | **A** (cross) | **X** (square) | Stick / D-pad down | **Start** |
+
+- **Menus** (Title, Hub, Settings, Pause) are navigable with pad 1: D-pad / stick to move the selection, **A** to confirm, **B** to go back.
+- The **down chord** (hold *down* + Action) works the same as the keyboard: e.g. grapple's DOWN+Action ropes your buddy; hold **A** (jump) + **X** (action) for the straight-up zip / high toss.
+- A small **"P1/P2 controller connected!"** toast pops the first time each pad is seen. Any button also unlocks audio, just like a keypress.
+
+Implementation is a single polling module (`src/pad.js`) that reads the browser Gamepad API and synthesises virtual keys OR-ed into the existing input reads — so with no pad connected the game is byte-for-byte unchanged (the keyboard-only test suites prove it).
+
 ## Sound & music
 
 Every screen and level has its own **unique background track** — all of it

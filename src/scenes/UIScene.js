@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { COLORS, WORLD_THEMES, FONT, FS, TEXT } from "../constants.js";
 import { LEVELS } from "../levels/registry.js";
 import { sfx, installMute, duckMusic } from "../audio.js";
+import { pads } from "../pad.js";
 
 
 const SKILL_ICON = { grapple: "icon_grapple", heavy: "icon_heavy", phase: "icon_phase", tiny: "icon_tiny" };
@@ -244,21 +245,28 @@ export default class UIScene extends Phaser.Scene {
     this.continuing = false; // guards the fade so a second key can't double-start
     this.input.keyboard.on("keydown", (ev) => {
       if (this.completed && !this.continuing && ["Space", "KeyE", "KeyL", "Enter"].includes(ev.code)) {
-        this.continuing = true;
-        const tut = !!this.completed.tutorial; // Sprint 10: tutorial returns to Title
-        const next = this.completed.index + 1;
-        const unlock = this.completed.newlyUnlocked;
-        duckMusic(false); // drop any lingering blip duck on the way out
-        // the UI camera fade paints fullscreen black over both scenes (UI renders
-        // above Game), so this reads as a clean 250ms fade to the next screen.
-        this.cameras.main.fadeOut(250, 4, 6, 20);
-        this.cameras.main.once("camerafadeoutcomplete", () => {
-          this.scene.stop("Game");
-          if (tut) this.scene.start("Title");
-          else this.scene.start("Hub", { sel: next, unlock });
-          this.scene.stop();
-        });
+        this.continueFromClear();
       }
+    });
+  }
+
+  // Clear-overlay continue — shared by the keyboard handler and the U7 pad poll
+  // (A/confirm). Guarded so a second press can't double-start the fade.
+  continueFromClear() {
+    if (!this.completed || this.continuing) return;
+    this.continuing = true;
+    const tut = !!this.completed.tutorial; // Sprint 10: tutorial returns to Title
+    const next = this.completed.index + 1;
+    const unlock = this.completed.newlyUnlocked;
+    duckMusic(false); // drop any lingering blip duck on the way out
+    // the UI camera fade paints fullscreen black over both scenes (UI renders
+    // above Game), so this reads as a clean 250ms fade to the next screen.
+    this.cameras.main.fadeOut(250, 4, 6, 20);
+    this.cameras.main.once("camerafadeoutcomplete", () => {
+      this.scene.stop("Game");
+      if (tut) this.scene.start("Title");
+      else this.scene.start("Hub", { sel: next, unlock });
+      this.scene.stop();
     });
   }
 
@@ -371,6 +379,14 @@ export default class UIScene extends Phaser.Scene {
   }
 
   update(time, delta) {
+    // U7: poll pads (idempotent within a frame — GameScene may have already
+    // polled). A/confirm advances the clear overlay so pad-only players aren't
+    // stranded there. Keyboard path untouched.
+    pads.poll(time);
+    if (this.completed && !this.continuing && (pads.p(0).confirmJust || pads.p(1).confirmJust)) {
+      this.continueFromClear();
+    }
+
     // typewriter blips
     if (!this.blipActive && this.blipQueue.length) {
       const item = this.blipQueue.shift();

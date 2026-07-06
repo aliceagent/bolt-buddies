@@ -4,6 +4,7 @@ import { addGradient, addMotes } from "../backdrop.js";
 import { LEVELS } from "../levels/registry.js";
 import { loadSave, storeSave, totalCores } from "../save.js";
 import { initAudio, sfx, playTrack, installMute } from "../audio.js";
+import { pads, showPadToast } from "../pad.js";
 
 const ACCENT = WORLD_THEMES[1].accent; // world-1 amber accent for buttons
 const hexStr = (n) => "#" + (n & 0xffffff).toString(16).padStart(6, "0");
@@ -63,6 +64,20 @@ export default class TitleScene extends Phaser.Scene {
       if (this.eraseTimer) this.eraseTimer.remove();
       if (this.flickerTimer) this.flickerTimer.remove();
     });
+  }
+
+  // U7: pad1 drives the menu 1:1 with the keyboard handler — up/down select,
+  // A/confirm activates. Any pad button counts for the audio unlock, and a fresh
+  // connection pops the per-session detection toast.
+  update(time) {
+    pads.poll(time);
+    const p = pads.p(0);
+    if (pads.anyButtonJust()) initAudio();
+    const conn = pads.consumeConnected();
+    if (conn) conn.forEach((idx) => showPadToast(this, idx));
+    if (p.upJust) this.moveSel(-1);
+    else if (p.downJust) this.moveSel(1);
+    if (p.confirmJust) this.activate();
   }
 
   // --- distant lab skyline + a scrolling conveyor line ------------------------
@@ -495,7 +510,7 @@ export default class TitleScene extends Phaser.Scene {
 
   // --- controls footer: key-cap chips + top accent bar ------------------------
   buildFooter(W, H) {
-    const pw = 724, ph = 106, px = W / 2 - pw / 2, py = 548;
+    const pw = 724, ph = 132, px = W / 2 - pw / 2, py = 540;
     const panel = this.add.graphics();
     panel.fillStyle(COLORS.panel, 0.82).fillRoundedRect(px, py, pw, ph, 12);
     panel.lineStyle(2, COLORS.panelEdge).strokeRoundedRect(px, py, pw, ph, 12);
@@ -522,6 +537,35 @@ export default class TitleScene extends Phaser.Scene {
     this.chipRow(W / 2, py + 86, [
       { k: "↑" }, { k: "↓" }, { t: "move" }, { k: "SPACE" }, { k: "E" }, { k: "L" }, { k: "↵" }, { t: "select" }, { k: "S" }, { t: "settings" },
     ], ACCENT, hexStr(ACCENT));
+
+    // U7 (F13): gamepad-support line — a small drawn pad glyph (Courier can't
+    // render 🎮) + label, in the footer's established caption style.
+    this.buildGamepadLine(W / 2, py + 114);
+  }
+
+  // A tiny controller glyph (rounded body + d-pad cross + two face buttons) drawn
+  // to the left of a "GAMEPADS SUPPORTED" caption, centred on (cx, cy).
+  buildGamepadLine(cx, cy) {
+    const label = "GAMEPADS SUPPORTED";
+    const glyphW = 22, gap = 8;
+    const txt = this.add.text(0, 0, label, {
+      fontFamily: FONT, fontSize: FS.mini, fontStyle: "bold", color: hexStr(ACCENT),
+    }).setOrigin(0, 0.5).setAlpha(0.9);
+    const total = glyphW + gap + txt.width;
+    const gx = cx - total / 2;
+    txt.setPosition(gx + glyphW + gap, cy);
+
+    const g = this.add.graphics();
+    const bx = gx, by = cy - 7, bw = glyphW, bh = 14;
+    g.fillStyle(0x1a2338, 0.95).fillRoundedRect(bx, by, bw, bh, 5);
+    g.lineStyle(1.5, ACCENT, 0.9).strokeRoundedRect(bx, by, bw, bh, 5);
+    // d-pad cross (left)
+    g.fillStyle(ACCENT, 0.9);
+    g.fillRect(bx + 5, cy - 1.4, 5, 2.8);
+    g.fillRect(bx + 6.3, cy - 2.7, 2.4, 5.4);
+    // two face buttons (right)
+    g.fillCircle(bx + bw - 7, cy - 2.4, 1.7);
+    g.fillCircle(bx + bw - 4, cy + 1.6, 1.7);
   }
 
   // --- KOBI corner eye: wandering iris that glances at the selected button -----

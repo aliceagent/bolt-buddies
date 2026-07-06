@@ -238,9 +238,10 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.setVelocity(0, 0);
     this.setPosition(z.x, z.y + 44);
     const J = Phaser.Input.Keyboard.JustDown;
-    if (J(K.jump)) this.endZip(0, -380);
-    else if (J(K.left)) this.endZip(-270, -140);
-    else if (J(K.right)) this.endZip(270, -140);
+    const P = this.pad;
+    if (J(K.jump) || (P && P.jumpJust)) this.endZip(0, -380);
+    else if (J(K.left) || (P && P.leftJust)) this.endZip(-270, -140);
+    else if (J(K.right) || (P && P.rightJust)) this.endZip(270, -140);
   }
 
   preUpdate(time, delta) {
@@ -261,7 +262,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     if (this.carriedBy) {
       const c = this.carriedBy;
       this.setPosition(c.x, c.y - c.displayHeight / 2 - this.displayHeight / 2 + 10);
-      if (Phaser.Input.Keyboard.JustDown(K.jump)) {
+      if (Phaser.Input.Keyboard.JustDown(K.jump) || (this.pad && this.pad.jumpJust)) {
         sfx.hopOff(); // carried buddy springs off
         this.scene.detachCarry(c, this, true);
       }
@@ -276,12 +277,15 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     const body = this.body;
     let speed = (this.skill === "heavy" ? PHYS.heavySpeed : this.skill === "tiny" ? 285 : PHYS.speed) * (this.carrying ? 0.85 : 1);
     if (this.inPhaseWall) speed = Math.min(speed, 115); // ghosting through walls is slow going
+    // U7: pad virtual keys OR into the keyboard reads (p.pad is a stable object
+    // from src/pad.js; absent => keyboard-only, byte-identical behavior).
+    const P = this.pad;
     let target = 0;
-    if (K.left.isDown) {
+    if (K.left.isDown || (P && P.left.isDown)) {
       target = -speed;
       this.facing = -1;
       this.setFlipX(true);
-    } else if (K.right.isDown) {
+    } else if (K.right.isDown || (P && P.right.isDown)) {
       target = speed;
       this.facing = 1;
       this.setFlipX(false);
@@ -302,7 +306,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     if (onGround) this.coyote = 120;
     else this.coyote -= delta;
-    if (Phaser.Input.Keyboard.JustDown(K.jump)) this.jumpBuf = 130;
+    if (Phaser.Input.Keyboard.JustDown(K.jump) || (P && P.jumpJust)) this.jumpBuf = 130;
     else this.jumpBuf -= delta;
     if (this.jumpBuf > 0 && this.coyote > 0 && !this.stomping) {
       const jv = (this.skill === "heavy" ? PHYS.heavyJump : PHYS.jump) * (this.carrying ? 0.92 : 1);
@@ -312,8 +316,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       sfx.jump();
       this.jumpStretch();
     }
-    // variable jump height
-    if (!K.jump.isDown && body.velocity.y < -260) body.velocity.y = -260;
+    // variable jump height (cut only when NEITHER keyboard nor pad jump is held)
+    if (!K.jump.isDown && !(P && P.jump.isDown) && body.velocity.y < -260) body.velocity.y = -260;
     if (this.stomping) body.velocity.y = 980;
   }
 }

@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { COLORS, FONT, FS, TEXT } from "../constants.js";
 import { sfx, installMute, pauseDuck } from "../audio.js";
+import { pads, showPadToast } from "../pad.js";
 
 
 // In-game pause overlay (Sound Sprint S4). Launched ON TOP of the still-active
@@ -61,6 +62,19 @@ export default class PauseScene extends Phaser.Scene {
       // NB: the P key is handled by GameScene (it owns pause state) — pressing P
       // here reaches GameScene.update, which toggles the pause off for us.
     });
+  }
+
+  // U7: pad1 drives the pause menu 1:1 with the keyboard handler — up/down select,
+  // A choose, B resume. (Start toggles pause off via GameScene, mirroring P.)
+  update(time) {
+    pads.poll(time);
+    const p = pads.p(0);
+    const conn = pads.consumeConnected();
+    if (conn) conn.forEach((idx) => showPadToast(this, idx));
+    if (p.upJust) this.moveSel(-1);
+    else if (p.downJust) this.moveSel(1);
+    if (p.confirmJust) this.activate();
+    else if (p.backJust) this.resume();
   }
 
   moveSel(d) {

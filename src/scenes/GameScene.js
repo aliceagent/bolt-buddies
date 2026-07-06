@@ -3,10 +3,11 @@ import { TILE, COLORS, PHYS, DEPTH, SKILL_INFO, WORLD_THEMES, FONT, FS, TEXT } f
 import { LEVELS } from "../levels/registry.js";
 import { makeGrid } from "../levels/builder.js";
 import { completeLevel, loadSave } from "../save.js";
-import { sfx, installMute, playTrack, setMusicLayer, playJingle, trackForLevel, setListener, clearListener, proximity, setLoop, stopLoops, pauseDuck } from "../audio.js";
+import { initAudio, sfx, installMute, playTrack, setMusicLayer, playJingle, trackForLevel, setListener, clearListener, proximity, setLoop, stopLoops, pauseDuck } from "../audio.js";
 import { addGradient, addMotes } from "../backdrop.js";
 import Player from "../objects/Player.js";
 import { uxHints } from "../ux.js";
+import { pads, showPadToast } from "../pad.js";
 
 const J = Phaser.Input.Keyboard.JustDown;
 
@@ -90,6 +91,12 @@ export default class GameScene extends Phaser.Scene {
     this.players[0].keys = kb.addKeys({ left: "A", right: "D", jump: "W", act: "SPACE", down: "S" });
     this.players[0].keys.actAlt = kb.addKey("E"); // silent fallback: E still works, SPACE is what we teach
     this.players[1].keys = kb.addKeys({ left: "LEFT", right: "RIGHT", jump: "UP", act: "L", down: "DOWN" });
+    // U7 (F13): hand each player its synthesized gamepad virtual keys (pad1->P1,
+    // pad2->P2). A stable object ref that src/pad.js mutates in place each poll —
+    // Player.js + the read sites below OR `.isDown`/edge flags into the keyboard
+    // reads, so with no pad connected everything is byte-identical.
+    this.players[0].pad = pads.p(0);
+    this.players[1].pad = pads.p(1);
     this.escKey = kb.addKey("ESC");
     this.rKey = kb.addKey("R");
     this.pKey = kb.addKey("P"); // S4: in-game pause overlay
@@ -996,7 +1003,9 @@ export default class GameScene extends Phaser.Scene {
       // completing the modifier language (UP = up, DOWN = buddy, plain =
       // where you're looking). Near-vertical anchors lose plain-ACTION
       // contests by margins too thin to trust.
-      if (p.keys.jump.isDown && !p.keys.down.isDown) {
+      const padJumpHeld = p.pad && p.pad.jump.isDown;
+      const padDownHeld = p.pad && p.pad.down.isDown;
+      if ((p.keys.jump.isDown || padJumpHeld) && !(p.keys.down.isDown || padDownHeld)) {
         let best = null, bestD = Infinity;
         for (const a of this.anchors) {
           const d = Math.hypot(a.x - p.x, a.y - p.y);
@@ -1014,7 +1023,7 @@ export default class GameScene extends Phaser.Scene {
       }
       // FL-001 rev2: DOWN+ACTION is the buddy-rope chord — partner only,
       // no world-target ambiguity. Plain ACTION never targets the buddy.
-      if (p.keys.down.isDown) {
+      if (p.keys.down.isDown || padDownHeld) {
         const q = p.partner;
         if (
           q && !q.dead && !q.carriedBy && !q.zip && !q.reeled &&
@@ -1073,7 +1082,7 @@ export default class GameScene extends Phaser.Scene {
     const heavyThrower = p.skill === "heavy";
     const flyBoost = q.skill === "tiny" ? 1.9 : 1; // Tiny is built to be luggage
     let highToss = false;
-    if (p.keys.jump.isDown) {
+    if (p.keys.jump.isDown || (p.pad && p.pad.jump.isDown)) {
       highToss = true;
       q.setVelocity(p.facing * 120, -PHYS.tossY * (q.skill === "tiny" ? 1.08 : 1)); // high toss
     } else {
@@ -1746,8 +1755,10 @@ export default class GameScene extends Phaser.Scene {
       for (let i = 0; i < this.players.length; i++) {
         const p = this.players[i];
         if (p.dead) { p._coachIdle = 0; continue; }
+        const pad = p.pad;
         const moveKey = p.keys.left.isDown || p.keys.right.isDown || p.keys.jump.isDown ||
-          p.keys.down.isDown || p.keys.act.isDown || (p.keys.actAlt && p.keys.actAlt.isDown);
+          p.keys.down.isDown || p.keys.act.isDown || (p.keys.actAlt && p.keys.actAlt.isDown) ||
+          (pad && (pad.left.isDown || pad.right.isDown || pad.jump.isDown || pad.down.isDown || pad.act.isDown));
         const idle = p.grounded && !p.carriedBy && !p.carrying && !p.zip && !p.reeled &&
           Math.abs(p.body.velocity.x) < 8 && !moveKey;
         p._coachIdle = idle ? p._coachIdle + elapsed : 0;
@@ -1888,7 +1899,8 @@ export default class GameScene extends Phaser.Scene {
         if (p.y < d.zone.y - 12 || p.y > d.zone.y + d.zone.height + 26) continue;
         const dx = p.x - cx;
         if (Math.abs(dx) > TILE) continue;
-        const pushRight = p.keys.right.isDown, pushLeft = p.keys.left.isDown;
+        const pushRight = p.keys.right.isDown || (p.pad && p.pad.right.isDown);
+        const pushLeft = p.keys.left.isDown || (p.pad && p.pad.left.isDown);
         if ((dx < 0 && pushRight) || (dx > 0 && pushLeft)) { pushing = i; break; }
       }
       if (pushing >= 0) {
@@ -1933,8 +1945,8 @@ export default class GameScene extends Phaser.Scene {
     for (const p of this.players) {
       if (p.dead || p.carriedBy || p.skill === "phase") { p._shimmerPushT = 0; continue; }
       let dir = 0;
-      if (p.keys.right.isDown && p.body.blocked.right) dir = 1;
-      else if (p.keys.left.isDown && p.body.blocked.left) dir = -1;
+      if ((p.keys.right.isDown || (p.pad && p.pad.right.isDown)) && p.body.blocked.right) dir = 1;
+      else if ((p.keys.left.isDown || (p.pad && p.pad.left.isDown)) && p.body.blocked.left) dir = -1;
       const decay = () => { p._shimmerPushT = Math.max(0, p._shimmerPushT - delta * 2); };
       if (dir === 0) { decay(); continue; }
       const wx = p.x + dir * (p.body.halfWidth + 6);
@@ -2087,9 +2099,17 @@ export default class GameScene extends Phaser.Scene {
   // --- main loop -----------------------------------------------------------------
   update(time, delta) {
     if (this.complete) return;
-    // P pauses/resumes. Handled before the pause guard so a paused game can still
-    // catch P to resume (physics.pause() freezes bodies, not the scene's update()).
-    if (J(this.pKey)) this.togglePause();
+    // U7: poll gamepads once at the top of the frame (idempotent within a frame).
+    // Any pad button folds into the audio-unlock gesture; a fresh connection pops
+    // the per-session detection toast on the (unzoomed) HUD scene.
+    pads.poll(time);
+    if (pads.anyButtonJust()) initAudio();
+    const padConn = pads.consumeConnected();
+    if (padConn) padConn.forEach((idx) => showPadToast(this.scene.get("UI") || this, idx));
+    // P (or either pad's Start) pauses/resumes. Handled before the pause guard so
+    // a paused game can still catch it to resume (physics.pause() freezes bodies,
+    // not the scene's update()).
+    if (J(this.pKey) || pads.p(0).pauseJust || pads.p(1).pauseJust) this.togglePause();
     if (this.paused) return;
     const dt = delta / 1000;
 
@@ -2128,7 +2148,7 @@ export default class GameScene extends Phaser.Scene {
 
     for (const p of this.players) {
       if (p.dead) continue;
-      const actEdge = J(p.keys.act) || (p.keys.actAlt && J(p.keys.actAlt));
+      const actEdge = J(p.keys.act) || (p.keys.actAlt && J(p.keys.actAlt)) || (p.pad && p.pad.actJust);
       if (actEdge) this.handleAction(p);
       // U1 coach: record this player's action-press edge (dismisses bubbles +
       // re-arms the re-show idle timer). Read-only — never gates input.
@@ -2831,7 +2851,8 @@ export default class GameScene extends Phaser.Scene {
             // so without this, riding the one-tile draft demands frame-perfect
             // zigzagging (the roadmap's intent is "floats up"). Steering keys
             // always win: only applied while neither direction is held.
-            if (!p.grounded && !p.keys.left.isDown && !p.keys.right.isDown) {
+            if (!p.grounded && !p.keys.left.isDown && !p.keys.right.isDown &&
+                !(p.pad && (p.pad.left.isDown || p.pad.right.isDown))) {
               const pull = Phaser.Math.Clamp((f.zone.centerX - p.x) * 3, -120, 120);
               p.body.velocity.x = Phaser.Math.Linear(p.body.velocity.x, pull, 0.12);
             }
@@ -2932,7 +2953,7 @@ export default class GameScene extends Phaser.Scene {
       if (arcAllowed && p.carrying && !p.dead) {
         const q = p.carrying;
         const heavyThrower = p.skill === "heavy";
-        const highToss = p.keys.jump.isDown;
+        const highToss = p.keys.jump.isDown || (p.pad && p.pad.jump.isDown);
         // Release origin + launch velocity: an EXACT mirror of throwPartner().
         const ox = p.x + p.facing * 10;
         const oy = p.y - p.displayHeight / 2 - 20;
@@ -2950,7 +2971,8 @@ export default class GameScene extends Phaser.Scene {
 
       // --- 2. rope tether (grapple, grounded, idle, buddy reelable) -----------
       const moving = p.keys.left.isDown || p.keys.right.isDown || p.keys.jump.isDown ||
-        p.keys.down.isDown || p.keys.act.isDown || (p.keys.actAlt && p.keys.actAlt.isDown);
+        p.keys.down.isDown || p.keys.act.isDown || (p.keys.actAlt && p.keys.actAlt.isDown) ||
+        (p.pad && (p.pad.left.isDown || p.pad.right.isDown || p.pad.jump.isDown || p.pad.down.isDown || p.pad.act.isDown));
       const still = p.skill === "grapple" && !p.dead && p.grounded &&
         !p.carrying && !p.carriedBy && !p.zip && !p.reeled &&
         Math.abs(p.body.velocity.x) < 8 && !moving;
