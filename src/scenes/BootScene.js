@@ -585,6 +585,112 @@ export default class BootScene extends Phaser.Scene {
       g.fillStyle(0xc7d0e6).fillPoints(pts, true);
       g.fillStyle(0x54607f).fillCircle(5, 5, 1.8);
     });
+    // --- P1 title-screen ambient layers ------------------------------------
+    // Distant lab skyline silhouette (drawn ONCE): crane arms, storage vats,
+    // antenna masts + building blocks with dim windows. Placed behind the title
+    // cast; the antenna-tip blink lights are separate additive dots in
+    // TitleScene at the tip coords recorded below (base y = 280):
+    //   antenna tips (texture coords): [210,64] [720,50] [1060,84]
+    make("labskyline", 1280, 300, (g) => {
+      // TRANSPARENT background — silhouettes only, so buildings sit directly on
+      // the page gradient. No full-width ground bar (a hard-edged bar read as a
+      // seam band); instead every silhouette's foot is staggered a little below
+      // BASE and a soft haze band (alpha fades in AND out) dissolves the
+      // baselines so there is no shared hard edge anywhere.
+      const BASE = 280;
+      const back = 0x0b1526;  // far silhouette
+      const front = 0x11203a; // nearer silhouette
+      const seam = 0x1c3157;   // panel/rim lines
+      const win = 0x2c4a7a;    // dim window glow
+      // building blocks with faint window grids (feet staggered below BASE)
+      [[30, 78, 96, back, 8], [150, 54, 150, front, 14], [330, 96, 82, back, 4],
+       [900, 88, 110, back, 12], [1150, 84, 158, front, 6], [1000, 40, 60, front, 10]]
+        .forEach(([x, w, h, col, foot]) => {
+          g.fillStyle(col).fillRect(x, BASE - h, w, h + foot);
+          g.fillStyle(win, 0.5);
+          for (let wy = BASE - h + 12; wy < BASE - 10; wy += 18)
+            for (let wx = x + 9; wx < x + w - 7; wx += 16) g.fillRect(wx, wy, 5, 8);
+        });
+      // storage vats — cylinder body + domed top + band lines
+      const vat = (x, w, h, foot) => {
+        g.fillStyle(front).fillRect(x, BASE - h, w, h + foot);
+        g.fillStyle(front).fillEllipse(x + w / 2, BASE - h, w, w * 0.55);
+        g.lineStyle(2, seam, 0.85).strokeRect(x, BASE - h, w, h + foot);
+        g.fillStyle(seam, 0.7);
+        g.fillRect(x, BASE - h * 0.62, w, 3);
+        g.fillRect(x, BASE - h * 0.3, w, 3);
+      };
+      vat(470, 52, 120, 9);
+      vat(560, 40, 92, 5);
+      vat(830, 56, 132, 13);
+      // tower cranes — mast + long jib + short counter-arm + hanging hook line
+      const crane = (x, mastH, jib, dir, foot) => {
+        g.fillStyle(front).fillRect(x - 4, BASE - mastH, 8, mastH + foot);
+        g.fillStyle(front).fillRect(dir > 0 ? x : x - jib, BASE - mastH - 4, jib, 7); // jib
+        g.fillStyle(front).fillRect(dir > 0 ? x - 26 : x, BASE - mastH - 4, 26, 7); // counter-arm
+        g.fillStyle(seam).fillRect(dir > 0 ? x - 30 : x + 26, BASE - mastH + 3, 8, 12); // counterweight
+        const hx = dir > 0 ? x + jib - 20 : x - jib + 20;
+        g.lineStyle(2, seam, 0.9).lineBetween(hx, BASE - mastH, hx, BASE - mastH * 0.55);
+        g.fillStyle(seam).fillRect(hx - 4, BASE - mastH * 0.55, 8, 7); // hook block
+        // lattice hint on the mast
+        g.lineStyle(1, seam, 0.6);
+        for (let ly = BASE - mastH + 10; ly < BASE - 10; ly += 22) g.lineBetween(x - 4, ly, x + 4, ly - 10);
+      };
+      crane(400, 210, 150, 1, 7);
+      crane(1080, 232, 168, -1, 11);
+      // antenna masts with cross-struts; tips carry blink lights (see coords above)
+      const antenna = (x, ty, foot) => {
+        const h = BASE - ty;
+        g.lineStyle(3, front, 1).lineBetween(x, BASE + foot, x, ty);
+        g.lineStyle(2, seam, 0.8);
+        g.lineBetween(x, ty + h * 0.32, x - 12, ty + h * 0.32 + 16);
+        g.lineBetween(x, ty + h * 0.32, x + 12, ty + h * 0.32 + 16);
+        g.lineBetween(x, ty + h * 0.6, x - 9, ty + h * 0.6 + 12);
+        g.lineBetween(x, ty + h * 0.6, x + 9, ty + h * 0.6 + 12);
+      };
+      antenna(210, 64, 6);
+      antenna(720, 50, 10);
+      antenna(1060, 84, 4);
+      // soft haze band: dark strips whose alpha rises toward BASE and falls off
+      // below it — swallows the staggered feet with no hard edge in either
+      // direction (peak alpha 0.5 at BASE, gone by BASE-44 above / +20 below)
+      for (let y = BASE - 44; y < BASE + 20; y += 2) {
+        const d = y < BASE ? 1 - (BASE - y) / 44 : 1 - (y - BASE) / 20;
+        g.fillStyle(0x0a1220, 0.5 * d).fillRect(0, y, 1280, 2);
+      }
+    });
+    // Conveyor belt tile carrying tiny silhouette parts (gear / crate / canister).
+    // Scrolled horizontally in TitleScene via a looping tilePositionX tween.
+    make("conveyor", 220, 58, (g) => {
+      const belt = 0x0b1424, part = 0x2a4570, edge = 0x3d608f;
+      g.fillStyle(belt).fillRect(0, 30, 220, 16);
+      g.fillStyle(edge, 0.85).fillRect(0, 30, 220, 2); // belt top rim
+      // soft cast shadow below the belt so its bottom edge has no hard seam —
+      // starts at the alpha that composites to the belt's own value (seamless)
+      for (let y = 46; y < 58; y += 2) {
+        g.fillStyle(0x05080f, 0.68 * (1 - (y - 46) / 12)).fillRect(0, y, 220, 2);
+      }
+      g.fillStyle(0x16294a, 0.8);
+      for (let x = 8; x < 220; x += 20) g.fillCircle(x, 41, 2); // roller dots
+      // gear part
+      const gear = (cx, r) => {
+        g.fillStyle(part).fillCircle(cx, 30 - r + 1, r);
+        for (let i = 0; i < 8; i++) {
+          const a = (Math.PI / 4) * i;
+          g.fillRect(cx + Math.cos(a) * r - 2, 30 - r + 1 + Math.sin(a) * r - 2, 4, 4);
+        }
+        g.fillStyle(belt).fillCircle(cx, 30 - r + 1, r * 0.42);
+      };
+      gear(48, 11);
+      // crate part
+      g.fillStyle(part).fillRect(102, 15, 24, 15);
+      g.lineStyle(1.5, edge, 0.9).strokeRect(102, 15, 24, 15);
+      g.lineBetween(102, 22.5, 126, 22.5);
+      // canister part
+      g.fillStyle(part).fillRoundedRect(170, 13, 18, 17, 5);
+      g.fillStyle(edge, 0.8).fillRect(173, 16, 12, 2);
+    });
+
     // Vertical light column for the respawn beam-in (bright core, soft edges).
     make("beamcol", 40, 160, (g) => {
       g.fillStyle(0x9fe8ff, 0.16).fillRect(4, 0, 32, 160);
