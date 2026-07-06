@@ -3,22 +3,80 @@
 // This is the ONE UX key (never the save key `bolt-buddies-save-v1`, never the
 // audio key `bolt-buddies-audio-v1`). U6 seeded the module with the `uxHints()`
 // choke-point; U8 adds display-only run records (best time + fewest deaths per
-// level) that ride alongside any future option fields via read-modify-write.
+// level); U11 adds the comfort options (shake/flash/hints/textSpeed). Every
+// writer is a read-modify-write over the same blob, so all fields coexist.
 
 const UX_KEY = "bolt-buddies-ux-v1";
 
-// --- hints kill-switch (Sprint U6 seed; U11 wires the real setting) ----------
+// --- comfort & readability options (Sprint U11, fixes F14 / F7-adjacent) -----
 //
-// A single choke-point every optional "hint/affordance" visual reads before it
-// draws. Today it returns a constant `true` — U6's throw-arc and rope-tether
-// previews are always eligible. Sprint U11 will replace the body with a read of
-// the persisted HINTS option, so callers never have to change: they already
-// gate through `uxHints()`.
+// Four persisted options, all defaulting to CURRENT behavior so a fresh
+// profile plays exactly like pre-U11 (the suites' contract):
+//   shake:     "full" | "soft" | "off"   (camera shake / zoom-kick amplitude)
+//   flash:     "full" | "soft"           (big blinks/strobes soften, never off)
+//   hints:     true   | false            (U1 coach + U2 icon bubbles + U6 previews)
+//   textSpeed: "normal" | "fast"         (KOBI blip typewriter, fast ≈ 2x)
 //
-// Documented default: ON. Kept dependency-free and side-effect-free so it is
-// safe to call every frame from a render path.
+// The getters below are called from per-frame render paths, so the derived
+// values are cached in module state and only re-read from localStorage after a
+// setUxOption() invalidation — never a JSON.parse per frame.
+let optCache = null;
+
+function readOptions() {
+  if (!optCache) {
+    const o = loadUx();
+    optCache = {
+      shake: o.shake === "soft" || o.shake === "off" ? o.shake : "full",
+      flash: o.flash === "soft" ? "soft" : "full",
+      hints: o.hints !== false,
+      textSpeed: o.textSpeed === "fast" ? "fast" : "normal",
+    };
+  }
+  return optCache;
+}
+
+// Current option values (normalized) — the Settings rows render from this.
+export function getUxOptions() {
+  return readOptions();
+}
+
+// Read-modify-write ONE option field, preserving records/tutorialDone and any
+// other rider. Invalidate the cache so the next getter re-derives.
+export function setUxOption(key, value) {
+  const ux = loadUx();
+  ux[key] = value;
+  saveUx(ux);
+  optCache = null;
+}
+
+// --- hints kill-switch (Sprint U6 seed; U11 wired the real setting) ----------
+//
+// The single choke-point every optional "hint/affordance" visual reads before
+// it draws (U6 throw-arc/rope-tether, U1 coach bubbles + re-show hints, U2 door
+// bump bubbles, U5 hand-hold). Cached read — safe to call every frame.
+// Documented default: ON.
 export function uxHints() {
-  return true;
+  return readOptions().hints;
+}
+
+// SCREEN SHAKE amplitude multiplier: full = 1, soft = 0.4, off = 0. Every
+// camera shake / zoom-kick amplitude is scaled by this at the effect site.
+export function uxShakeScale() {
+  const s = readOptions().shake;
+  return s === "off" ? 0 : s === "soft" ? 0.4 : 1;
+}
+
+// FLASH EFFECTS softener: full = 1, soft = 0.5. Effect sites divide blink
+// contrast by it and stretch strobe periods/durations (never fully off — the
+// blinks stay meaning-bearing, just gentler).
+export function uxFlashScale() {
+  return readOptions().flash === "soft" ? 0.5 : 1;
+}
+
+// TEXT SPEED multiplier for the KOBI blip typewriter: normal = 1, fast = 2
+// (chars/tick — instant is deliberately NOT offered).
+export function uxTextSpeed() {
+  return readOptions().textSpeed === "fast" ? 2 : 1;
 }
 
 // --- persisted UX blob -------------------------------------------------------

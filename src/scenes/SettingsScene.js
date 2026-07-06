@@ -6,7 +6,12 @@ import {
   getAudioSettings, setMusicVolume, setSfxVolume, toggleMute,
 } from "../audio.js";
 import { pads, showPadToast } from "../pad.js";
+import { getUxOptions, setUxOption } from "../ux.js";
 
+// U11 comfort rows: 3-way / 2-way value cycles (defaults = current behavior).
+const SHAKE_VALS = ["full", "soft", "off"];
+const FLASH_VALS = ["full", "soft"];
+const SPEED_VALS = ["normal", "fast"];
 
 // Keyboard-driven settings page (Sound Sprint S4). Matches the game's menu look:
 // Courier, the COLORS panel, and the gradient + motes backdrop shared by Title
@@ -36,20 +41,22 @@ export default class SettingsScene extends Phaser.Scene {
     this.add.tileSprite(0, 0, W, H, "bggrid").setOrigin(0).setAlpha(0.22).setDepth(-8);
     addMotes(this, WORLD_THEMES[1].accent2);
 
-    this.add.text(W / 2, 120, "SOUND SETTINGS", {
+    this.add.text(W / 2, 96, "SETTINGS", {
       fontFamily: FONT, fontSize: FS.h1, fontStyle: "bold", color: TEXT.neon,
       stroke: "#0b3a44", strokeThickness: 8,
     }).setOrigin(0.5);
 
-    // panel
-    const px = W / 2 - 340, py = 210, pw = 680, ph = 320;
+    // panel (U11 stretched it for the comfort rows — same tokens, same shape,
+    // deliberately structurally simple so GFX P10 can restyle it wholesale)
+    const px = W / 2 - 340, py = 150, pw = 680, ph = 456;
     const panel = this.add.graphics();
     panel.fillStyle(COLORS.panel, 0.92).fillRoundedRect(px, py, pw, ph, 14);
     panel.lineStyle(2, COLORS.panelEdge).strokeRoundedRect(px, py, pw, ph, 14);
 
-    // rows: 0 music, 1 sfx, 2 mute, 3 back
+    // rows: 0 music, 1 sfx, 2 mute, then U11 comfort rows (3 shake, 4 flash,
+    // 5 hints, 6 text speed), 7 back
     this.sel = 0;
-    const rowY = [270, 340, 410, 490];
+    const rowY = [192, 246, 300, 354, 408, 462, 516, 570];
     const labelX = W / 2 - 300;
     const valueX = W / 2 + 40;
 
@@ -68,7 +75,11 @@ export default class SettingsScene extends Phaser.Scene {
     this.rows[0].label.setText("MUSIC VOLUME");
     this.rows[1].label.setText("SFX VOLUME");
     this.rows[2].label.setText("MUTE ALL");
-    this.rows[3].label.setText("BACK");
+    this.rows[3].label.setText("SCREEN SHAKE");
+    this.rows[4].label.setText("FLASH EFFECTS");
+    this.rows[5].label.setText("HINTS");
+    this.rows[6].label.setText("TEXT SPEED");
+    this.rows[7].label.setText("BACK");
 
     // hint line sits BELOW the panel (was overlapping the BACK row + bottom edge)
     this.add.text(W / 2, py + ph + 26,
@@ -117,8 +128,9 @@ export default class SettingsScene extends Phaser.Scene {
     }
   }
 
-  // A/D on the volume rows steps 10% and ticks at the new level; on MUTE it flips
-  // the mute; BACK ignores adjust.
+  // A/D on the volume rows steps 10% and ticks at the new level; on MUTE/HINTS
+  // it flips the toggle; the U11 value rows cycle their options; BACK ignores
+  // adjust.
   adjust(d) {
     const s = getAudioSettings();
     if (this.sel === 0) {
@@ -131,13 +143,41 @@ export default class SettingsScene extends Phaser.Scene {
       this.render();
     } else if (this.sel === 2) {
       this.toggleMute();
+    } else if (this.sel === 3) {
+      this.cycleOpt("shake", SHAKE_VALS, d);
+    } else if (this.sel === 4) {
+      this.cycleOpt("flash", FLASH_VALS, d);
+    } else if (this.sel === 5) {
+      this.toggleHints();
+    } else if (this.sel === 6) {
+      this.cycleOpt("textSpeed", SPEED_VALS, d);
     }
   }
 
   activate() {
     if (this.sel === 2) this.toggleMute();
-    else if (this.sel === 3) this.back();
+    else if (this.sel === 3) this.cycleOpt("shake", SHAKE_VALS, 1);
+    else if (this.sel === 4) this.cycleOpt("flash", FLASH_VALS, 1);
+    else if (this.sel === 5) this.toggleHints();
+    else if (this.sel === 6) this.cycleOpt("textSpeed", SPEED_VALS, 1);
+    else if (this.sel === 7) this.back();
     else { sfx.settingsTick(); } // SPACE on a volume row is a harmless confirm tick
+  }
+
+  // U11: step a persisted ux-v1 option through its value list (wraps both ways).
+  // setUxOption is a read-modify-write, so records/tutorialDone always survive.
+  cycleOpt(key, vals, d) {
+    const cur = getUxOptions()[key];
+    const i = Math.max(0, vals.indexOf(cur));
+    const v = vals[(i + d + vals.length) % vals.length];
+    if (v !== cur) { setUxOption(key, v); sfx.settingsTick(); }
+    this.render();
+  }
+
+  toggleHints() {
+    setUxOption("hints", !getUxOptions().hints);
+    sfx.settingsTick();
+    this.render();
   }
 
   // Mirror mute.js so the chirp is audible either way, then refresh every scene's
@@ -152,6 +192,7 @@ export default class SettingsScene extends Phaser.Scene {
 
   render() {
     const s = getAudioSettings();
+    const o = getUxOptions();
     this.rows.forEach((r, i) => {
       const on = i === this.sel;
       r.cursor.setText(on ? ">" : "");
@@ -161,7 +202,16 @@ export default class SettingsScene extends Phaser.Scene {
     this.rows[1].value.setText(this.bar(s.sfx));
     this.rows[2].value.setText(s.muted ? "[ ON ]" : "[ off ]");
     this.rows[2].value.setColor(s.muted ? "#ff8a99" : TEXT.bright);
-    this.rows[3].value.setText("");
+    this.rows[3].value.setText(this.opt(o.shake));
+    this.rows[4].value.setText(this.opt(o.flash));
+    this.rows[5].value.setText(o.hints ? "[ ON ]" : "[ off ]");
+    this.rows[5].value.setColor(o.hints ? TEXT.bright : TEXT.dim);
+    this.rows[6].value.setText(this.opt(o.textSpeed));
+    this.rows[7].value.setText("");
+  }
+
+  opt(v) {
+    return `< ${v.toUpperCase()} >`;
   }
 
   bar(v) {

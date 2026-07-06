@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { COLORS, WORLD_THEMES, FONT, FS, TEXT } from "../constants.js";
 import { LEVELS } from "../levels/registry.js";
 import { sfx, installMute, duckMusic } from "../audio.js";
+import { uxTextSpeed } from "../ux.js";
 import { pads } from "../pad.js";
 
 
@@ -454,7 +455,8 @@ export default class UIScene extends Phaser.Scene {
     const b = this.blipActive;
     if (b) {
       if (b.shown < b.text.length) {
-        b.shown = Math.min(b.text.length, b.shown + delta * 0.055);
+        // U11: TEXT SPEED fast doubles chars/tick (cached getter — no parse here)
+        b.shown = Math.min(b.text.length, b.shown + delta * 0.055 * uxTextSpeed());
         const s = b.text.slice(0, Math.floor(b.shown));
         if (s.length !== this.blipText.text.length && s.length % 3 === 0) sfx.kobi(b.mood);
         this.blipText.setText(s);

@@ -6,7 +6,7 @@ import { completeLevel, loadSave } from "../save.js";
 import { initAudio, sfx, installMute, playTrack, setMusicLayer, playJingle, trackForLevel, setListener, clearListener, proximity, setLoop, stopLoops, pauseDuck } from "../audio.js";
 import { addGradient, addMotes } from "../backdrop.js";
 import Player from "../objects/Player.js";
-import { uxHints, saveRecord, fmtTime, markTutorialDone } from "../ux.js";
+import { uxHints, uxShakeScale, uxFlashScale, saveRecord, fmtTime, markTutorialDone } from "../ux.js";
 import { pads, showPadToast } from "../pad.js";
 
 const J = Phaser.Input.Keyboard.JustDown;
@@ -295,6 +295,10 @@ export default class GameScene extends Phaser.Scene {
     // additive zoom offset consumed + decayed inside updateCamera; NEVER alters
     // camPos.zoom (world coords the beat kit + audio listener read stay exact).
     this.zoomKick = 0;
+    // U11 probe observability: the amplitude the LAST camShake request resolved
+    // to after the SCREEN SHAKE option scaled it (null = no shake requested yet;
+    // 0 = a shake fired while the option was "off"). Passive — never read here.
+    this._lastShakeAmp = null;
 
     // speed-line streaks flicked backward while a grappler zips
     this.zipLines = this.add.particles(0, 0, "streak", {
@@ -1230,13 +1234,22 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  // U11 (F14): EVERY camera shake funnels through here so the SCREEN SHAKE
+  // option scales the amplitude at the effect site (full = 1, soft = 0.4,
+  // off = 0 → the shake call is skipped entirely). Durations are untouched.
+  camShake(duration, amp) {
+    const a = amp * uxShakeScale();
+    this._lastShakeAmp = a;
+    if (a > 0) this.cameras.main.shake(duration, a);
+  }
+
   // --- heavy impact ------------------------------------------------------------
   heavyImpact(p, strong) {
     const radius = strong ? 100 : 74;
     const fx = p.x;
     const fy = p.body.bottom;
     sfx.stomp(fx, fy);
-    this.cameras.main.shake(strong ? 160 : 90, strong ? 0.005 : 0.002);
+    this.camShake(strong ? 160 : 90, strong ? 0.005 : 0.002);
     this.boom.explode(strong ? 20 : 10, fx, fy);
     // expanding shockwave ring + floor dust burst + a brief zoom-punch
     const ring = this.stompRing;
@@ -1249,7 +1262,7 @@ export default class GameScene extends Phaser.Scene {
       onComplete: () => ring.setVisible(false),
     });
     this.dust.emitParticleAt(fx, fy, strong ? 16 : 10);
-    this.zoomKick = Math.min(0.03, this.zoomKick + 0.03); // consumed in updateCamera
+    this.zoomKick = Math.min(0.03, this.zoomKick + 0.03 * uxShakeScale()); // consumed in updateCamera (U11: option-scaled)
     this.crackies.children.each((tile) => {
       if (!tile.active) return;
       if (Math.hypot(tile.x - fx, tile.y - fy) < radius + 30) {
@@ -1357,7 +1370,7 @@ export default class GameScene extends Phaser.Scene {
       this.craneDefeated = true;
       setMusicLayer("tension", false); // crane down -> calm coda
       sfx.craneDefeat(c.body.x, c.body.y);
-      this.cameras.main.shake(400, 0.006);
+      this.camShake(400, 0.006);
       this.tweens.add({ targets: c.body, y: c.floorY - 40, angle: 8, duration: 900, ease: "bounce.out" });
       // grey-out via texture swap (setTint no-ops on Canvas) + smoke + sparks
       c.body.setTexture("crane_dead");
@@ -1439,7 +1452,7 @@ export default class GameScene extends Phaser.Scene {
           c.state = "rest";
           c.timer = 2600;
           sfx.craneSlam(b.x, c.floorY);
-          this.cameras.main.shake(120, 0.004);
+          this.camShake(120, 0.004);
           // impact shockwave ring + dust burst at the floor
           this.slamRing.setPosition(b.x, c.floorY).setScale(0.2).setAlpha(0.9).setVisible(true);
           this.tweens.killTweensOf(this.slamRing);
@@ -1527,8 +1540,11 @@ export default class GameScene extends Phaser.Scene {
       duration: 380, ease: "cubic.in",
       onComplete: () => beam.setVisible(false),
     });
-    p.setAlpha(0.15);
-    this.tweens.add({ targets: p, alpha: 1, duration: 90, yoyo: true, repeat: 3,
+    // U11 FLASH soft: the materialize blink keeps all 4 beats (meaning-bearing —
+    // it reads as invulnerable) but with less contrast and a slower ramp.
+    const fs = uxFlashScale();
+    p.setAlpha(fs < 1 ? 0.5 : 0.15);
+    this.tweens.add({ targets: p, alpha: 1, duration: 90 / fs, yoyo: true, repeat: 3,
       onComplete: () => p.setAlpha(1) });
   }
 
@@ -1650,6 +1666,7 @@ export default class GameScene extends Phaser.Scene {
   // multi-char caps like SPACE fit. All drawing happens here (on trigger), never
   // per frame.
   coachShow(idx, { tokens, caption, follow, key, dur, colorP }) {
+    if (!uxHints()) return; // U11 (F7-adjacent): every U1/U2/U5 bubble respects HINTS
     const b = this.coach.bubbles[idx];
     const bg = b.bg;
     bg.clear();
@@ -1737,7 +1754,9 @@ export default class GameScene extends Phaser.Scene {
   }
 
   showThrowHint(p) {
-    if (!this.coach || !this.coachU1 || throwHintShownSession) return;
+    // U11: uxHints() BEFORE the session latch so a hints-off pickup doesn't
+    // silently burn the once-per-session throw hint.
+    if (!this.coach || !this.coachU1 || !uxHints() || throwHintShownSession) return;
     throwHintShownSession = true;
     const i = p.idx;
     const jumpCap = i === 0 ? "W" : "↑";
@@ -1821,7 +1840,9 @@ export default class GameScene extends Phaser.Scene {
     // Heavy trigger evaluation throttled to ~4Hz on a shared timer. Gated off in
     // the tutorial (which teaches every chord explicitly) — U2 bump bubbles still
     // use this pool, but the U1 rope/up-zip/re-show triggers stay disabled there.
-    if (this.coachU1 && time >= co.nextCheck) {
+    // U11: HINTS off suppresses trigger evaluation entirely (no bubble, no
+    // firedRope/firedUpzip latch burned — flipping hints back on re-arms them).
+    if (this.coachU1 && uxHints() && time >= co.nextCheck) {
       const elapsed = co.lastCheck ? (time - co.lastCheck) / 1000 : 0.25;
       co.lastCheck = time;
       co.nextCheck = time + 250;
@@ -1905,9 +1926,12 @@ export default class GameScene extends Phaser.Scene {
     if (pl._flashTween) pl._flashTween.stop();
     pl.pipCont.setVisible(true).setAlpha(1);
     // blink: 3 on-beats (alpha 1) separated by off-beats, then hide.
+    // U11 FLASH soft: same 3 beats (meaning-bearing "needs weight"), lower
+    // contrast + longer ramp.
+    const fs = uxFlashScale();
     pl._flashTween = this.tweens.add({
-      targets: pl.pipCont, alpha: { from: 1, to: 0.15 },
-      duration: 200, yoyo: true, repeat: 2, ease: "sine.inOut",
+      targets: pl.pipCont, alpha: { from: 1, to: fs < 1 ? 0.5 : 0.15 },
+      duration: 200 / fs, yoyo: true, repeat: 2, ease: "sine.inOut",
       onComplete: () => { pl.pipCont.setVisible(false); pl._flashTween = null; },
     });
   }
@@ -1978,7 +2002,7 @@ export default class GameScene extends Phaser.Scene {
       }
       if (pushing >= 0) {
         d._pushT += delta;
-        if (d._pushT > 400 && time > d._bumpCd && this.coach) {
+        if (d._pushT > 400 && time > d._bumpCd && this.coach && uxHints()) { // U11: U2 icon bubbles respect HINTS
           const content = this.bumpContent(d);
           if (content) {
             this.showBumpBubble(pushing, d, content);
@@ -1998,7 +2022,9 @@ export default class GameScene extends Phaser.Scene {
       if (!d.open) { if (d._ring.visible) d._ring.setVisible(false).clear(); continue; }
       const remain = d.closeAt - time;
       const frac = Phaser.Math.Clamp(remain / d.timer, 0, 1);
-      const blink = remain < 1500 && Math.floor(time / 180) % 2 === 0;
+      // U11 FLASH soft: the last-1.5s warning still blinks (meaning-bearing)
+      // but at half rate — 360ms beats instead of 180ms.
+      const blink = remain < 1500 && Math.floor(time / (180 / uxFlashScale())) % 2 === 0;
       const g = d._ring.setVisible(true);
       g.clear();
       this.drawDrainRing(g, d.lamp.x, d.lamp.y, 13, frac, blink);
@@ -2014,7 +2040,7 @@ export default class GameScene extends Phaser.Scene {
   // ALL shimmer walls in both worlds; cooldown 3s; suppressed while escorted.
   // Read-only over gameplay (samples input/body state, never mutates it).
   updateHandholdHint(time, delta) {
-    if (!this.coach) return;
+    if (!this.coach || !uxHints()) return; // U11: U5 hand-hold bubble respects HINTS
     for (const p of this.players) {
       if (p.dead || p.carriedBy || p.skill === "phase") { p._shimmerPushT = 0; continue; }
       let dir = 0;
@@ -2599,7 +2625,7 @@ export default class GameScene extends Phaser.Scene {
             cr.state = "rest";
             cr.timer = 1300;
             sfx.crush(img.x, img.y);
-            this.cameras.main.shake(70, 0.0015);
+            this.camShake(70, 0.0015);
           }
           break;
         }
@@ -2828,7 +2854,10 @@ export default class GameScene extends Phaser.Scene {
       r.wheels[0].setPosition(img.x - 9, img.y + 11).setAngle(r.wheelAngle);
       r.wheels[1].setPosition(img.x + 9, img.y + 11).setAngle(r.wheelAngle);
       // alert = red flash (texture swap; setTint no-ops on Canvas) + "!" popup
-      const wantTex = r.state === "alert" ? ((time % 200) < 100 ? "roller_alert" : "roller") : "roller";
+      // U11 FLASH soft: the alert strobe stays red (meaning-bearing) but slows
+      // from a 200ms to a 400ms period.
+      const strobePer = 200 / uxFlashScale();
+      const wantTex = r.state === "alert" ? ((time % strobePer) < strobePer / 2 ? "roller_alert" : "roller") : "roller";
       if (r._tex !== wantTex) { r._tex = wantTex; img.setTexture(wantTex); }
       if (r.state === "alert") {
         if (!r.excl.visible) {
@@ -3061,6 +3090,9 @@ export default class GameScene extends Phaser.Scene {
   updateHintPreview(delta) {
     const g = this.hintGfx;
     g.clear();
+    // U11 probe observability: true iff THIS frame drew an arc/tether into
+    // hintGfx. Passive boolean — never read by game code.
+    this._hintDrawn = false;
     if (!uxHints() || this.complete || this.leaving) return;
 
     // Tutorial gate: the throw arc stays hidden until the station-5 trigger has
@@ -3090,6 +3122,7 @@ export default class GameScene extends Phaser.Scene {
           vy = -(heavyThrower ? PHYS.heavyThrowY : PHYS.throwY);
         }
         this.drawThrowArc(g, ox, oy, vx, vy, q.idx === 0 ? COLORS.beep : COLORS.boop);
+        this._hintDrawn = true;
       }
 
       // --- 2. rope tether (grapple, grounded, idle, buddy reelable) -----------
@@ -3103,6 +3136,7 @@ export default class GameScene extends Phaser.Scene {
       if (still && p._tetherIdle > 1000 && this.coachBuddyReelable(p)) {
         const accent = (this.theme && this.theme.accent) || WORLD_THEMES[1].accent;
         this.drawDashedTether(g, p.x, p.y - 8, p.partner.x, p.partner.y - 8, accent);
+        this._hintDrawn = true;
       }
     }
   }

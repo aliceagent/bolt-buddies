@@ -5,7 +5,7 @@ import { LEVELS } from "../levels/registry.js";
 import { loadSave, storeSave, totalCores } from "../save.js";
 import { initAudio, sfx, playTrack, installMute } from "../audio.js";
 import { pads, showPadToast } from "../pad.js";
-import { tutorialDone } from "../ux.js";
+import { tutorialDone, uxFlashScale } from "../ux.js";
 
 const ACCENT = WORLD_THEMES[1].accent; // world-1 amber accent for buttons
 const hexStr = (n) => "#" + (n & 0xffffff).toString(16).padStart(6, "0");
@@ -153,11 +153,13 @@ export default class TitleScene extends Phaser.Scene {
 
       this.neon.push({ cont, glow1, glow2, tube });
 
-      // flicker-on: a couple of quick blinks, then settle lit
+      // flicker-on: a couple of quick blinks, then settle lit.
+      // U11 FLASH soft: same power-on beat count, less contrast, slower ramp.
       this.time.delayedCall(Math.random() * 700, () => {
         if (!cont.active) return;
+        const fs = uxFlashScale();
         this.tweens.add({
-          targets: cont, alpha: { from: 0, to: 1 }, duration: 90, repeat: 2, yoyo: true,
+          targets: cont, alpha: { from: fs < 1 ? 0.55 : 0, to: 1 }, duration: 90 / fs, repeat: 2, yoyo: true,
           onComplete: () => cont.active && cont.setAlpha(1),
         });
       });
@@ -196,8 +198,10 @@ export default class TitleScene extends Phaser.Scene {
     const lit = (this.neon || []).filter((L) => L.cont.active);
     if (lit.length) {
       const L = Phaser.Utils.Array.GetRandom(lit);
+      // U11 FLASH soft: the ambient neon flicker burst dims less and ramps slower.
+      const fs = uxFlashScale();
       this.tweens.add({
-        targets: L.cont, alpha: { from: 1, to: 0.25 }, duration: 65, yoyo: true, repeat: 1,
+        targets: L.cont, alpha: { from: 1, to: fs < 1 ? 0.6 : 0.25 }, duration: 65 / fs, yoyo: true, repeat: 1,
         onComplete: () => L.cont.active && L.cont.setAlpha(1),
       });
     }
