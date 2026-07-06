@@ -354,9 +354,11 @@ export default class UIScene extends Phaser.Scene {
   buildHints(W, H) {
     const y = H - 30;
     const g = this.add.graphics();
+    // U3: ESC/R are press-again-to-confirm, so the chips teach it with a "×2"
+    // marker; P (pause) stays single-press.
     const segs = [
-      { key: "ESC", label: "map", kw: 40 },
-      { key: "R", label: "restart", kw: 22 },
+      { key: "ESC", label: "×2 map", kw: 40 },
+      { key: "R", label: "×2 restart", kw: 22 },
       { key: "P", label: "pause", kw: 22 },
     ];
     let x = 16;

@@ -159,6 +159,10 @@ export default class GameScene extends Phaser.Scene {
     this.coachU1 = !def.tutorial; // gate the U1 rope/up-zip/throw/re-show triggers
     // U2 — lock & timer feedback set-up (rings for timed doors, plate pips).
     this.buildLockFeedback();
+    // U3 — press-again-to-confirm toast for the destructive R/ESC keys (pooled,
+    // screen-fixed, canvas-safe). Built for every level; only armed on real
+    // chambers (the tutorial keeps single-press — see update()).
+    this.buildConfirm();
 
     this.boom = this.add.particles(0, 0, "px", {
       speed: { min: 60, max: 260 }, scale: { start: 1, end: 0 }, lifespan: 450,
@@ -1904,6 +1908,7 @@ export default class GameScene extends Phaser.Scene {
 
   pauseGame() {
     if (this.paused || this.complete) return;
+    this.clearConfirm(); // PauseScene owns input while paused — drop any pending confirm
     this.paused = true;
     this.physics.pause();
     pauseDuck(true); // music continues at 0.5x; saved volume untouched
@@ -1920,6 +1925,87 @@ export default class GameScene extends Phaser.Scene {
     this.scene.stop("Pause");
   }
 
+  // --- U3 destructive-input confirm ----------------------------------------------
+  // A single pooled, screen-fixed toast (scrollFactor 0) reused for both the R
+  // (restart) and ESC (map) confirms. Only one confirm is ever pending; starting
+  // one cancels the other. All drawing happens on arm/expiry + a cheap bar redraw
+  // while pending — never a per-frame allocation.
+  buildConfirm() {
+    const W = this.scale.width, H = this.scale.height;
+    const bw = 380, bh = 64;
+    const g = this.add.graphics();
+    g.fillStyle(COLORS.hudBg, 0.95).fillRoundedRect(-bw / 2, -bh / 2, bw, bh, 12);
+    g.lineStyle(3, COLORS.amber, 1).strokeRoundedRect(-bw / 2, -bh / 2, bw, bh, 12);
+    const label = this.add.text(0, -7, "", {
+      fontFamily: FONT, fontSize: FS.head, fontStyle: "bold", color: TEXT.warn,
+    }).setOrigin(0.5);
+    const barX = -bw / 2 + 22, barY = bh / 2 - 15, barFull = bw - 44;
+    const track = this.add.graphics();
+    track.fillStyle(0x000000, 0.4).fillRoundedRect(barX, barY, barFull, 6, 3);
+    const bar = this.add.graphics(); // redrawn while a confirm is pending
+    // centered horizontally; clamped so the toast clears the KOBI blip bar
+    // (UIScene bar occupies y = H-92 .. H-26). H*0.4 sits well above it.
+    const y = Math.min(H * 0.4, H - 92 - bh / 2 - 16);
+    const c = this.add.container(W / 2, y, [g, label, track, bar])
+      .setScrollFactor(0).setDepth(DEPTH.fx + 60).setVisible(false);
+    this.confirmUI = { c, label, bar, barX, barY, barFull };
+    this.confirm = null; // { kind: "r"|"esc", until } while pending
+  }
+
+  startConfirm(kind, time) {
+    // starting one confirm cancels the other (mutually exclusive pending state)
+    this.confirm = { kind, until: time + 2500 };
+    const ui = this.confirmUI;
+    ui.label.setText(kind === "r" ? "press R again to restart" : "press ESC again for the map");
+    ui.c.setVisible(true).setScale(0.8).setAlpha(0);
+    this.tweens.killTweensOf(ui.c);
+    this.tweens.add({ targets: ui.c, scale: 1, alpha: 1, duration: 160, ease: "back.out" });
+    this.drawConfirmBar(1);
+    sfx.menuSelect();
+  }
+
+  updateConfirm(time) {
+    if (!this.confirm) return;
+    const remain = this.confirm.until - time;
+    if (remain <= 0) { this.clearConfirm(); return; }
+    this.drawConfirmBar(remain / 2500);
+  }
+
+  drawConfirmBar(frac) {
+    const ui = this.confirmUI;
+    const f = Math.max(0, Math.min(1, frac));
+    ui.bar.clear();
+    ui.bar.fillStyle(COLORS.amber, 1).fillRoundedRect(ui.barX, ui.barY, ui.barFull * f, 6, 3);
+  }
+
+  clearConfirm() {
+    this.confirm = null;
+    if (this.confirmUI) {
+      this.tweens.killTweensOf(this.confirmUI.c);
+      this.confirmUI.c.setVisible(false).setAlpha(1).setScale(1);
+    }
+  }
+
+  doExit() {
+    this.leaving = true; // fade out, then hand off — guard blocks a double trigger
+    this.clearConfirm();
+    this.cameras.main.fadeOut(250, 4, 6, 20);
+    this.cameras.main.once("camerafadeoutcomplete", () => {
+      this.scene.stop("UI");
+      this.scene.start("Hub", { sel: this.levelIndex });
+    });
+  }
+
+  doRestart() {
+    this.leaving = true;
+    this.clearConfirm();
+    this.cameras.main.fadeOut(250, 4, 6, 20);
+    this.cameras.main.once("camerafadeoutcomplete", () => {
+      this.scene.stop("UI");
+      this.scene.restart({ levelIndex: this.levelIndex });
+    });
+  }
+
   // --- main loop -----------------------------------------------------------------
   update(time, delta) {
     if (this.complete) return;
@@ -1929,22 +2015,20 @@ export default class GameScene extends Phaser.Scene {
     if (this.paused) return;
     const dt = delta / 1000;
 
+    // U3 — kid-proof destructive inputs. Real levels require a second press of
+    // the SAME key within a 2.5s window before ESC (map) or R (restart) act; a
+    // centered toast + shrinking bar shows the pending confirm. The two confirms
+    // are independent — starting one cancels the other — and any expiry restores
+    // normal state. The tutorial (short, teaches everything) stays one-press.
+    this.updateConfirm(time);
     if (J(this.escKey) && !this.leaving) {
-      this.leaving = true; // fade out, then hand off — guard blocks a double ESC
-      this.cameras.main.fadeOut(250, 4, 6, 20);
-      this.cameras.main.once("camerafadeoutcomplete", () => {
-        this.scene.stop("UI");
-        this.scene.start("Hub", { sel: this.levelIndex });
-      });
+      if (this.def.tutorial || (this.confirm && this.confirm.kind === "esc")) { this.doExit(); return; }
+      this.startConfirm("esc", time);
       return;
     }
     if (J(this.rKey) && !this.leaving) {
-      this.leaving = true;
-      this.cameras.main.fadeOut(250, 4, 6, 20);
-      this.cameras.main.once("camerafadeoutcomplete", () => {
-        this.scene.stop("UI");
-        this.scene.restart({ levelIndex: this.levelIndex });
-      });
+      if (this.def.tutorial || (this.confirm && this.confirm.kind === "r")) { this.doRestart(); return; }
+      this.startConfirm("r", time);
       return;
     }
 
