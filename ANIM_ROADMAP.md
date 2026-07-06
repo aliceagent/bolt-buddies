@@ -157,3 +157,12 @@ stack green + matrix twice. Findings table appended here.
 5. **ANIM A1–A11** — animates the final static art.
 6. **A12 then GFX P12** — motion audit, then the global visual audit runs
    absolutely last.
+
+## End-state (standing owner instruction)
+After every sprint above: a **userland campaign loop** — `tools/campaign.mjs`
+plays the WHOLE game in one continuous session with real input only (title
+menu → NEW GAME → hub → 1-1…2-3 via real hub navigation and clear-overlay
+continues, plus the tutorial from the menu), asserting save/unlock
+progression and zero page errors. Failures triage per the beat-failure
+protocol; fix; rerun; loop until two consecutive fully-clean campaigns, and
+re-run after any subsequent change.
