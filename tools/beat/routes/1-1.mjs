@@ -145,12 +145,14 @@ export default [
         }
       }
       await bb.waitFor((s) => s.players[gi].carrying, 3000, "G carrying H");
-      // cold-fps misses drop the pair into the x50-51 landing pit; recover by
-      // re-riding the lift (weight 3 while carrying keeps it serviceable)
-      // retries:1 — runJump's internal walk-back assumes the runway is still
-      // underfoot, but a short landing drops G into the pit a level BELOW it,
-      // so in-place retries jump into the strip wall and burn the lift's 4s
-      // hold window. Fail fast instead and let the recovery re-ride the lift.
+      // cold-fps misses drop the pair into the x50-51 landing pit. U4 (F8) added a
+      // 2-tile step at x51 against the terrace wall, so the PRIMARY recovery is now
+      // to escape FORWARD — walk right and let walkTo's auto-hop take the two
+      // 2-tile risers (pit floor r14 -> step r12 -> terrace r10). Carrying keeps the
+      // lift at weight 3, so the old lift re-ride still works and is kept as the
+      // FALLBACK. retries:1 on the jump — runJump's in-place walk-back assumes the
+      // runway is still underfoot, but a short landing drops G a level below it, so
+      // in-place retries jump into the strip wall; fail fast into the recovery.
       let across = false;
       for (let cycle = 0; cycle < 3 && !across; cycle++) {
         try {
@@ -159,16 +161,29 @@ export default [
         } catch (e) {
           const G = await bb.player("G");
           if (G.ty > 12 && G.tx > 45.5 && G.tx < 52.5) {
-            bb.log("terrace jump missed -> in the pit; re-riding the lift");
-            // Escape LEFT to the approach floor immediately, while the lift is
-            // still up. The lift parks flush with the shaft mouth (platform top
-            // == approach-floor level), so it can only be boarded from the left;
-            // the strip side is a dead end, and waiting in the shaft gets G
-            // wedged under the descending platform.
-            await bb.walkTo("G", 44.5, { tol: 10, timeout: 8000 });
-            await bb.waitFor((s) => s.lifts[0].y >= s.lifts[0].botY - 6, 12000, "lift home");
-            await bb.walkTo("G", 48, { tol: 8, timeout: 6000 }); // board; carry weight 3 sends it up
-            await bb.waitFor((s) => s.lifts[0].y <= s.lifts[0].topY + 40, 12000, "lift back at top");
+            // PRIMARY (U4): climb the step forward onto the terrace. Retry the walk
+            // a few times — a narrow-step auto-hop can slip on the first try.
+            bb.log("terrace jump missed -> in the pit; climbing the x51 step forward onto the terrace");
+            let onTerrace = false;
+            for (let t = 0; t < 3 && !onTerrace; t++) {
+              await bb.walkTo("G", 55, { tol: 12, timeout: 8000 }).catch(() => {});
+              const g2 = await bb.player("G");
+              onTerrace = g2.tx > 52 && g2.ty < 11;
+              if (!onTerrace) await bb.page.waitForTimeout(200);
+            }
+            if (onTerrace) {
+              across = true;
+            } else {
+              // FALLBACK (pre-U4): re-ride the lift. Escape LEFT to the approach
+              // floor while the lift is still up (it parks flush with the shaft
+              // mouth and can only be boarded from the left; the strip side is a
+              // dead end, and waiting in the shaft wedges G under the platform).
+              bb.log("step climb didn't reach the terrace; falling back to the lift re-ride");
+              await bb.walkTo("G", 44.5, { tol: 10, timeout: 8000 });
+              await bb.waitFor((s) => s.lifts[0].y >= s.lifts[0].botY - 6, 12000, "lift home");
+              await bb.walkTo("G", 48, { tol: 8, timeout: 6000 }); // board; carry weight 3 sends it up
+              await bb.waitFor((s) => s.lifts[0].y <= s.lifts[0].topY + 40, 12000, "lift back at top");
+            }
           } else if (cycle === 2) {
             throw e;
           }

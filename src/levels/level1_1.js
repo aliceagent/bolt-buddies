@@ -24,7 +24,10 @@ export default {
     g.rect(38, 5, 38, 10, "#"); // wall above the key door
     g.rect(39, 14, 45, 17, "#"); // lift approach floor
     g.rect(46, 15, 49, 17, "#"); // fill under the lift shaft
-    g.rect(50, 14, 51, 17, "#"); // landing strip
+    g.rect(50, 14, 51, 17, "#"); // landing strip (x50 stays the pit floor, r14 surface)
+    g.rect(51, 12, 51, 13, "#"); // U4 (F8): raise x51 into a 2-tile step against the terrace
+    // wall — pit floor (r14) -> step top (r12) -> terrace top (r10), two 2-tile hops
+    // Heavy can make (heavyJump 565 clears ~2.38 tiles), so the pit escapes FORWARD.
     g.rect(52, 10, 63, 17, "#"); // exit terrace
     g.rect(50, 7, 51, 7, "#"); // core 3 ledge
     g.rect(63, 0, 63, 9, "#"); // right wall above terrace
@@ -45,6 +48,15 @@ export default {
     { t: "door", id: "door1", x: 38, y: 11, h: 3, needs: { keys: 1 } },
     { t: "checkpoint", x: 40, y: 13 },
     { t: "lift", id: "lift1", x: 46, y: 14, w: 4, toY: 10, threshold: 3 },
+    // U4 (F9): checkpoint on the terrace, past the pit. Placed at the terrace start
+    // (52,8) NOT the lift-top runway (47,9): the lift descends once unweighted, so a
+    // runway respawn while the lift is DOWN would drop the robot mid-air over the open
+    // shaft (rows 10-14) — exactly the forbidden case. The terrace respawn is solid and
+    // lift-independent, and a terrace death no longer replays the lift wait.
+    { t: "checkpoint", x: 52, y: 8 },
+    // U4: KOBI blip on first pit entry. AABB covers the pit floor (x50-51, r12-13); a
+    // successful carry-jump sails over at ~r10-11 and never enters it, so only a fall fires it.
+    { t: "trigger", x: 50, y: 12, w: 2, h: 2, blip: "KOBI: The pit is NOT a feature. The step IS. Climb.", once: true },
     { t: "core", x: 9, y: 9 },
     { t: "core", x: 28, y: 16 },
     { t: "core", x: 50, y: 6 },

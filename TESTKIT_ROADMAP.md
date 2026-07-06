@@ -629,6 +629,47 @@ and fps up. Headless SwiftShader baselines ~53-54 fps (UI Sprint 8), so the
 headless bar is **>= 48** (design bar 50, noted in output). Not in the default
 matrix — behind `--full`/`--chaos`.
 
+### FL-011 — 1-1 terrace landing pit was a forward dead-end (UX Sprint U4, fixes F8/F9)
+
+- **Triage class:** (c) level-design flaw / UX fairness (UX_ROADMAP F8, F9). Not a
+  beat-matrix red — the base route always crosses via the carry-jump — but the pit
+  it lands in on a missed jump could ONLY be escaped by walking back LEFT and
+  re-riding the whole lift cycle (~7s): the World-1 first-level frustration hotspot
+  the UX audit flagged, plus no checkpoint after the lift (a terrace death replayed
+  the lift wait).
+- **What changed (`src/levels/level1_1.js`):**
+  - GEOMETRY: added `g.rect(51, 12, 51, 13, "#")` — the landing strip's right column
+    (x51) is raised into a 2-tile step against the terrace wall. The pit becomes a
+    staircase, escapable FORWARD: pit floor (r14 surface) -> step top (r12) ->
+    terrace top (r10), two 2-tile risers. Heavy clears each (heavyJump 565 / gravity
+    1400 = ~114px ≈ 2.38-tile peak > the 96px rise), verified by an INPUT-ONLY probe
+    (solo Heavy dropped on the pit floor climbs to the terrace using only
+    right+jump). x50 stays the low landing tile; the terrace core ledge (50-51,r7)
+    and anchor (51,4) are untouched (the step is rows 12-13, well below them).
+    Terrain strips and physics both redraw from the grid, so no visual edit needed.
+  - CHECKPOINT: added `{ t:"checkpoint", x:52, y:8 }` on the terrace, PAST the pit
+    (F9 — a terrace death no longer replays the lift wait). Placed at the terrace
+    START, NOT the lift-top runway (the alternative (47,9)): the lift descends once
+    unweighted, so a runway respawn while the lift is DOWN would drop the robot
+    mid-air over the open shaft (rows 10-14) — the explicitly-forbidden case. The
+    terrace respawn (`cp.x-14+i*28, cp.y-10`) lands on solid terrace, lift-independent.
+  - BLIP: added `{ t:"trigger", x:50, y:12, w:2, h:2, blip:"KOBI: The pit is NOT a
+    feature. The step IS. Climb.", once:true }` (reuses the Sprint 10 trigger entity).
+    The AABB covers the pit floor (x50-51, r12-13); a successful carry-jump sails
+    over at ~r10-11 and never enters it, so only a genuine fall fires it, once.
+- **Route impact (`tools/beat/routes/1-1.mjs`):** base carry-jump step UNCHANGED —
+  the step sits 2 tiles below the row-10 flight path, so the primary
+  `runJump(49->52, edgeX 2384)` clears it (matrix re-confirmed 0 deaths, both
+  assignments). The pit-recovery branch now PREFERS the step: on a missed
+  carry-jump it walks G (carrying H, weight 3) right and lets walkTo's auto-hop take
+  the two risers onto the terrace (3-try loop); the pre-U4 lift re-ride is retained
+  as the FALLBACK when the forward climb doesn't reach the terrace. Core-variant
+  (`--full`) steps unchanged (core2 zips anchor (51,4), far above the step).
+- **Verification:** input-only pit-escape probe (solo Heavy) PASS; screenshots
+  `tools/shots/p2/{u4-pit-step,u4-pit-escape,u4-checkpoint}.png`;
+  `node tools/beat/runner.mjs 1-1` 2/2 green; `--full 1-1` green; full 12-run matrix
+  green TWICE; `npm run playtest` (42/30/29/21 + matrix) green.
+
 ## Maintenance rule (add to both other roadmaps' ground rules)
 
 From T2 onward, **every sprint (UI or sound) must leave the 12-run beat
