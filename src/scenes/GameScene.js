@@ -151,9 +151,14 @@ export default class GameScene extends Phaser.Scene {
     });
 
     // U1 — contextual "coach" bubbles (pooled). The tutorial teaches every
-    // chord explicitly, so it opts out entirely.
+    // chord explicitly, so it opts out of the U1 *triggers* — but the pool is
+    // built regardless because U2's lock/timer feedback (bump bubbles) reuses it,
+    // and the tutorial's plate/door stations benefit from that feedback.
     this.coach = null;
-    if (!def.tutorial) this.buildCoach();
+    this.buildCoach();
+    this.coachU1 = !def.tutorial; // gate the U1 rope/up-zip/throw/re-show triggers
+    // U2 — lock & timer feedback set-up (rings for timed doors, plate pips).
+    this.buildLockFeedback();
 
     this.boom = this.add.particles(0, 0, "px", {
       speed: { min: 60, max: 260 }, scale: { start: 1, end: 0 }, lifespan: 450,
@@ -542,9 +547,24 @@ export default class GameScene extends Phaser.Scene {
         const w = (e.w || 1) * TILE;
         const img = this.add.image(e.x * TILE + w / 2, py + 17, "plate").setDepth(DEPTH.entity);
         img.setDisplaySize(w - 8, 14);
+        // U2 plate-flash pips: N weight pips floating above the plate, hidden
+        // until a robot steps on with insufficient weight (mirror the lift's
+        // pip_on/pip_off convention from GFX Sprint 4). Container alpha is the
+        // blink target so redraws are allocation-free.
+        const N = e.threshold || 1;
+        const spacing = 18;
+        const startX = -((N - 1) * spacing) / 2;
+        const pipCont = this.add.container(e.x * TILE + w / 2, py - 30).setDepth(DEPTH.fx).setVisible(false);
+        const pips = [];
+        for (let i = 0; i < N; i++) {
+          const pip = this.add.image(startX + i * spacing, 0, "pip_off");
+          pips.push(pip);
+          pipCont.add(pip);
+        }
         this.plates.push({
-          id: e.id, threshold: e.threshold || 1, active: false, img, baseScaleY: img.scaleY,
+          id: e.id, threshold: N, active: false, img, baseScaleY: img.scaleY,
           rect: new Phaser.Geom.Rectangle(e.x * TILE, py + 4, w, 30),
+          pipCont, pips, _weight: 0, _flashCd: 0, _flashTween: null,
         });
         break;
       }
@@ -1451,7 +1471,7 @@ export default class GameScene extends Phaser.Scene {
     for (const p of this.players) { p._coachIdle = 0; p._lastActPress = 0; }
   }
 
-  drawCoachIcon(g, kind, cx, cy, idx) {
+  drawCoachIcon(g, kind, cx, cy, idx, extra) {
     if (kind === "rope") {
       g.lineStyle(3, COLORS.neon, 1);
       g.lineBetween(cx - 7, cy - 7, cx + 3, cy + 3);
@@ -1462,6 +1482,37 @@ export default class GameScene extends Phaser.Scene {
       g.fillStyle(col, 1);
       g.fillTriangle(cx, cy - 9, cx - 8, cy + 1, cx + 8, cy + 1);
       g.fillRect(cx - 3, cy + 1, 6, 8);
+    } else if (kind === "lever") {
+      // mini lever: base hub + magenta-knobbed handle (mirrors lever_handle glyph)
+      g.fillStyle(0x2a3350, 1).fillRoundedRect(cx - 8, cy + 5, 16, 5, 2);
+      g.lineStyle(3, 0x8fa3d9, 1).lineBetween(cx - 4, cy + 7, cx + 4, cy - 7);
+      g.fillStyle(COLORS.magenta, 0.3).fillCircle(cx + 4, cy - 8, 6);
+      g.fillStyle(COLORS.magenta, 1).fillCircle(cx + 4, cy - 8, 4);
+    } else if (kind === "key") {
+      // gold key: bow ring + shaft + a tooth (mirrors the "key" texture)
+      g.lineStyle(3, 0xffd94d, 1).strokeCircle(cx - 5, cy - 4, 4.5);
+      g.lineStyle(3, 0xffd94d, 1).lineBetween(cx - 2, cy - 1, cx + 8, cy + 9);
+      g.lineStyle(3, 0xffd94d, 1).lineBetween(cx + 6, cy + 7, cx + 9, cy + 4);
+    } else if (kind === "plate") {
+      // pressure plate slab + lit LED strip (mirrors the "plate_on" texture)
+      g.fillStyle(0x2a3350, 1).fillRect(cx - 11, cy + 2, 22, 5);
+      g.fillStyle(0x1c2742, 1).fillRoundedRect(cx - 9, cy - 3, 18, 6, 2);
+      g.fillStyle(COLORS.green, 1).fillRect(cx - 6, cy - 1, 12, 2);
+    } else if (kind === "clock") {
+      // amber clock face with hands
+      g.lineStyle(2.5, COLORS.amber, 1).strokeCircle(cx, cy, 8.5);
+      g.lineStyle(2, COLORS.amber, 1);
+      g.lineBetween(cx, cy, cx, cy - 6);
+      g.lineBetween(cx, cy, cx + 4, cy + 1);
+    } else if (kind === "arrow") {
+      // filled triangle pointing along `extra` (radians), toward the driving lever
+      const a = extra || 0, L = 11, W = 6;
+      const tx = cx + Math.cos(a) * L, ty = cy + Math.sin(a) * L;
+      const bx = cx - Math.cos(a) * 5, by = cy - Math.sin(a) * 5;
+      const px = -Math.sin(a), py = Math.cos(a);
+      g.fillStyle(COLORS.neon, 1);
+      g.fillTriangle(tx, ty, bx + px * W, by + py * W, bx - px * W, by - py * W);
+      g.lineStyle(3, COLORS.neon, 1).lineBetween(cx - Math.cos(a) * 9, cy - Math.sin(a) * 9, bx, by);
     }
   }
 
@@ -1478,7 +1529,12 @@ export default class GameScene extends Phaser.Scene {
     const els = [];
     let ti = 0;
     for (const tk of tokens) {
-      if (tk.icon) { els.push({ type: "icon", icon: tk.icon, w: 24 }); continue; }
+      if (tk.icon) { els.push({ type: "icon", icon: tk.icon, w: 24, angle: tk.angle }); continue; }
+      if (tk.pips) {
+        // weight pips: `have` lit of `need` (drawn on the bg graphics, no images)
+        els.push({ type: "pips", have: tk.have, need: tk.need, w: tk.need * 13 + 2 });
+        continue;
+      }
       if (tk.plus) {
         const t = b.texts[ti++].setText("+").setFontSize(15).setColor("#8fa3d9").setVisible(true);
         els.push({ type: "text", t, w: t.width + 6 });
@@ -1522,7 +1578,20 @@ export default class GameScene extends Phaser.Scene {
       } else if (e.type === "text") {
         e.t.setPosition(cx, rowY);
       } else if (e.type === "icon") {
-        this.drawCoachIcon(bg, e.icon, cx, rowY, idx);
+        this.drawCoachIcon(bg, e.icon, cx, rowY, idx, e.angle);
+      } else if (e.type === "pips") {
+        // required-vs-current weight: filled amber pip = present, hollow = missing
+        const pw = 11, pgap = 2;
+        let px = cx - (e.need * (pw + pgap) - pgap) / 2;
+        for (let k = 0; k < e.need; k++) {
+          if (k < e.have) {
+            bg.fillStyle(COLORS.amber, 1).fillRoundedRect(px, rowY - 6, pw, 12, 3);
+          } else {
+            bg.fillStyle(0x39415e, 1).fillRoundedRect(px, rowY - 6, pw, 12, 3);
+            bg.lineStyle(1.5, 0x5a6aa0, 1).strokeRoundedRect(px, rowY - 6, pw, 12, 3);
+          }
+          px += pw + pgap;
+        }
       }
       x += e.w + GAP;
     }
@@ -1539,7 +1608,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   showThrowHint(p) {
-    if (!this.coach || throwHintShownSession) return;
+    if (!this.coach || !this.coachU1 || throwHintShownSession) return;
     throwHintShownSession = true;
     const i = p.idx;
     const jumpCap = i === 0 ? "W" : "↑";
@@ -1620,8 +1689,10 @@ export default class GameScene extends Phaser.Scene {
       r.setPosition(p.x, p.y - 64 - i * 34 + Math.sin(time / 300) * 4);
     }
 
-    // Heavy trigger evaluation throttled to ~4Hz on a shared timer.
-    if (time >= co.nextCheck) {
+    // Heavy trigger evaluation throttled to ~4Hz on a shared timer. Gated off in
+    // the tutorial (which teaches every chord explicitly) — U2 bump bubbles still
+    // use this pool, but the U1 rope/up-zip/re-show triggers stay disabled there.
+    if (this.coachU1 && time >= co.nextCheck) {
       const elapsed = co.lastCheck ? (time - co.lastCheck) / 1000 : 0.25;
       co.lastCheck = time;
       co.nextCheck = time + 250;
@@ -1674,6 +1745,135 @@ export default class GameScene extends Phaser.Scene {
 
     co.actEdge[0] = false;
     co.actEdge[1] = false;
+  }
+
+  // --- U2: lock & timer feedback ------------------------------------------------
+  // All READ-ONLY over door/plate/lever state — samples, never mutates gameplay,
+  // adds no bb:* events. Rings are per-timed-door Graphics on the clear+redraw
+  // pattern (like rope/beam); bump bubbles reuse the U1 coach pool.
+  buildLockFeedback() {
+    for (const d of this.doors) {
+      d._pushT = 0; d._bumpCd = 0; d.openedEver = false;
+      if (d.timer) {
+        // one shared Graphics per timed door: draws the lamp ring AND the driving
+        // lever ring(s) from the same drain fraction. Hidden while closed.
+        d._ring = this.add.graphics().setDepth(DEPTH.fx - 1).setVisible(false);
+        d._levers = (d.needs.levers || []).map((id) => this.levers.find((l) => l.id === id)).filter(Boolean);
+      }
+    }
+  }
+
+  // Flash a plate's weight pips 3× to say "needs 2, have 1". Cooldown 4s.
+  flashPlatePips(pl, weight, time) {
+    pl._flashCd = time + 4000;
+    const lit = Math.min(Math.round(weight), pl.threshold);
+    for (let i = 0; i < pl.pips.length; i++) {
+      const want = i < lit ? "pip_on" : "pip_off";
+      if (pl.pips[i].texture.key !== want) pl.pips[i].setTexture(want);
+    }
+    if (pl._flashTween) pl._flashTween.stop();
+    pl.pipCont.setVisible(true).setAlpha(1);
+    // blink: 3 on-beats (alpha 1) separated by off-beats, then hide.
+    pl._flashTween = this.tweens.add({
+      targets: pl.pipCont, alpha: { from: 1, to: 0.15 },
+      duration: 200, yoyo: true, repeat: 2, ease: "sine.inOut",
+      onComplete: () => { pl.pipCont.setVisible(false); pl._flashTween = null; },
+    });
+  }
+
+  // The first-unmet-need content for a bumped closed door, or null if the door's
+  // only needs are ones U2 doesn't teach on bump (skills/opened/crane/wardens).
+  bumpContent(d) {
+    const n = d.needs || {};
+    // re-armed timed door that already opened once → "too slow!" (F10/F4)
+    if (d.timer && d.openedEver) {
+      return { tokens: [{ icon: "clock" }], caption: "TOO SLOW!" };
+    }
+    if (n.levers) {
+      const lv = n.levers.map((id) => this.levers.find((l) => l.id === id)).find((l) => l && !l.on);
+      if (lv) {
+        const ang = Math.atan2(lv.y - d.zone.centerY, lv.x - d.zone.centerX);
+        return { tokens: [{ icon: "lever" }, { icon: "arrow", angle: ang }], caption: "PULL THE LEVER" };
+      }
+    }
+    if (n.keys && (d.keysGiven || 0) < n.keys) {
+      return { tokens: [{ icon: "key" }], caption: this.keysHeld > 0 ? "USE YOUR KEY" : "FIND THE KEY" };
+    }
+    if (n.plates) {
+      const pl = n.plates.map((id) => this.plates.find((p) => p.id === id)).find((p) => p && !p.active);
+      if (pl) {
+        const have = Math.min(Math.round(pl._weight || 0), pl.threshold);
+        return { tokens: [{ icon: "plate" }, { pips: true, have, need: pl.threshold }], caption: "NEEDS WEIGHT" };
+      }
+    }
+    return null;
+  }
+
+  showBumpBubble(idx, d, content) {
+    this.coachShow(idx, {
+      tokens: content.tokens, caption: content.caption,
+      follow: { x: d.zone.centerX, y: d.zone.y - 30 },
+      key: "bump", dur: 3000, colorP: 2,
+    });
+  }
+
+  // Draw a draining ring at (x, y): faint full track + bright arc for `frac`
+  // remaining, sweeping clockwise from 12 o'clock. Blinks red in the last 1.5s.
+  drawDrainRing(g, x, y, r, frac, blink) {
+    const start = -Math.PI / 2;
+    const end = start + Math.PI * 2 * Phaser.Math.Clamp(frac, 0, 1);
+    g.lineStyle(3, 0x2f4066, 0.7);
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.strokePath();
+    const col = blink ? COLORS.hazard : COLORS.amber;
+    g.lineStyle(4, col, 1);
+    g.beginPath(); g.arc(x, y, r, start, end, false); g.strokePath();
+  }
+
+  updateLockFeedback(time, delta) {
+    // (1) BUMP: a player sustained-pushing a CLOSED door for >400ms pops a bubble.
+    for (const d of this.doors) {
+      if (d.open) { d._pushT = 0; continue; }
+      let pushing = -1;
+      const cx = d.zone.centerX;
+      for (let i = 0; i < this.players.length; i++) {
+        const p = this.players[i];
+        if (p.dead || p.carriedBy) continue;
+        if (p.y < d.zone.y - 12 || p.y > d.zone.y + d.zone.height + 26) continue;
+        const dx = p.x - cx;
+        if (Math.abs(dx) > TILE) continue;
+        const pushRight = p.keys.right.isDown, pushLeft = p.keys.left.isDown;
+        if ((dx < 0 && pushRight) || (dx > 0 && pushLeft)) { pushing = i; break; }
+      }
+      if (pushing >= 0) {
+        d._pushT += delta;
+        if (d._pushT > 400 && time > d._bumpCd && this.coach) {
+          const content = this.bumpContent(d);
+          if (content) {
+            this.showBumpBubble(pushing, d, content);
+            d._bumpCd = time + 3000;
+          }
+          d._pushT = 0;
+        }
+      } else {
+        d._pushT = Math.max(0, d._pushT - delta * 2);
+      }
+    }
+
+    // (2) TIMED-DOOR COUNTDOWN: draining ring around the lamp + each driving lever
+    // while the door is open; the final 1.5s blinks. Clear+redraw, no allocation.
+    for (const d of this.doors) {
+      if (!d._ring) continue;
+      if (!d.open) { if (d._ring.visible) d._ring.setVisible(false).clear(); continue; }
+      const remain = d.closeAt - time;
+      const frac = Phaser.Math.Clamp(remain / d.timer, 0, 1);
+      const blink = remain < 1500 && Math.floor(time / 180) % 2 === 0;
+      const g = d._ring.setVisible(true);
+      g.clear();
+      this.drawDrainRing(g, d.lamp.x, d.lamp.y, 13, frac, blink);
+      for (const lv of d._levers) {
+        this.drawDrainRing(g, lv.x, lv.y - 8, 19, frac, blink);
+      }
+    }
   }
 
   // --- conditions ---------------------------------------------------------------
@@ -1953,6 +2153,12 @@ export default class GameScene extends Phaser.Scene {
         if (p.grounded && Phaser.Geom.Rectangle.Overlaps(pl.rect, rect)) weight += p.weight;
       }
       const active = weight >= pl.threshold;
+      // U2 plate-flash: a robot stepped on but the accumulated weight is short of
+      // the threshold (the "needs 2, have 1" moment) → flash the pips 3× (cd 4s).
+      if (pl.pipCont && !active && weight > 0 && pl._weight <= 0 && time > pl._flashCd) {
+        this.flashPlatePips(pl, weight, time);
+      }
+      pl._weight = weight;
       if (active !== pl.active) {
         pl.active = active;
         // LED strip lights (accent) via texture swap — setTint no-ops on Canvas
@@ -2003,6 +2209,7 @@ export default class GameScene extends Phaser.Scene {
       }
       if (shouldOpen && !d.open) {
         d.open = true;
+        d.openedEver = true; // U2: a re-armed timed door bumped later reads "too slow!"
         if (d.timer) d.closeAt = time + d.timer;
         else d.openedOnce = true;
         this.opened.add(d.id);
@@ -2244,6 +2451,7 @@ export default class GameScene extends Phaser.Scene {
 
     this.players.forEach((p) => (p.standingOn = null));
     this.updateCoach(time);
+    this.updateLockFeedback(time, delta);
     this.updateLoops();
     this.updateCamera(dt);
   }
