@@ -299,7 +299,11 @@ export default class UIScene extends Phaser.Scene {
     this.cameras.main.fadeOut(250, 4, 6, 20);
     this.cameras.main.once("camerafadeoutcomplete", () => {
       this.scene.stop("Game");
-      if (tut) this.scene.start("Title");
+      // U10 (F6): a tutorial launched from the first-run interstitial returns to
+      // the HUB, not Title (returnToHub set on the Game scene). Menu-launched
+      // tutorials keep returning to Title (this.completed.returnToHub is false).
+      if (tut && this.completed.returnToHub) this.scene.start("Hub");
+      else if (tut) this.scene.start("Title");
       else this.scene.start("Hub", { sel: next, unlock });
       this.scene.stop();
     });

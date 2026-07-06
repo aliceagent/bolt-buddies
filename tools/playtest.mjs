@@ -41,7 +41,13 @@ const tap = (key) => hold(key, 70);
 // --- title & hub ------------------------------------------------------------
 await shot("01-title");
 check("title scene active", await active("Title"));
-await tap("KeyE");
+await tap("KeyE"); // NEW GAME (fresh profile)
+// U10 (F6): a fresh save now routes NEW GAME through the KOBI onboarding
+// interstitial before the hub. The cursor rests on ORIENTATION (the F6 nudge),
+// so this suite steps down to [SKIP — I'm BRAVE] and confirms to reach the hub.
+await page.waitForTimeout(400);
+await tap("ArrowDown"); // interstitial: ORIENTATION -> SKIP
+await tap("KeyE");      // confirm SKIP -> hub
 await page.waitForTimeout(500);
 await shot("02-hub");
 check("hub scene active", await active("Hub"));

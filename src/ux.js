@@ -78,6 +78,23 @@ export function saveRecord(id, timeMs, deaths) {
   return { prevTime, prevDeaths, bestTime, bestDeaths, beatTime, beatDeaths };
 }
 
+// --- first-run onboarding (U10, fixes F6) ------------------------------------
+// A single boolean flag: has the tutorial ("Orientation Day") ever been
+// completed? Drives the title's TUTORIAL "new!" pip (shown until first
+// completion). This is the ONLY thing the tutorial ever persists — it still
+// writes NOTHING to the save key (standing rule). Read-modify-write, so it
+// rides alongside `records` and any future option rows.
+export function tutorialDone() {
+  return !!loadUx().tutorialDone;
+}
+
+export function markTutorialDone() {
+  const ux = loadUx();
+  if (ux.tutorialDone) return; // idempotent: never rewrites an already-set flag
+  ux.tutorialDone = true;
+  saveUx(ux); // preserves every other ux field (records, options)
+}
+
 // --- time formatting ---------------------------------------------------------
 // Full stats-row form "m:ss.t" (tenths). Built ONCE at finishLevel, never per
 // frame. Guards against negatives/NaN so a weird counter can never crash the

@@ -5,6 +5,7 @@ import { LEVELS } from "../levels/registry.js";
 import { loadSave, storeSave, totalCores } from "../save.js";
 import { initAudio, sfx, playTrack, installMute } from "../audio.js";
 import { pads, showPadToast } from "../pad.js";
+import { tutorialDone } from "../ux.js";
 
 const ACCENT = WORLD_THEMES[1].accent; // world-1 amber accent for buttons
 const hexStr = (n) => "#" + (n & 0xffffff).toString(16).padStart(6, "0");
@@ -329,6 +330,23 @@ export default class TitleScene extends Phaser.Scene {
       }).setOrigin(0.5).setVisible(false);
       cont.add([g, label, chev]);
       it.cont = cont; it.g = g; it.labelObj = label; it.chev = chev; it.bw = bw; it.bh = bh;
+
+      // U10 (F6): a small "new!" pip on the TUTORIAL button, shown until the
+      // tutorial has been completed ONCE ever (ux-v1 flag). Sits just right of
+      // the label; rides inside the container so it scales with selection.
+      if (it.id === "tutorial" && !tutorialDone()) {
+        const pip = this.add.container(label.width / 2 + 30, -1);
+        const pg = this.add.graphics();
+        pg.fillStyle(COLORS.magenta, 0.95).fillRoundedRect(-24, -12, 48, 22, 8);
+        pg.lineStyle(1.5, 0xffffff, 0.6).strokeRoundedRect(-24, -12, 48, 22, 8);
+        const pt = this.add.text(0, -1, "new!", {
+          fontFamily: FONT, fontSize: FS.mini, fontStyle: "bold", color: "#fff2d8",
+        }).setOrigin(0.5);
+        pip.add([pg, pt]);
+        cont.add(pip);
+        it.pip = pip;
+        this.tweens.add({ targets: pip, scale: { from: 0.9, to: 1.08 }, duration: 700, yoyo: true, repeat: -1, ease: "sine.inOut" });
+      }
     });
 
     this.updateMenu();
@@ -341,6 +359,8 @@ export default class TitleScene extends Phaser.Scene {
       _scene: this,
       select: (i) => this.selectIndex(i),
       activate: () => this.activate(),
+      // U10 (F6): is the TUTORIAL "new!" pip currently shown? (probe surface)
+      tutorialPip: () => !!this.menuItems.find((x) => x.id === "tutorial")?.pip?.visible,
     };
   }
 
@@ -417,8 +437,14 @@ export default class TitleScene extends Phaser.Scene {
       this.gotoHub();
     } else if (it.id === "new") {
       if (!this.hasSave) {
+        // U10 (F6): fresh save — route through the KOBI onboarding interstitial
+        // BEFORE the hub. (A save that already exists skips this entirely: the
+        // erase-confirm branch below still fades straight to the hub.)
         sfx.menuSelect();
-        this.gotoHub();
+        if (this.leaving) return;
+        this.leaving = true;
+        this.cameras.main.fadeOut(250, 4, 6, 20);
+        this.cameras.main.once("camerafadeoutcomplete", () => this.scene.start("Onboard"));
         return;
       }
       if (!this.eraseArmed) {

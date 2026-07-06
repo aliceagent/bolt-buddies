@@ -24,6 +24,12 @@ const tap = async (code, ms = 90) => { await page.keyboard.down(code); await sle
 check("title active", await active("Title"));
 await tap("Space");
 await sleep(800);
+// U10 (F6): a fresh save routes NEW GAME through the KOBI onboarding
+// interstitial. Cursor rests on ORIENTATION (the F6 nudge), so step down to
+// SKIP and confirm to reach the hub (mirrors playtest.mjs).
+await tap("ArrowDown"); // interstitial: ORIENTATION -> SKIP
+await tap("Space");     // confirm SKIP -> hub
+await sleep(800);
 check("Space advances title -> hub", await active("Hub"));
 
 // 2. Space enters the selected level from the hub

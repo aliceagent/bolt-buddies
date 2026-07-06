@@ -6,7 +6,7 @@ import { completeLevel, loadSave } from "../save.js";
 import { initAudio, sfx, installMute, playTrack, setMusicLayer, playJingle, trackForLevel, setListener, clearListener, proximity, setLoop, stopLoops, pauseDuck } from "../audio.js";
 import { addGradient, addMotes } from "../backdrop.js";
 import Player from "../objects/Player.js";
-import { uxHints, saveRecord, fmtTime } from "../ux.js";
+import { uxHints, saveRecord, fmtTime, markTutorialDone } from "../ux.js";
 import { pads, showPadToast } from "../pad.js";
 
 const J = Phaser.Input.Keyboard.JustDown;
@@ -56,6 +56,10 @@ export default class GameScene extends Phaser.Scene {
 
   init(data) {
     this.levelIndex = data.levelIndex ?? 0;
+    // U10 (F6): the first-run interstitial launches the tutorial with this flag
+    // so its clear overlay returns to the HUB (not Title). Menu-launched
+    // tutorials leave it false and keep returning to Title.
+    this.returnToHub = !!(data && data.returnToHub);
   }
 
   create() {
@@ -2984,6 +2988,11 @@ export default class GameScene extends Phaser.Scene {
       const before = loadSave().unlocked;
       completeLevel(this.levelIndex, this.def.id, this.coresGot);
       newlyUnlocked = loadSave().unlocked > before;
+    } else {
+      // U10 (F6): the tutorial's ONLY persistence — a ux-v1 flag that clears the
+      // title's "new!" pip. Set from ANY flow (menu or interstitial). Still
+      // writes NOTHING to the save key (standing rule).
+      markTutorialDone();
     }
 
     // U8 (F15): freeze the run counters and build the clear-overlay stats ONCE.
@@ -3015,7 +3024,7 @@ export default class GameScene extends Phaser.Scene {
     this.time.delayedCall(500, () => {
       this.game.events.emit("bb:complete", {
         index: this.levelIndex, id: this.def.id, name: this.def.name, cores: this.coresGot,
-        newlyUnlocked, tutorial: !!this.def.tutorial, stats,
+        newlyUnlocked, tutorial: !!this.def.tutorial, returnToHub: this.returnToHub, stats,
       });
     });
   }
