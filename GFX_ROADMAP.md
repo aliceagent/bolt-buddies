@@ -186,8 +186,11 @@ never cover the action-hint bubbles or each other (measure, then offset);
 cards get a 150ms slide-in. Key chip: bounce-in + spin on collect. Core
 pips: idle soft glimmer every ~6s. Intro banner: brushed texture bands +
 world icon (from P2) beside the chamber name. Exit-waiting bubble: buddy
-icon does a tiny beckoning wave loop. Accept: spawn shot proving zero
-overlaps at every level's spawn (script sweeps all 6 + tutorial).
+icon does a tiny beckoning wave loop. The overlap audit ALSO covers U1's
+coach bubbles and U7's controller-connected toast (seen overlapping the
+intro card in u7-pad-toast.png — offset the toast below the card region).
+Accept: spawn shot proving zero overlaps at every level's spawn (script
+sweeps all 6 + tutorial).
 
 ### P10 — Menus, overlays & transitions
 Settings + Pause rebuilt to title-screen standard: gradient + motes +
