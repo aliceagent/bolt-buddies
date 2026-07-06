@@ -72,6 +72,8 @@ export default class GameScene extends Phaser.Scene {
     this.wardens = [];
     this.jets = [];
     this.fans = [];
+    this.ventLamps = []; // U5 (F11): passive all-clear lamps — NEVER joined to this.jets
+    this._allClearFired = false; // one-shot guard for the 2-2 all-clear puff + blip
     this.phaseFlows = []; // drifting inner-pattern overlays for phase-walls
     this.phaseFlow = 0; // single shared scroll counter (no per-frame alloc)
 
@@ -255,6 +257,15 @@ export default class GameScene extends Phaser.Scene {
       scale: { start: 1, end: 0.3 }, lifespan: 520, gravityY: 500,
       alpha: { start: 0.85, end: 0 }, emitting: false,
     }).setDepth(DEPTH.fx - 1);
+
+    // U5 (F11): pooled "all-clear" vent puff — one soft steam burst per corridor
+    // jet when its valve latches them off (never emits per frame).
+    this.ventPuff = this.add.particles(0, 0, "px", {
+      speed: { min: 40, max: 140 }, angle: { min: 200, max: 340 },
+      scale: { start: 2.4, end: 0 }, alpha: { start: 0.55, end: 0 },
+      lifespan: { min: 500, max: 950 }, gravityY: -70, tint: 0xcdd8ff,
+      emitting: false,
+    }).setDepth(DEPTH.fx);
 
     // single reusable stomp shockwave ring (separate from the crane slamRing)
     this.stompRing = this.add.image(0, 0, "shockring").setDepth(DEPTH.fx - 1)
@@ -804,6 +815,19 @@ export default class GameScene extends Phaser.Scene {
           zone: new Phaser.Geom.Rectangle(px - 10, e.y * TILE + 16, 20, len),
           gfx: this.add.graphics().setDepth(DEPTH.fx),
         });
+        break;
+      }
+      case "ventlamp": {
+        // U5 (F11): passive "all-clear" indicator wired to a valve lever. Red while
+        // the valve's jets are live, green once thrown. Drawn textures (lamp_red/
+        // lamp_green), swapped — NOT tinted. No body, no collision, no needs logic,
+        // and it is NEVER pushed onto this.jets (so the W2 suite's jet reads are
+        // untouched). A small mount bracket is drawn behind the lamp bulb.
+        const bracket = this.add.graphics().setDepth(DEPTH.entity - 1);
+        bracket.fillStyle(0x2a3350, 1).fillRoundedRect(px - 13, py - 4, 26, 12, 3);
+        bracket.fillStyle(0x1c2742, 1).fillRect(px - 2, py + 6, 4, 8); // stem to the wall
+        const lamp = this.add.image(px, py, "lamp_red").setDepth(DEPTH.entity);
+        this.ventLamps.push({ lamp, wiredTo: e.wiredTo, lit: false });
         break;
       }
       case "fan": {
@@ -1472,7 +1496,8 @@ export default class GameScene extends Phaser.Scene {
       nextCheck: 0,
       lastCheck: 0,
     };
-    for (const p of this.players) { p._coachIdle = 0; p._lastActPress = 0; }
+    for (const p of this.players) { p._coachIdle = 0; p._lastActPress = 0; p._shimmerPushT = 0; }
+    this._handholdCd = 0; // U5 (F2): shared cooldown for the shimmer-wall hand-hold hint
   }
 
   drawCoachIcon(g, kind, cx, cy, idx, extra) {
@@ -1517,6 +1542,18 @@ export default class GameScene extends Phaser.Scene {
       g.fillStyle(COLORS.neon, 1);
       g.fillTriangle(tx, ty, bx + px * W, by + py * W, bx - px * W, by - py * W);
       g.lineStyle(3, COLORS.neon, 1).lineBetween(cx - Math.cos(a) * 9, cy - Math.sin(a) * 9, bx, by);
+    } else if (kind === "handhold") {
+      // U5 (F2): two little robots holding hands — P1 beep-blue + P2 boop-orange,
+      // arms meeting at a bright clasp. Drawn, canvas-safe (no tint).
+      const drawBot = (bx, col) => {
+        g.fillStyle(col, 1);
+        g.fillRoundedRect(bx - 4, cy - 3, 8, 9, 2); // body
+        g.fillRoundedRect(bx - 3, cy - 9, 6, 5, 1.5); // head
+      };
+      drawBot(cx - 7, COLORS.beep);
+      drawBot(cx + 7, COLORS.boop);
+      g.lineStyle(2, 0xc6d2f2, 1).lineBetween(cx - 3, cy + 1, cx + 3, cy + 1); // arms
+      g.fillStyle(0xffffff, 1).fillCircle(cx, cy + 1, 2); // clasped hands
     }
   }
 
@@ -1876,6 +1913,41 @@ export default class GameScene extends Phaser.Scene {
       this.drawDrainRing(g, d.lamp.x, d.lamp.y, 13, frac, blink);
       for (const lv of d._levers) {
         this.drawDrainRing(g, lv.x, lv.y - 8, 19, frac, blink);
+      }
+    }
+  }
+
+  // U5 (F2): when a solo NON-phase robot pushes against a shimmer wall (`~`) for
+  // >400ms while its phase buddy is NOT in escort range (78px), pop a hand-hold
+  // icon bubble at the pillar. Reuses the U2 icon-bubble variant. Generalizes to
+  // ALL shimmer walls in both worlds; cooldown 3s; suppressed while escorted.
+  // Read-only over gameplay (samples input/body state, never mutates it).
+  updateHandholdHint(time, delta) {
+    if (!this.coach) return;
+    for (const p of this.players) {
+      if (p.dead || p.carriedBy || p.skill === "phase") { p._shimmerPushT = 0; continue; }
+      let dir = 0;
+      if (p.keys.right.isDown && p.body.blocked.right) dir = 1;
+      else if (p.keys.left.isDown && p.body.blocked.left) dir = -1;
+      const decay = () => { p._shimmerPushT = Math.max(0, p._shimmerPushT - delta * 2); };
+      if (dir === 0) { decay(); continue; }
+      const wx = p.x + dir * (p.body.halfWidth + 6);
+      if (this.tileAt(wx, p.y) !== "~") { decay(); continue; }
+      // suppressed while the phase buddy is close enough to escort (the hand-hold rule)
+      const q = p.partner;
+      if (q && !q.dead && q.skill === "phase" && Math.hypot(q.x - p.x, q.y - p.y) < 78) {
+        p._shimmerPushT = 0; continue;
+      }
+      p._shimmerPushT += delta;
+      if (p._shimmerPushT > 400 && time > this._handholdCd) {
+        const tx = Math.floor(wx / TILE) * TILE + 24;
+        this.coachShow(p.idx, {
+          tokens: [{ icon: "handhold" }], caption: "HOLD HANDS",
+          follow: { x: tx, y: p.y - p.displayHeight / 2 - 30 },
+          key: "handhold", dur: 3000, colorP: 2,
+        });
+        this._handholdCd = time + 3000;
+        p._shimmerPushT = 0;
       }
     }
   }
@@ -2536,6 +2608,7 @@ export default class GameScene extends Phaser.Scene {
     this.players.forEach((p) => (p.standingOn = null));
     this.updateCoach(time);
     this.updateLockFeedback(time, delta);
+    this.updateHandholdHint(time, delta);
     this.updateLoops();
     this.updateCamera(dt);
   }
@@ -2718,6 +2791,23 @@ export default class GameScene extends Phaser.Scene {
         for (const p of this.players) {
           if (!p.dead && p.invuln <= 0 && Phaser.Geom.Rectangle.Overlaps(j.zone, bodyRect(p))) this.killPlayer(p);
         }
+      }
+    }
+
+    // U5 (F11): all-clear moment. When a valve wired to a vent-lamp is first
+    // thrown, flip the lamp green and (once per level) puff every jet that valve
+    // silenced + emit KOBI's "steam's off" blip.
+    for (const vl of this.ventLamps) {
+      if (vl.lit) continue;
+      if (!this.levers.find((l) => l.id === vl.wiredTo)?.on) continue;
+      vl.lit = true;
+      vl.lamp.setTexture("lamp_green");
+      if (!this._allClearFired) {
+        this._allClearFired = true;
+        for (const j of this.jets) {
+          if (j.disabledBy === vl.wiredTo) this.ventPuff.explode(12, j.x, j.topY + 6);
+        }
+        this.game.events.emit("bb:blip", "KOBI: Steam's off. Probably. It's PROBABLY off.");
       }
     }
 

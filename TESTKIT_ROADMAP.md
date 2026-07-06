@@ -670,6 +670,55 @@ matrix — behind `--full`/`--chaos`.
   `node tools/beat/runner.mjs 1-1` 2/2 green; `--full 1-1` green; full 12-run matrix
   green TWICE; `npm run playtest` (42/30/29/21 + matrix) green.
 
+### FL-012 — World 2 fairness/teaching pass (UX Sprint U5, fixes F2/F11)
+
+- **Triage class:** UX fairness / teaching (UX_ROADMAP F2, F11). Not a beat-matrix
+  red — both levels are beatable today with the escort — but two moments read as
+  silent/unfair to a naive pair: (F2) 2-1's roller-yard shimmer pillars require
+  the hand-hold escort for Tiny after a whole level teaching "rollers ignore
+  Tiny," with nothing explaining it; (F11) in 2-2, Phase (waiting at x22) gets no
+  positive cue that the corridor is safe after the valve throw — only silence.
+  **No walkable geometry changes**; entity lists gain APPEND-ONLY passive/teaching
+  entities. Class per protocol: no route-relevant geometry.
+- **What changed:**
+  - `src/levels/level2_1.js` — appended (LAST in `entities`, after the exit) a
+    one-shot teaching trigger:
+    `{ t:"trigger", x:44, y:12, w:3, h:2, blip:"KOBI: Shimmer pillars are a TEAM
+    exercise. Hold hands.", once:true }`. The AABB (x44-46, rows 12-13) spans the
+    yard entrance both buddies cross on the ground before the x50/x54 pillars;
+    reuses the Sprint-10 trigger entity (fires once). No new entity type.
+  - `src/levels/level2_2.js` — appended (LAST in `entities`, after the exit) a
+    passive all-clear lamp: `{ t:"ventlamp", x:22, y:11, wiredTo:"lvV1" }`, a NEW
+    entity type at Phase's waiting spot. VISUAL ONLY — no body, no collision, no
+    needs logic, and it is NEVER pushed onto `this.jets` (verified: `s.jets.length`
+    stays 6 after the throw). Drawn textures `lamp_red`→`lamp_green` are SWAPPED
+    (not tinted) on the flip, with a small drawn mount bracket.
+  - `src/scenes/GameScene.js` (mechanics, world-agnostic, read-only over gameplay):
+    - `case "ventlamp"` spawns the lamp into a new `this.ventLamps` list.
+    - `updateWorld2`: when a valve wired to a vent-lamp is first thrown, flip the
+      lamp green and — once per level (`_allClearFired` guard) — `ventPuff.explode`
+      12 pooled particles at each jet that valve silenced + emit
+      `"KOBI: Steam's off. Probably. It's PROBABLY off."`. New pooled emitter
+      `this.ventPuff` (created in `create()`, never per frame).
+    - `updateHandholdHint(time, delta)` (new; called from `update()` after
+      `updateLockFeedback`): when a solo NON-phase robot pushes into a `~` shimmer
+      tile (`body.blocked` in the held direction, probed tile is `~`) for >400 ms
+      while its phase buddy is NOT within the 78 px escort radius, pops a hand-hold
+      icon bubble at the pillar. Reuses the U2 icon-bubble variant (`coachShow`);
+      new `drawCoachIcon` kind `"handhold"` (two robots + clasp, drawn, canvas-safe).
+      Shared 3 s cooldown (`_handholdCd`); suppressed (timer zeroed) while escorted.
+      Generalizes to ALL shimmer walls in both worlds (2-2's entry wall included).
+- **Route impact:** NONE. No walkable geometry moved; all appended entities are
+  passive (lamp) or fire-and-forget (trigger blip, coach bubble). `playtest_w2.mjs`
+  reads doors/levers/wardens by id, jets by `disabledBy`/index, cores by order —
+  appending non-core entities at the tail shifts no index it reads, and the lamp
+  is absent from `s.jets`. Confirmed by re-running the suite green + `s.jets.length===6`.
+- **Verification:** input-only screenshots `tools/shots/p2/{u5-yard-blip,
+  u5-handhold-hint,u5-allclear}.png` (blip text shown; "HOLD HANDS" bubble over a
+  solo Tiny pushing the x50 pillar; green lamp + vent puffs at the valve throw);
+  zero page errors; `npm run playtest` (42/30/29/21 + matrix) green; full 12-run
+  beat matrix green TWICE; `--full 2-1 2-2` W2 core variants green.
+
 ## Maintenance rule (add to both other roadmaps' ground rules)
 
 From T2 onward, **every sprint (UI or sound) must leave the 12-run beat

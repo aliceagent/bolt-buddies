@@ -57,6 +57,12 @@ export default {
     { t: "plate", id: "pl1", x: 50, y: 13, w: 1, threshold: 1 },
     { t: "lever", id: "lvF", x: 52, y: 13 },
     { t: "exit", x: 55, y: 11, h: 3, needs: { plates: ["pl1"], levers: ["lvF"] } },
+    // U5 (F11): "all-clear" indicator at Phase's waiting spot (x22). Red while the
+    // corridor jets are live, flips green when the valve lvV1 shuts them off, with
+    // a final vent puff + KOBI blip. Passive VISUAL entity only — no body, no
+    // collision, no needs logic, and NEVER joined to s.jets. Appended LAST so no
+    // positionally-read entity index (jets by index, cores by order) shifts.
+    { t: "ventlamp", x: 22, y: 11, wiredTo: "lvV1" },
   ],
   blips: {
     start: "KOBI: Steam! Shadows! Atmosphere! This chamber has EVERYTHING. Mostly steam.",

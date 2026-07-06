@@ -62,6 +62,12 @@ export default {
     { t: "roller", x: 55, y: 13, min: 52, max: 57, beam: 120 },
     { t: "lever", id: "lvE", x: 54, y: 13 }, // tucked inside the second pillar
     { t: "exit", x: 57, y: 11, h: 3, needs: { levers: ["lvE"] } },
+    // U5 (F2): teach that the yard's shimmer pillars need the hand-hold escort —
+    // after a whole level of "rollers ignore Tiny," solo Tiny is silently walled
+    // by them. One-shot blip at the yard entrance. Appended LAST so no entity
+    // index the suites read positionally (doors/levers/wardens by id, cores by
+    // order, jets by index) shifts.
+    { t: "trigger", x: 44, y: 12, w: 3, h: 2, blip: "KOBI: Shimmer pillars are a TEAM exercise. Hold hands.", once: true },
   ],
   blips: {
     start: "KOBI: The Maintenance Tunnels! I mopped them MYSELF. Do NOT touch my beautiful Patrol Rollers.",
