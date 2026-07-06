@@ -16,6 +16,39 @@ const J = Phaser.Input.Keyboard.JustDown;
 // a play session, never persisted to storage (per U1 spec).
 let throwHintShownSession = false;
 
+// U9 (F16/F17): KOBI reactive DIALOGUE. Small pools of kid-friendly, kind-funny
+// KOBI lines (bureaucratic, huffy, secretly rooting for the robots) fired on
+// gameplay moments — a death streak on a checkpoint segment, or finishing with
+// all cores. They are DISPLAY-ONLY: each flows through the SAME bb:blip queue as
+// every other blip, so a reactive line arriving mid-blip simply QUEUES behind the
+// active one (never interrupts, never touches physics/timing/finishLevel). No new
+// UI. Every line is NO-REPEAT within a browser session via the module-level Set
+// below (in-memory only; resets on page reload — no persistence, by spec).
+const U9_STREAK_LINES = [
+  "KOBI: I have seen TOASTERS do better. The toasters also exploded. You're FINE.",
+  "KOBI: That is a LOT of respawns. Statistically you should be scrap. And yet — keep GOING.",
+  "KOBI: Three tries. I am NOT counting. I am DEFINITELY not counting. ...Try the jump SOONER.",
+  "KOBI: The scrap pile is getting HOPEFUL about you. Prove it WRONG. Please.",
+];
+const U9_ALLCORES_LINES = [
+  "KOBI: ALL three cores?! Those were MY cores. ...Fine. You EARNED the paperwork.",
+  "KOBI: Every core, gone. I should be FURIOUS. I am, regrettably, a little IMPRESSED.",
+  "KOBI: A CLEAN sweep, you greedy little machines. ...I respect it. OFFICIALLY off the record.",
+];
+const u9SessionUsed = new Set(); // no-repeat within this browser session (memory only)
+
+// Pick a still-unused line from a pool and mark it used. Returns null once the
+// pool is exhausted this session — the caller then DROPS the line (garnish rule:
+// dialogue is never allowed to repeat, and never blocks). Fires on rare user
+// events, not per frame, so the small filter allocation is fine.
+function u9Pick(pool) {
+  const avail = pool.filter((l) => !u9SessionUsed.has(l));
+  if (!avail.length) return null;
+  const line = avail[(Math.random() * avail.length) | 0];
+  u9SessionUsed.add(line);
+  return line;
+}
+
 export default class GameScene extends Phaser.Scene {
   constructor() {
     super("Game");
@@ -71,6 +104,19 @@ export default class GameScene extends Phaser.Scene {
     // killPlayer). Reset here so R/restart and every fresh entry start at zero.
     this._elapsedMs = 0;
     this._deaths = 0;
+
+    // U9 (F16): per-checkpoint-SEGMENT death tracking for KOBI's reactive
+    // death-streak line. `_segDeaths` counts respawns (EITHER player) since the
+    // last checkpoint change / level entry; `_segStreakFired` rate-limits the
+    // streak line to at most ONCE per segment. Both reset on every new checkpoint
+    // activation (and here, on fresh entry / restart). The `_u9*` fields are
+    // passive observability for the acceptance probe — display-only, never read
+    // by gameplay.
+    this._segDeaths = 0;
+    this._segStreakFired = false;
+    this._u9StreakCount = 0;   // total streak lines fired this scene
+    this._u9LastStreak = null; // last streak line fired (cross-segment variety)
+    this._u9AllCores = null;   // all-cores respect line fired at finishLevel
 
     this.crackies = this.physics.add.staticGroup();
     this.bridgeGroup = this.physics.add.staticGroup();
@@ -1426,6 +1472,20 @@ export default class GameScene extends Phaser.Scene {
   killPlayer(p) {
     if (p.dead || p.invuln > 0 || this.complete) return;
     this._deaths++; // U8: count respawns (display-only; guarded above against dupes)
+    // U9 (F16): death streak on the CURRENT checkpoint segment. 3 respawns (either
+    // player) since the last checkpoint change / level entry -> ONE kind-funny KOBI
+    // line, at most once per segment. Display-only (queued blip); if the session
+    // pool is exhausted, u9Pick returns null and the line is simply dropped.
+    this._segDeaths++;
+    if (this._segDeaths >= 3 && !this._segStreakFired) {
+      this._segStreakFired = true;
+      const line = u9Pick(U9_STREAK_LINES);
+      if (line) {
+        this._u9StreakCount++;
+        this._u9LastStreak = line;
+        this.game.events.emit("bb:blip", line);
+      }
+    }
     if (p.carrying) this.detachCarry(p, p.carrying, false);
     if (p.carriedBy) this.detachCarry(p.carriedBy, p, false);
     p.clearStates();
@@ -2264,6 +2324,10 @@ export default class GameScene extends Phaser.Scene {
             if (o.cone) o.cone.setVisible(false);
           });
           cp.active = true;
+          // U9 (F16): a NEW segment begins — reset the streak counter + one-shot
+          // guard so the death-streak line can fire once more on this fresh stretch.
+          this._segDeaths = 0;
+          this._segStreakFired = false;
           cp.img.setTexture("checkpoint_on").setAlpha(1); // green lamp
           if (cp.cone) cp.cone.setVisible(true); // light-cone below
           // expanding ring burst on activation
@@ -2940,6 +3004,14 @@ export default class GameScene extends Phaser.Scene {
     playJingle("jingle_clear"); // stops the level track, plays the clear cadence
     this.physics.pause();
     if (this.def.blips && this.def.blips.clear) this.game.events.emit("bb:blip", this.def.blips.clear);
+    // U9 (F17): finishing with ALL three cores -> a greedy-respect KOBI line,
+    // layered into the clear flow via the SAME blip queue (it queues AFTER the
+    // clear blip). This does NOT delay finishLevel or the overlay — the overlay
+    // still fires on its own 500ms delayedCall below, independent of the blip bar.
+    if (!this.def.tutorial && this.coresGot.every(Boolean)) {
+      const line = u9Pick(U9_ALLCORES_LINES);
+      if (line) { this._u9AllCores = line; this.game.events.emit("bb:blip", line); }
+    }
     this.time.delayedCall(500, () => {
       this.game.events.emit("bb:complete", {
         index: this.levelIndex, id: this.def.id, name: this.def.name, cores: this.coresGot,
