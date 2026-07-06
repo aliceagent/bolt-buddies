@@ -129,7 +129,24 @@ export default class UIScene extends Phaser.Scene {
     this.winPrompt = this.add.text(0, 116, "press SPACE or L to continue", {
       fontFamily: FONT, fontSize: FS.lead, color: TEXT.dim,
     }).setOrigin(0.5);
-    this.winPanel = this.add.container(W / 2, H / 2, [pg, this.winTitle, this.winSub, slots, ...this.winCoreQ, ...this.winCores, this.savedTag, this.winPrompt]);
+    // U8 (F15): stats row (TIME · DEATHS · CORES), a KOBI grade line, and a
+    // pooled procedural "NEW RECORD!" starburst. Built ONCE here (no per-frame /
+    // per-completion allocation); the complete handler only sets text + tweens.
+    this.statsText = this.add.text(0, 40, "", {
+      fontFamily: FONT, fontSize: FS.body, fontStyle: "bold", color: TEXT.bright,
+    }).setOrigin(0.5);
+    this.gradeText = this.add.text(0, 92, "", {
+      fontFamily: FONT, fontSize: FS.small, fontStyle: "italic", color: "#ff9ae0",
+    }).setOrigin(0.5);
+    this.recordBurst = this.add.container(0, 40).setVisible(false);
+    const rbg = this.add.graphics();
+    this.drawStarburst(rbg, 0, 0, 12, 6, 8, COLORS.amber);
+    const rlabel = this.add.text(13, 0, "NEW RECORD!", {
+      fontFamily: FONT, fontSize: FS.tiny, fontStyle: "bold", color: "#ffd94d",
+    }).setOrigin(0, 0.5);
+    this.recordBurst.add([rbg, rlabel]);
+    this.recordBurst.rbg = rbg;
+    this.winPanel = this.add.container(W / 2, H / 2, [pg, this.winTitle, this.winSub, slots, ...this.winCoreQ, ...this.winCores, this.savedTag, this.statsText, this.gradeText, this.recordBurst, this.winPrompt]);
     this.overlay.add([this.winDim, this.winPanel]);
     this.completed = null;
 
@@ -204,6 +221,24 @@ export default class UIScene extends Phaser.Scene {
         this.winCoreQ.forEach((q) => q.setVisible(!tut));
         this.winCores.forEach((img) => img.setVisible(!tut));
         this.savedTag.setVisible(!tut);
+        // U8 stats row + KOBI grade. Tutorial has no cores, so its row is
+        // TIME · DEATHS only (it still gets the counters — it just persists none).
+        const st = info.stats || {};
+        const coreSeg = tut ? "" : `   ·   CORES ${st.coresCount || 0}/3`;
+        this.statsText.setText(`TIME ${st.timeStr || "0:00.0"}   ·   DEATHS ${st.deaths || 0}${coreSeg}`);
+        this.gradeText.setText(st.grade || "");
+        // NEW RECORD! starburst only when a PRIOR record was actually beaten
+        // (a level's first-ever clear stores silently — no false celebration).
+        const beat = !tut && (st.beatTime || st.beatDeaths);
+        this.recordBurst.setVisible(!!beat);
+        this.tweens.killTweensOf(this.recordBurst);
+        this.tweens.killTweensOf(this.recordBurst.rbg);
+        if (beat) {
+          this.recordBurst.setPosition(this.statsText.width / 2 + 16, 40).setScale(0.2);
+          this.recordBurst.rbg.setAngle(0);
+          this.tweens.add({ targets: this.recordBurst, scale: 1, duration: 420, ease: "back.out", delay: 300 });
+          this.tweens.add({ targets: this.recordBurst.rbg, angle: 360, duration: 5200, repeat: -1 });
+        }
         // reset animation state
         this.winDim.setAlpha(0);
         this.winPanel.setScale(0.6).setAlpha(0);
@@ -311,6 +346,21 @@ export default class UIScene extends Phaser.Scene {
   drawKeycap(g, x, y, w, h, col, alpha) {
     g.fillStyle(0x1a2338, 0.85).fillRoundedRect(x, y, w, h, 5);
     g.lineStyle(1.5, col, alpha).strokeRoundedRect(x, y, w, h, 5);
+  }
+
+  // U8: a spiky starburst polygon drawn into a Graphics (canvas-safe — fillPoints
+  // works under the Canvas renderer, no tint dependency). Alternating outer/inner
+  // radius over `spikes` points; gold fill + faint white outline.
+  drawStarburst(g, cx, cy, outer, inner, spikes, color) {
+    g.clear();
+    const pts = [];
+    for (let i = 0; i < spikes * 2; i++) {
+      const r = i % 2 === 0 ? outer : inner;
+      const a = (Math.PI * i) / spikes - Math.PI / 2;
+      pts.push(new Phaser.Geom.Point(cx + r * Math.cos(a), cy + r * Math.sin(a)));
+    }
+    g.fillStyle(color, 1).fillPoints(pts, true);
+    g.lineStyle(1.5, 0xffffff, 0.85).strokePoints(pts, true, true);
   }
 
   drawPip(g, filled) {

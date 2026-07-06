@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { COLORS, WORLD_THEMES, FONT, FS, TEXT } from "../constants.js";
 import { LEVELS, WORLD_INFO, KOBI_HUB_LINES } from "../levels/registry.js";
 import { loadSave, totalCores } from "../save.js";
+import { getRecord, fmtClock } from "../ux.js";
 import { addGradient, addMotes } from "../backdrop.js";
 import { initAudio, sfx, installMute, playTrack, playJingle } from "../audio.js";
 import { pads, showPadToast } from "../pad.js";
@@ -88,6 +89,13 @@ export default class HubScene extends Phaser.Scene {
         cores.forEach((got, ci) => {
           this.add.image(nx - 18 + ci * 18, ny + 46, "core").setScale(0.6).setAlpha(got ? 1 : 0.16);
         });
+        // U8 (F15): tiny best-time clock chip above unlocked nodes that have a
+        // stored record. Token-based (hudBg fill + world-accent border), with a
+        // small drawn clock glyph — clean + procedural so GFX P2 can build on it.
+        const rec = unlocked ? getRecord(lvl.id) : null;
+        if (rec && typeof rec.bestTime === "number") {
+          this.drawClockChip(nx, ny - 52, fmtClock(rec.bestTime), accent);
+        }
         this.nodes.push({ idx, lvl, unlocked, completed, circle, label, accent, x: nx, y: ny });
       }
     });
@@ -200,6 +208,25 @@ export default class HubScene extends Phaser.Scene {
         onComplete: () => ring.destroy(),
       });
     });
+  }
+
+  // U8: a compact best-time chip — rounded hudBg plate, accent border, a small
+  // drawn clock glyph, and the "m:ss" time. Purely presentational (no body, no
+  // interaction); laid out in the established HUD chip language.
+  drawClockChip(cx, cy, timeStr, accent) {
+    const accentHex = "#" + accent.toString(16).padStart(6, "0");
+    const t = this.add.text(0, 0, timeStr, { fontFamily: FONT, fontSize: FS.mini, fontStyle: "bold", color: accentHex }).setOrigin(0, 0.5).setVisible(false);
+    const cw = 26 + t.width; // clock glyph zone + label
+    const x0 = cx - cw / 2;
+    const g = this.add.graphics();
+    g.fillStyle(COLORS.hudBg, 0.85).fillRoundedRect(x0, cy - 10, cw, 20, 7);
+    g.lineStyle(1.5, accent, 0.7).strokeRoundedRect(x0, cy - 10, cw, 20, 7);
+    // clock glyph: ring + two hands
+    const gx = x0 + 12;
+    g.lineStyle(1.5, accent, 0.95).strokeCircle(gx, cy, 5.5);
+    g.lineBetween(gx, cy, gx, cy - 3.5);   // minute hand (up)
+    g.lineBetween(gx, cy, gx + 3, cy + 1); // hour hand
+    t.setPosition(x0 + 22, cy).setVisible(true).setDepth(1);
   }
 
   drawNode(g, lvl, unlocked, selected, completed) {

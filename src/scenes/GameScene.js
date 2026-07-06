@@ -6,7 +6,7 @@ import { completeLevel, loadSave } from "../save.js";
 import { initAudio, sfx, installMute, playTrack, setMusicLayer, playJingle, trackForLevel, setListener, clearListener, proximity, setLoop, stopLoops, pauseDuck } from "../audio.js";
 import { addGradient, addMotes } from "../backdrop.js";
 import Player from "../objects/Player.js";
-import { uxHints } from "../ux.js";
+import { uxHints, saveRecord, fmtTime } from "../ux.js";
 import { pads, showPadToast } from "../pad.js";
 
 const J = Phaser.Input.Keyboard.JustDown;
@@ -63,6 +63,14 @@ export default class GameScene extends Phaser.Scene {
     this.coreIdx = 0;
     this.complete = false;
     this.leaving = false; // guards ESC/R fades so input during a fade can't double-trigger
+
+    // U8 (F15): per-run counters — DISPLAY-ONLY, passive observers of play. They
+    // never touch physics or logic. `_elapsedMs` accumulates active (un-paused,
+    // pre-complete) frame time from create() — control begins immediately (the
+    // intro banner never blocks input). `_deaths` counts respawns (bumped in
+    // killPlayer). Reset here so R/restart and every fresh entry start at zero.
+    this._elapsedMs = 0;
+    this._deaths = 0;
 
     this.crackies = this.physics.add.staticGroup();
     this.bridgeGroup = this.physics.add.staticGroup();
@@ -1417,6 +1425,7 @@ export default class GameScene extends Phaser.Scene {
   // --- death & respawn --------------------------------------------------------
   killPlayer(p) {
     if (p.dead || p.invuln > 0 || this.complete) return;
+    this._deaths++; // U8: count respawns (display-only; guarded above against dupes)
     if (p.carrying) this.detachCarry(p, p.carrying, false);
     if (p.carriedBy) this.detachCarry(p.carriedBy, p, false);
     p.clearStates();
@@ -2112,6 +2121,10 @@ export default class GameScene extends Phaser.Scene {
     if (J(this.pKey) || pads.p(0).pauseJust || pads.p(1).pauseJust) this.togglePause();
     if (this.paused) return;
     const dt = delta / 1000;
+
+    // U8: accumulate the run clock. Only reached while un-paused and not complete
+    // (both guarded above), so it measures active play and stops at finishLevel.
+    this._elapsedMs += delta;
 
     // U3 — kid-proof destructive inputs. Real levels require a second press of
     // the SAME key within a 2.5s window before ESC (map) or R (restart) act; a
@@ -2881,6 +2894,19 @@ export default class GameScene extends Phaser.Scene {
     c.pulse.pause();
   }
 
+  // U8: a playful KOBI grade for the run, picked by simple rules — deaths first,
+  // then time vs. the previous best. Every line is kid copy <=60 chars, KOBI's
+  // grudging voice. `rec` is saveRecord()'s summary (null for the tutorial).
+  gradeLine(deaths, rec) {
+    if (deaths === 0) return "SUSPICIOUSLY competent.";
+    if (deaths >= 5) return "The floor kept winning. I respect the effort.";
+    if (deaths >= 3) return "Many respawns. The toasters are proud of you.";
+    // 1-2 deaths: reward a genuine time record with a grudging compliment.
+    const fasterThanBest = !!(rec && rec.beatTime && rec.prevTime !== null);
+    if (fasterThanBest) return "Fast. I'm not impressed. (I'm a little impressed.)";
+    return "Cleared. Adequate. Don't let it go to your head.";
+  }
+
   finishLevel() {
     if (this.complete) return;
     this.complete = true;
@@ -2895,13 +2921,29 @@ export default class GameScene extends Phaser.Scene {
       completeLevel(this.levelIndex, this.def.id, this.coresGot);
       newlyUnlocked = loadSave().unlocked > before;
     }
+
+    // U8 (F15): freeze the run counters and build the clear-overlay stats ONCE.
+    // The time string is built here (not per frame). Records persist to the UX
+    // key only for real chambers — the tutorial writes NOTHING (standing rule).
+    const timeMs = this._elapsedMs;
+    const deaths = this._deaths;
+    const coresCount = this.coresGot.filter(Boolean).length;
+    let rec = null;
+    if (!this.def.tutorial) rec = saveRecord(this.def.id, timeMs, deaths);
+    const stats = {
+      timeMs, timeStr: fmtTime(timeMs), deaths, coresCount,
+      grade: this.gradeLine(deaths, rec),
+      beatTime: !!(rec && rec.beatTime && rec.prevTime !== null),
+      beatDeaths: !!(rec && rec.beatDeaths && rec.prevDeaths !== null),
+    };
+
     playJingle("jingle_clear"); // stops the level track, plays the clear cadence
     this.physics.pause();
     if (this.def.blips && this.def.blips.clear) this.game.events.emit("bb:blip", this.def.blips.clear);
     this.time.delayedCall(500, () => {
       this.game.events.emit("bb:complete", {
         index: this.levelIndex, id: this.def.id, name: this.def.name, cores: this.coresGot,
-        newlyUnlocked, tutorial: !!this.def.tutorial,
+        newlyUnlocked, tutorial: !!this.def.tutorial, stats,
       });
     });
   }
