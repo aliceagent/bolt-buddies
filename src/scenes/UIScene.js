@@ -12,6 +12,10 @@ const SKILL_ICON = { grapple: "icon_grapple", heavy: "icon_heavy", phase: "icon_
 const P_HEX = ["#4dc9ff", "#ffa14d"];
 const P_COL = [COLORS.beep, COLORS.boop];
 
+// P9: KOBI mood → ring / border-pulse colour. Gloating magenta (his default
+// smug), angry red (a plan backfired), defeated grey-blue (he deflates).
+const KOBI_RING = { gloating: 0xff4dd2, angry: 0xff3b30, defeated: 0x7d8fb8 };
+
 // pointy-top hexagon outline, centred on (0,0) — precomputed once, reused for
 // every core pip so nothing is allocated per frame / per redraw.
 const HEX = [];
@@ -73,12 +77,27 @@ export default class UIScene extends Phaser.Scene {
       this.drawPip(g, false);
       return g;
     });
+    // P9: idle soft glimmer — every ~6s each COLLECTED pip gives a gentle scale
+    // shine, staggered. One shared timer; tweens are one-shot on the tick (never
+    // per-frame). Empty tick when no pip is filled (yet).
+    this.time.addEvent({
+      delay: 6000, loop: true, callback: () => {
+        this.corePips.forEach((g, i) => {
+          if (!this.coreState[i]) return;
+          this.tweens.add({
+            targets: g, scale: { from: 1, to: 1.16 }, duration: 260,
+            yoyo: true, ease: "sine.inOut", delay: i * 130,
+          });
+        });
+      },
+    });
     // key chip (hidden until at least one key is held)
     this.keyChip = this.add.graphics().setVisible(false);
     this.keyChip.fillStyle(COLORS.hudBg, 0.72).fillRoundedRect(W / 2 + 52, 50, 56, 26, 8);
     this.keyChip.lineStyle(1, 0xffd94d, 0.6).strokeRoundedRect(W / 2 + 52, 50, 56, 26, 8);
     this.keyIcon = this.add.image(W / 2 + 68, 63, "key").setScale(0.6).setVisible(false);
     this.keyText = this.add.text(W / 2 + 82, 55, "", { fontFamily: FONT, fontSize: FS.body, fontStyle: "bold", color: "#ffd94d" }).setVisible(false);
+    this._keysPrev = 0; // P9: track 0→>0 so the chip only bounce-spins on first collect
 
     // pooled stars that fly from a collected core's screen position into its pip
     this._flyHead = 0;
@@ -183,6 +202,16 @@ export default class UIScene extends Phaser.Scene {
         this.keyChip.setVisible(on);
         this.keyIcon.setVisible(on);
         this.keyText.setVisible(on).setText(on ? `x${n}` : "");
+        // P9: bounce-in + spin the moment the first key lands (0 → held).
+        if (on && this._keysPrev === 0) {
+          this.tweens.killTweensOf(this.keyIcon);
+          this.keyIcon.setScale(0).setAngle(0);
+          this.tweens.add({ targets: this.keyIcon, scale: 0.6, duration: 440, ease: "back.out" });
+          this.tweens.add({ targets: this.keyIcon, angle: 360, duration: 520, ease: "cubic.out" });
+          this.keyText.setAlpha(0);
+          this.tweens.add({ targets: this.keyText, alpha: 1, duration: 300, delay: 130 });
+        }
+        this._keysPrev = n;
       },
       // a star flies from the core's world->screen position into its HUD pip,
       // then pops the pip on arrival (bb:cores stays the fill authority).
@@ -391,31 +420,62 @@ export default class UIScene extends Phaser.Scene {
     bg.fillStyle(COLORS.hudBg, 0.88).fillRoundedRect(x0, y0, w, h, 10);
     bg.lineStyle(2, COLORS.magenta, 0.7).strokeRoundedRect(x0, y0, w, h, 10);
 
-    // pulsing magenta border glow (only while a blip is on screen)
+    // pulsing border glow (only while a blip is on screen). Colour follows KOBI's
+    // mood — recoloured in applyKobiMood; stored geometry keeps it alloc-free.
     this.blipGlow = this.add.graphics().setAlpha(0);
-    this.blipGlow.lineStyle(3, COLORS.magenta, 0.9).strokeRoundedRect(x0 - 2, y0 - 2, w + 4, h + 4, 12);
+    this._blipRect = { x0, y0, w, h };
 
-    // KOBI avatar: round eye with red iris
+    // KOBI avatar — layered so the iris can wander/snap, the ring can recolour to
+    // his mood, and a defeated eyelid can droop, all without per-frame allocations.
     const ax = x0 + 42, ay = y0 + 33;
-    const av = this.add.graphics();
-    av.fillStyle(0x1a1020, 1).fillCircle(ax, ay, 22);
-    av.lineStyle(2, COLORS.magenta, 0.8).strokeCircle(ax, ay, 22);
-    av.fillStyle(0xf6f0ff, 1).fillCircle(ax, ay, 17);      // sclera
-    av.fillStyle(0xff3b30, 1).fillCircle(ax, ay, 8);        // red iris
-    av.fillStyle(0x120306, 1).fillCircle(ax, ay, 3.5);      // pupil
-    av.fillStyle(0xffffff, 0.9).fillCircle(ax - 3, ay - 3, 2); // catchlight
+    this._avx = ax; this._avy = ay;
+    const avBase = this.add.graphics();
+    avBase.fillStyle(0x1a1020, 1).fillCircle(ax, ay, 22);   // socket
+    avBase.fillStyle(0xf6f0ff, 1).fillCircle(ax, ay, 17);   // sclera
+    this.avRing = this.add.graphics();                       // mood ring (recoloured)
+    this.avIris = this.add.graphics();                       // iris — wanders / snaps
+    this.avIris.fillStyle(0xff3b30, 1).fillCircle(ax, ay, 8);      // red iris
+    this.avIris.fillStyle(0x120306, 1).fillCircle(ax, ay, 3.5);    // pupil
+    this.avIris.fillStyle(0xffffff, 0.9).fillCircle(ax - 3, ay - 3, 2); // catchlight
+    this.irisPos = { x: 0, y: 0 };
+    // defeated eyelid: a filled upper-half cap over the sclera (drawn once, toggled)
+    this.avLid = this.add.graphics().setVisible(false);
+    const lidPts = [];
+    for (let a = 180; a <= 360; a += 12) lidPts.push(new Phaser.Geom.Point(ax + 17 * Math.cos(a * Math.PI / 180), ay + 17 * Math.sin(a * Math.PI / 180)));
+    this.avLid.fillStyle(0x180b13, 0.97).fillPoints(lidPts, true);
+    this.avLid.lineStyle(2, 0x2a1420, 1).lineBetween(ax - 17, ay, ax + 17, ay);
 
     const name = this.add.text(x0 + 72, y0 + 7, "KOBI", { fontFamily: FONT, fontSize: FS.mini, fontStyle: "bold", color: "#ff8ae0" });
     this.blipText = this.add.text(x0 + 72, y0 + 26, "", {
       fontFamily: FONT, fontSize: FS.large, color: "#ffd7f4", wordWrap: { width: 806 },
     });
 
-    this.blipBar.add([this.blipGlow, bg, av, name, this.blipText]);
+    this.blipBar.add([this.blipGlow, bg, avBase, this.avRing, this.avIris, this.avLid, name, this.blipText]);
 
     this.blipGlowTween = this.tweens.add({
       targets: this.blipGlow, alpha: { from: 0.15, to: 0.85 },
       duration: 620, yoyo: true, repeat: -1, ease: "sine.inOut", paused: true,
     });
+    this.applyKobiMood("gloating"); // draw the initial ring + border-glow colour
+  }
+
+  // P9: recolour KOBI's mood ring + the blip-bar border pulse, and droop the
+  // eyelid on defeat. Called on each new blip; cheap redraw, no allocation.
+  applyKobiMood(mood) {
+    this.kobiMood = mood;
+    const ring = KOBI_RING[mood] || KOBI_RING.gloating;
+    this.avRing.clear();
+    this.avRing.lineStyle(3, ring, 0.95).strokeCircle(this._avx, this._avy, 22);
+    const r = this._blipRect;
+    this.blipGlow.clear();
+    this.blipGlow.lineStyle(3, ring, 0.9).strokeRoundedRect(r.x0 - 2, r.y0 - 2, r.w + 4, r.h + 4, 12);
+    const defeated = mood === "defeated";
+    this.avLid.setVisible(defeated);
+    if (defeated) {
+      this.tweens.killTweensOf(this.avLid);
+      this.avLid.setAlpha(0);
+      this.tweens.add({ targets: this.avLid, alpha: 1, duration: 220, ease: "sine.out" });
+    }
   }
 
   buildHints(W, H) {
@@ -452,11 +512,23 @@ export default class UIScene extends Phaser.Scene {
       this.blipActive = { text: item.text, mood: item.mood || "gloating", shown: 0, hold: 2600 };
       this.blipBar.setVisible(true);
       this.blipText.setText("");
+      this.applyKobiMood(this.blipActive.mood); // ring + border pulse + eyelid follow mood
       this.blipGlow.setAlpha(0.15);
       this.blipGlowTween.restart();
       duckMusic(true); // duck the music bus while KOBI types
     }
     const b = this.blipActive;
+    // P9: KOBI's iris wanders while idle, snaps toward the text while he types.
+    // Deterministic sine wander (no per-frame random / alloc); only while visible.
+    if (this.blipBar.visible) {
+      const typing = b && b.shown < b.text.length;
+      const tx = typing ? 5 : Math.cos(time / 680) * 4;
+      const ty = typing ? 1.5 : Math.sin(time / 1020) * 3;
+      const k = typing ? 0.35 : 0.12;
+      this.irisPos.x += (tx - this.irisPos.x) * k;
+      this.irisPos.y += (ty - this.irisPos.y) * k;
+      this.avIris.setPosition(this.irisPos.x, this.irisPos.y);
+    }
     if (b) {
       if (b.shown < b.text.length) {
         // U11: TEXT SPEED fast doubles chars/tick (cached getter — no parse here)

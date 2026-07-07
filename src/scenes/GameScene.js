@@ -8,6 +8,7 @@ import { addGradient, addMotes, addPropStrip, addFogBand, addDrips, addDustShaft
 import Player from "../objects/Player.js";
 import { uxHints, uxShakeScale, uxFlashScale, saveRecord, fmtTime, markTutorialDone } from "../ux.js";
 import { pads, showPadToast } from "../pad.js";
+import { drawWorldIcon } from "../worldIcons.js";
 
 const J = Phaser.Input.Keyboard.JustDown;
 
@@ -457,6 +458,12 @@ export default class GameScene extends Phaser.Scene {
     // accent end caps
     g.fillStyle(accent, 0.9).fillRoundedRect(-bw / 2, -bh / 2, 7, bh, { tl: 14, bl: 14, tr: 0, br: 0 });
     g.fillStyle(accent, 0.9).fillRoundedRect(bw / 2 - 7, -bh / 2, 7, bh, { tr: 14, br: 14, tl: 0, bl: 0 });
+    // P9: brushed-metal sheen — faint horizontal micro-grooves + two accent bands.
+    g.lineStyle(1, 0xffffff, 0.05);
+    for (let by = -bh / 2 + 10; by < bh / 2 - 6; by += 5) g.lineBetween(-bw / 2 + 12, by, bw / 2 - 12, by);
+    g.lineStyle(1.5, accent, 0.1);
+    g.lineBetween(-bw / 2 + 12, -bh / 2 + 15, bw / 2 - 12, -bh / 2 + 15);
+    g.lineBetween(-bw / 2 + 12, bh / 2 - 13, bw / 2 - 12, bh / 2 - 13);
     // P8: soft top-light gradient washing down from the banner's top edge.
     const topLight = this.add.image(0, -bh / 2 + 3, "toplight")
       .setOrigin(0.5, 0).setDisplaySize(bw - 22, bh * 0.72).setAlpha(0.14);
@@ -471,7 +478,12 @@ export default class GameScene extends Phaser.Scene {
     const sub = this.add.text(0, 18, pair, {
       fontFamily: FONT, fontSize: FS.body, fontStyle: "bold", color: accentHex,
     }).setOrigin(0.5);
-    c.add([g, topLight, head, sub]);
+    // P9: the per-world emblem (shared P2 drawWorldIcon) sits just left of the
+    // chamber name, clamped inside the plate so a long name can't push it out.
+    const iconG = this.add.graphics();
+    const ix = Math.max(-bw / 2 + 28, -head.width / 2 - 26);
+    drawWorldIcon(iconG, def.world || 1, ix, -14, 34, accent);
+    c.add([g, topLight, iconG, head, sub]);
     this.introBanner = c;
 
     this.tweens.add({
@@ -986,8 +998,11 @@ export default class GameScene extends Phaser.Scene {
         const icon = this.add.container(px, py - 34, [iconImg, orbit]).setDepth(DEPTH.entity);
         this.tweens.add({ targets: icon, y: py - 40, duration: 800, yoyo: true, repeat: -1, ease: "sine.inOut" });
         this.tweens.add({ targets: orbit, angle: 360, duration: 1800, repeat: -1 });
-        // stagger card heights so neighbouring pedestals' cards don't overlap
-        const cardY = py - 118 - this.pedestals.length * 96;
+        // P9: lift the card base (was -118) so its lower edge clears the raised
+        // P2 action-hint bubble at spawn, and stagger heights so neighbouring
+        // pedestals' cards never overlap each other. Verified clear of the intro
+        // banner + top HUD band by the spawn overlap-audit sweep.
+        const cardY = py - 150 - this.pedestals.length * 96;
         const ped = { x: px, y: py, skill: e.skill, taken: false, img, icon, beam, bands: [band1, band2].filter(Boolean), glyphEmit };
         this.buildItemCard(ped, px, cardY, info);
         this.pedestals.push(ped);
@@ -1143,6 +1158,12 @@ export default class GameScene extends Phaser.Scene {
           this.exitLabel.pulse = this.tweens.add({
             targets: arrow, y: 5, alpha: { from: 1, to: 0.35 },
             duration: 520, yoyo: true, repeat: -1, ease: "sine.inOut", paused: true,
+          });
+          // P9: the waiting buddy's icon does a tiny beckoning wave (a gentle
+          // rock) while it calls the other player over. One shared paused tween.
+          this.exitLabel.wave = this.tweens.add({
+            targets: [bIcon, oIcon], angle: { from: -11, to: 11 },
+            duration: 360, yoyo: true, repeat: -1, ease: "sine.inOut", paused: true,
           });
         }
         break;
@@ -1483,6 +1504,10 @@ export default class GameScene extends Phaser.Scene {
     ped.cardG = g;
     ped.cardTitle = title;
     ped.cardBody = body;
+    // P9: 150ms slide-in — the card drops into place from just above with a soft
+    // overshoot as it spawns (one-shot tween, no per-frame cost).
+    ped.card.setAlpha(0).setY(cardY - 16);
+    this.tweens.add({ targets: ped.card, y: cardY, alpha: 1, duration: 150, ease: "back.out" });
   }
 
   // Once equipped the card shrinks to a compact skill tag (title only).
@@ -2875,7 +2900,15 @@ export default class GameScene extends Phaser.Scene {
     pads.poll(time);
     if (pads.anyButtonJust()) initAudio();
     const padConn = pads.consumeConnected();
-    if (padConn) padConn.forEach((idx) => showPadToast(this.scene.get("UI") || this, idx));
+    if (padConn) {
+      const uiS = this.scene.get("UI") || this;
+      padConn.forEach((idx) => showPadToast(uiS, idx));
+      // P9: in-game, drop the controller toast BELOW the intro-banner AND the
+      // spawn item-card cluster so it can never overlap the CHAMBER cards
+      // (u7-pad-toast.png fix). The default y=96 stays for Title/Hub/Settings,
+      // which have no banner or cards.
+      if (uiS._padToast) uiS._padToast.setY(300);
+    }
     // P (or either pad's Start) pauses/resumes. Handled before the pause guard so
     // a paused game can still catch it to resume (physics.pause() freezes bodies,
     // not the scene's update()).
@@ -3734,8 +3767,9 @@ export default class GameScene extends Phaser.Scene {
     if (idx < 0 || c.waitIdx === idx) return;
     c.waitIdx = idx;
     c.setVisible(true);
-    c.buddyIcons.forEach((ic, i) => ic.setVisible(i === idx));
+    c.buddyIcons.forEach((ic, i) => ic.setVisible(i === idx).setAngle(0));
     c.pulse.restart();
+    if (c.wave) c.wave.restart();
   }
 
   hideExitWaiting() {
@@ -3744,6 +3778,7 @@ export default class GameScene extends Phaser.Scene {
     c.waitIdx = -1;
     c.setVisible(false);
     c.pulse.pause();
+    if (c.wave) c.wave.pause();
   }
 
   // U8: a playful KOBI grade for the run, picked by simple rules — deaths first,
