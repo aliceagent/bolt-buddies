@@ -50,7 +50,26 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.blinkTimer = Phaser.Math.Between(3000, 5000); // next blink
     this.blinking = 0; // ms remaining of the current blink
     this.dustCd = 0; // throttles run-dust puffs
-    this.ghostCd = 0; // throttles phase afterimages
+
+    // --- P6 static-art attachments (all pooled, created ONCE) --------------
+    // Shadow blob: soft ellipse pinned to the ground under the robot, shrunk with
+    // height and hidden while carried. `_groundY` tracks the last grounded feet Y.
+    this._groundY = y;
+    this.shadow = scene.add.image(x, y, "shadow").setDepth(DEPTH.shadow).setAlpha(0.35);
+    // Phase afterimage: a fixed-length ring buffer of recent poses (NO per-frame
+    // allocation — slots are overwritten in place) feeding 3 lagged ghost copies.
+    this._poseRing = [];
+    for (let i = 0; i < 18; i++) this._poseRing.push({ x, y, flipX: false, sx: 1, sy: 1, angle: 0 });
+    this._poseHead = 0;
+    this._poseCount = 0;
+    this.phaseGhosts = [];
+    for (let i = 0; i < 3; i++) {
+      this.phaseGhosts.push(scene.add.image(x, y, this.baseKey).setDepth(DEPTH.player - 1).setVisible(false));
+    }
+    // Edge shimmer overlay: violet silhouette outline over the robot while phasing;
+    // additive glow gated to WebGL (baked-violet art carries the read on Canvas).
+    this.phaseEdge = scene.add.image(x, y, "phaseedge").setDepth(DEPTH.player + 1).setVisible(false);
+    if (scene.game.renderer.type === Phaser.WEBGL) this.phaseEdge.setBlendMode(Phaser.BlendModes.ADD);
   }
 
   get partner() {
@@ -137,9 +156,18 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   // called every frame regardless of movement state. The physics body is
   // re-asserted via _syncBody so none of it leaks into collision geometry.
   present(time, delta) {
-    // blink: swap to the eyes-closed texture for 120ms every 3-5s, respecting
-    // the current flip/scale (setTexture keeps both). Frozen while dead.
-    if (!this.dead && !this.carriedBy) {
+    // texture state: a dead robot rests on the base pose; a carried buddy shows
+    // the arms-up carry pose (P6 static art); otherwise it blinks. All are simple
+    // texture swaps (Canvas-safe), keeping the current flip/scale.
+    if (this.dead) {
+      if (this.texture.key !== this.baseKey) this.setTexture(this.baseKey);
+    } else if (this.carriedBy) {
+      const ck = `${this.baseKey}_carry`;
+      if (this.texture.key !== ck) this.setTexture(ck);
+    } else {
+      // returning from a carry: drop the arms-up pose before blinking resumes
+      if (this.texture.key === `${this.baseKey}_carry`) this.setTexture(this.baseKey);
+      // blink: swap to the eyes-closed texture for 120ms every 3-5s.
       if (this.blinking > 0) {
         this.blinking -= delta;
         if (this.blinking <= 0) {
@@ -153,8 +181,6 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
           this.setTexture(`${this.baseKey}_blink`);
         }
       }
-    } else if (this.texture.key !== this.baseKey) {
-      this.setTexture(this.baseKey);
     }
 
     // sprite lean: carried buddies tilt 10deg and wiggle; walkers lean toward
@@ -170,6 +196,25 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.scaleX = this.baseScaleX * this.sqX;
     this.scaleY = this.baseScaleY * this.sqY;
     this._syncBody();
+
+    // P6 shadow blob: parked on the last-grounded feet line, shrinking as the
+    // robot lifts off it and hidden while carried/dead. Visual-only — reads the
+    // body geometry, never writes it.
+    const feet = this.body.bottom;
+    if (this.grounded) this._groundY = feet;
+    const lift = Math.max(0, this._groundY - feet); // px off the ground
+    const sc = Phaser.Math.Clamp(1 - lift / 320, 0.34, 1);
+    this.shadow.setPosition(this.x, this._groundY - 2);
+    this.shadow.setScale(sc * this.baseScaleX, sc);
+    this.shadow.setAlpha(0.35 * sc);
+    this.shadow.setVisible(this.visible && !this.dead && !this.carriedBy);
+
+    // Phase art is painted by the scene only for a live, un-carried robot; make
+    // sure a dead/carried phase-walker's ghosts + edge don't freeze on screen.
+    if (this.dead || this.carriedBy) {
+      for (const gh of this.phaseGhosts) if (gh.visible) gh.setVisible(false);
+      if (this.phaseEdge.visible) this.phaseEdge.setVisible(false);
+    }
   }
 
   beginZip(x, y, hang) {

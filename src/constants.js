@@ -87,6 +87,7 @@ export const PHYS = {
 export const DEPTH = {
   bg: 0,
   terrain: 5,
+  shadow: 8, // P6: robot shadow blob — over terrain, under entities/players
   entity: 10,
   pickup: 12,
   player: 20,

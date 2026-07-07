@@ -317,14 +317,9 @@ export default class GameScene extends Phaser.Scene {
     this.slamRing = this.add.image(0, 0, "shockring").setDepth(DEPTH.fx - 1)
       .setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
 
-    // pooled phase-walk afterimages: a fixed ring of ghost sprites recycled and
-    // faded manually (no per-frame allocation). One head index cycles the pool.
-    this.ghosts = [];
-    for (let i = 0; i < 8; i++) {
-      const gi = this.add.image(0, 0, "robot_b").setDepth(DEPTH.player - 1).setVisible(false);
-      this.ghosts.push({ img: gi, life: 0 });
-    }
-    this._ghostHead = 0;
+    // P6: phase-walk afterimages are now 3 position-lagged ghost copies per phase
+    // robot, driven from a per-Player pose ring buffer (see Player ctor + the
+    // phase block in update). No shared pool needed here.
 
     // --- Sprint 8 game-feel FX pools (all created here, never per frame) ------
     // additive zoom offset consumed + decayed inside updateCamera; NEVER alters
@@ -1650,19 +1645,37 @@ export default class GameScene extends Phaser.Scene {
     bug.destroy();
   }
 
-  // Grab the next pooled ghost sprite and stamp it with the phasing robot's
-  // current pose (texture/flip/scale/tint) at full-ish alpha; it fades in update.
-  spawnGhost(p) {
-    const g = this.ghosts[this._ghostHead];
-    this._ghostHead = (this._ghostHead + 1) % this.ghosts.length;
-    g.img.setTexture(p.texture.key);
-    g.img.setPosition(p.x, p.y);
-    g.img.setFlipX(p.flipX);
-    g.img.setScale(p.scaleX, p.scaleY);
-    g.img.setAngle(p.angle);
-    g.img.setTint(0xc39dff);
-    g.life = 1;
-    g.img.setAlpha(0.4).setVisible(true);
+  // P6 phase afterimage: record the robot's current pose into its ring buffer
+  // (overwrite in place — no allocation) and paint the 3 lagged ghost copies +
+  // edge shimmer. `phasing` = a phase robot that is in a wall or moving. The
+  // ghosts are plain sprite draws (cheap); the edge glow is WebGL-gated in the
+  // Player ctor. Called once per live player each frame.
+  updatePhaseArt(p, time) {
+    const ring = p._poseRing;
+    const slot = ring[p._poseHead];
+    slot.x = p.x; slot.y = p.y; slot.flipX = p.flipX;
+    slot.sx = p.scaleX; slot.sy = p.scaleY; slot.angle = p.angle;
+    p._poseHead = (p._poseHead + 1) % ring.length;
+    if (p._poseCount < ring.length) p._poseCount++;
+
+    const phasing = p.skill === "phase" &&
+      (p.inPhaseWall || Math.abs(p.body.velocity.x) > 20);
+    const LAG = [4, 9, 14];
+    const A = [0.2, 0.12, 0.06];
+    for (let i = 0; i < p.phaseGhosts.length; i++) {
+      const gh = p.phaseGhosts[i];
+      if (!phasing || p._poseCount <= LAG[i]) { if (gh.visible) gh.setVisible(false); continue; }
+      const idx = (p._poseHead - 1 - LAG[i] + ring.length * 2) % ring.length;
+      const ps = ring[idx];
+      gh.setTexture(p.texture.key).setPosition(ps.x, ps.y).setFlipX(ps.flipX)
+        .setScale(ps.sx, ps.sy).setAngle(ps.angle).setAlpha(A[i]).setVisible(true);
+    }
+    // edge shimmer while actually inside the wall
+    const pe = p.phaseEdge;
+    if (p.inPhaseWall) {
+      pe.setPosition(p.x, p.y).setFlipX(p.flipX).setScale(p.scaleX, p.scaleY)
+        .setAngle(p.angle).setAlpha(0.4 + 0.28 * Math.sin(time / 60)).setVisible(true);
+    } else if (pe.visible) pe.setVisible(false);
   }
 
   // Next pooled star sprite (cycles a fixed ring — no per-event allocation).
@@ -2697,14 +2710,6 @@ export default class GameScene extends Phaser.Scene {
       }
     }
 
-    // fade the pooled phase afterimages
-    for (const g of this.ghosts) {
-      if (g.life <= 0) continue;
-      g.life -= dt * 3.2;
-      if (g.life <= 0) g.img.setVisible(false);
-      else g.img.setAlpha(g.life * 0.4);
-    }
-
     for (const p of this.players) {
       if (p.dead) continue;
       const actEdge = J(p.keys.act) || (p.keys.actAlt && J(p.keys.actAlt)) || (p.pad && p.pad.actJust);
@@ -2735,13 +2740,10 @@ export default class GameScene extends Phaser.Scene {
         this.dust.emitParticleAt(p.x, p.body.bottom, 8);
         p._landDust = false;
       }
-      // phase ghost: alpha shimmer + a faint afterimage trail while phasing
+      // phase ghost: body alpha shimmer while phasing; the 3 lagged ghost copies
+      // + edge shimmer are painted from the pose ring buffer (P6).
       if (p.invuln <= 0) p.setAlpha(p.inPhaseWall ? 0.42 + 0.16 * Math.sin(time / 55) : 1);
-      p.ghostCd -= delta;
-      if (p.inPhaseWall && p.skill === "phase" && p.ghostCd <= 0) {
-        this.spawnGhost(p);
-        p.ghostCd = 90;
-      }
+      this.updatePhaseArt(p, time);
 
       // run dust: small puffs at the feet while grounded and moving fast
       p.dustCd -= delta;

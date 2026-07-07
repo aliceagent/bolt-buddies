@@ -388,7 +388,18 @@ export default class BootScene extends Phaser.Scene {
 
     // color: body base, dark: visor/stripe, rim: rim-light on one side.
     // blink=true draws the visor with eyes closed for the _blink texture.
-    const robot = (color, dark, rim, blink) => (g) => {
+    const robot = (color, dark, rim, blink, arms) => (g) => {
+      if (arms) {
+        // P6 carried pose: two stubby arms raised overhead (gripping the carrier).
+        // Drawn first so the shoulders tuck behind the body; hands read above it.
+        g.lineStyle(5, shade(color, 0.9));
+        g.lineBetween(9, 20, 13, 3);
+        g.lineBetween(35, 20, 31, 3);
+        g.fillStyle(shade(color, 1.15));
+        g.fillCircle(13, 3, 3.4); g.fillCircle(31, 3, 3.4); // mitts
+        g.fillStyle(rim, 0.6);
+        g.fillCircle(12, 2.2, 1.2); g.fillCircle(30, 2.2, 1.2); // rim glints
+      }
       // chunkier treads: wider, taller base with four wheel bumps + top rim line
       g.fillStyle(0x0c1019).fillRect(2, 40, 40, 9);
       g.fillStyle(0x2a3247);
@@ -432,6 +443,33 @@ export default class BootScene extends Phaser.Scene {
     make("robot_o", 44, 48, robot(COLORS.boop, 0x4a2a08, 0xffe0a8, false));
     make("robot_b_blink", 44, 48, robot(COLORS.beep, 0x0c2f44, 0xbfeaff, true));
     make("robot_o_blink", 44, 48, robot(COLORS.boop, 0x4a2a08, 0xffe0a8, true));
+    // P6 carried-pose art: arms-up variant, texture-swapped onto a carried buddy
+    // (drawn art, not a tint — reads under the Canvas renderer).
+    make("robot_b_carry", 44, 48, robot(COLORS.beep, 0x0c2f44, 0xbfeaff, false, true));
+    make("robot_o_carry", 44, 48, robot(COLORS.boop, 0x4a2a08, 0xffe0a8, false, true));
+
+    // P6 shadow blob: a soft dark ellipse (stacked low-alpha rings — a Canvas-safe
+    // fake radial gradient). One pooled instance rides under each robot, scaled
+    // down as it lifts off the ground and hidden while carried. Alpha dialled at
+    // placement (~0.35) so it grounds the robot without muddying the terrain.
+    make("shadow", 64, 26, (g) => {
+      for (let i = 16; i > 0; i--) {
+        const t = i / 16;
+        g.fillStyle(0x000000, 0.05);
+        g.fillEllipse(32, 13, 60 * t, 22 * t);
+      }
+    });
+
+    // P6 phase edge-shimmer: a violet outline that hugs the robot silhouette while
+    // it is inside a phase-wall. Baked violet (reads on Canvas); the additive GLOW
+    // is gated to WebGL by setting ADD blend only on that renderer (see Player.js).
+    make("phaseedge", 44, 48, (g) => {
+      g.lineStyle(4, 0xc39dff, 0.18).strokeRoundedRect(2.5, 10.5, 39, 33, 9);
+      g.lineStyle(2, 0xe8d8ff, 0.5).strokeRoundedRect(4, 12, 36, 30, 7);
+      g.lineStyle(2, 0xd7bbff, 0.4).lineBetween(22, 12, 22, 3);
+      g.fillStyle(0xf2e8ff, 0.5).fillCircle(22, 3, 2.8);
+      g.lineStyle(3, 0xc39dff, 0.16).strokeRoundedRect(2, 39.5, 40, 8.5, 3); // tread halo
+    });
 
     // --- interactables -----------------------------------------------------
     make("anchor", 32, 32, (g) => {
