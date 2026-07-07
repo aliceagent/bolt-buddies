@@ -15,7 +15,9 @@
 import { CharRig } from "./rig.js";
 import { FidgetScheduler } from "./fidget.js";
 import { installPlayerAnim } from "./player_anim.js";
+import { TIMING } from "./motion.js";
 import { DEPTH } from "../constants.js";
+import { sfx } from "../audio.js";
 
 // --- per-kind PROBES: write the host's ALREADY-RESOLVED state into a preallocated
 // status bag. Never allocate; never write to the host/body. -------------------
@@ -46,6 +48,13 @@ export class AnimSystem {
     this.rigs = [];
     this.byHost = new Map(); // host GameObject -> its rig
     this.fidget = new FidgetScheduler(scene);
+    // A3: the scheduler's per-rig eligibility hook dispatches to the rig's own
+    // fidget starter (installed on players by installPlayerAnim; enemies have none,
+    // so their fidget path stays a no-op until their A-sprint wires one).
+    this.fidget.pickFidget = (rig, tier) => {
+      if (rig.startAnimFidget) rig.startAnimFidget(tier);
+    };
+    this._partnerFired = false; // A3 partner one-shot latch (re-arms on separate/move)
     // rig-off A/B switch. ?animoff=1 boots disabled; the probe flips this live.
     this.enabled = !new URLSearchParams(location.search).has("animoff");
   }
@@ -136,6 +145,37 @@ export class AnimSystem {
     if (!this.enabled) return;
     for (let i = 0; i < this.rigs.length; i++) this.rigs[i].update(time, delta);
     this.fidget.update(time, delta);
+    this._updatePartner();
+  }
+
+  // A3 PARTNER-AWARE moment: when BOTH players have been idle within 6 tiles of
+  // each other, they turn and look at one another — one beeps, the other tilts.
+  // One-shot; re-arms once they separate or either one moves. Cheap (two rigs).
+  _updatePartner() {
+    const ps = this.scene.players;
+    if (!ps || ps.length < 2) return;
+    const a = ps[0], b = ps[1];
+    const ra = this.byHost.get(a), rb = this.byHost.get(b);
+    if (!ra || !rb) return;
+    const bothIdle =
+      ra.machine.state === "idle" && rb.machine.state === "idle" &&
+      !ra.status.input && !rb.status.input &&
+      ra.idleMs >= TIMING.IDLE_TIER1 && rb.idleMs >= TIMING.IDLE_TIER1 &&
+      !a.carrying && !b.carrying && !a.carriedBy && !b.carriedBy &&
+      !a.dead && !b.dead;
+    const dx = a.x - b.x, dy = a.y - b.y;
+    const near = dx * dx + dy * dy <= TIMING.PARTNER_RANGE * TIMING.PARTNER_RANGE;
+    if (bothIdle && near) {
+      if (!this._partnerFired) {
+        this._partnerFired = true;
+        const dirA = Math.sign(b.x - a.x) || 1; // A faces toward B; B faces back
+        ra.startPartnerLook(dirA, 0); // player 0 beeps
+        rb.startPartnerLook(-dirA, 7); // player 1 gives the head-cock tilt
+        sfx.buddyBeep();
+      }
+    } else {
+      this._partnerFired = false; // separated or moving — re-arm
+    }
   }
 
   destroy() {

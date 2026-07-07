@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { PHYS, DEPTH, SKILL_INFO } from "../constants.js";
 import { sfx } from "../audio.js";
+import { MOTION } from "../anim/motion.js";
 
 // The one true collision box, in unscaled texture pixels: 30x42 at offset
 // (7,6). Gameplay was tuned around this box (at the skill base scale) — it
@@ -227,7 +228,9 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       } else {
         this.blinkTimer -= delta;
         if (this.blinkTimer <= 0) {
-          this.blinking = 120;
+          // A3: blink retimed onto the MOTION token (the rig hides the pupil
+          // overlay for this window so the blink reads on the baked eyes).
+          this.blinking = MOTION.BLINK.dur;
           this.setTexture(`${this.baseKey}_blink`);
         }
       }

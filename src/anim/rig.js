@@ -48,6 +48,9 @@ class Part {
     this.oy = offset && offset.y || 0;
     this.useLook = !!(opts && opts.look);
     this.useAntenna = !!(opts && opts.antenna);
+    // A3: a free-spinning glyph part (grapple's twirled hook) reads its rotation +
+    // alpha from the pose's glyph channels instead of inheriting the host transform.
+    this.useGlyph = !!(opts && opts.glyph);
     this.treadKeys = (opts && opts.treadKeys) || null; // frame-swap tread cycle
     this._tf = -1; // last tread frame index shown (avoid redundant setTexture)
     this._sc = -1; this._flip = null; // cached scale/flip (skip redundant writes)
@@ -63,6 +66,19 @@ class Part {
     const face = pose.face || 1;
     // magnitude of the host's live scale (squash + skill form); flip is separate
     const sc = h.scaleX < 0 ? -h.scaleX : h.scaleX;
+    // Glyph part: hangs at its facing-mirrored offset but spins + fades on its OWN
+    // channels (the resting alpha is 0, so it's invisible until a twirl wait plays).
+    if (this.useGlyph) {
+      const gx = face * this.ox * sc, gy = this.oy * sc;
+      this.obj.x = h.x + gx;
+      this.obj.y = h.y + gy;
+      this.obj.rotation = pose.glyphSpin || 0;
+      if (sc !== this._sc) { this.obj.setScale(sc); this._sc = sc; }
+      const a = pose.glyphA || 0;
+      this.obj.setAlpha(a);
+      this.obj.setVisible(this.visible && a > 0.01 && h.visible && !h.dead);
+      return;
+    }
     let ox = this.ox, oy = this.oy;
     if (this.useLook) { ox += pose.lookX; oy += pose.lookY; }
     if (this.useAntenna) { ox += pose.antenna; oy += pose.antennaY || 0; }

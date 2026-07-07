@@ -29,6 +29,11 @@ export function makePose() {
     antenna: 0, // antenna tip bend, host-local px X (parts)
     antennaY: 0, // antenna tip lift/trail, host-local px Y (parts)
     tread: 0, // tread-overlay scroll offset, px (vx-accumulated; parts)
+    // A3 idle/waiting: a free-spinning glyph part (grapple's twirled hook). A part
+    // flagged `glyph` reads its OWN rotation + alpha from these channels instead of
+    // inheriting the host transform, so the glyph can twirl while the body is still.
+    glyphSpin: 0, // glyph part rotation (radians), independent of the host
+    glyphA: 0, // glyph part alpha (0 => hidden; the resting state)
     t: 0, // state-local elapsed time (ms) — reset on every state enter
   };
 }
@@ -37,6 +42,7 @@ export function makePose() {
 export function resetPose(p) {
   p.sx = 1; p.sy = 1; p.ox = 0; p.oy = 0; p.lean = 0;
   p.lookX = 0; p.lookY = 0; p.antenna = 0; p.antennaY = 0; p.tread = 0;
+  p.glyphSpin = 0; p.glyphA = 0;
   // p.face and p.t are managed by the machine, not cleared here.
 }
 

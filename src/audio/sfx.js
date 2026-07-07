@@ -401,6 +401,9 @@ export const sfx = {
   throwIt: () => tone(260, 0.12, "sawtooth", 0.04, -120),
   tossHigh: () => tone(520, 0.14, "sawtooth", 0.04, 260),
   hopOff: () => tone(360, 0.09, "square", 0.035, 180),
+  // A3 partner social beat: a tiny friendly two-note chirp ("BEEP"→"BOOP") when
+  // two idle buddies notice each other. Quiet, non-positional, player-centric.
+  buddyBeep: () => { tone(720, 0.05, "square", 0.03); setTimeout(() => tone(960, 0.06, "square", 0.028), 55); },
   die: (x, y) => { const v = pv(x, y); if (v > 0) { const p = panForX(x); tone(200, 0.3, "sawtooth", 0.05 * v, -160, p); noise(0.18, { type: "highpass", freq: 900, vol: 0.03 * v, pan: p }); } },
   respawn: () => { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => tone(f, 0.09, "sine", 0.03), i * 55)); },
   phaseIn: () => slide(520, 900, 0.18, "sine", 0.028),
