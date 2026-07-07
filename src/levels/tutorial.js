@@ -16,6 +16,12 @@ export default {
   cols: 56,
   rows: 18,
   spawns: [[2, 13], [4, 13]],
+  // U13: Station-4 grapple gap is a 4-tile-deep pit (floored by the world bottom)
+  // where BOTH robots can get stuck. When they do, GameScene teaches the co-op
+  // escape (grapple zips UP to the anchor, then reels the buddy up). Tile-space
+  // zone: columns x..x2 inclusive; a robot counts as "in the pit" below row yRow.
+  // ONLY the tutorial declares this, so the hint can never fire in the campaign.
+  pitHint: { x: 34, x2: 38, yRow: 15 },
   build(g) {
     // one thick, continuous floor (rows 14-17) — features are carved out of it
     g.rect(0, 14, 55, 17, "#");

@@ -2047,6 +2047,8 @@ export default class GameScene extends Phaser.Scene {
     for (const p of this.players) { p._coachIdle = 0; p._lastActPress = 0; p._shimmerPushT = 0; p._ductPushT = 0; }
     this._handholdCd = 0; // U5 (F2): shared cooldown for the shimmer-wall hand-hold hint
     this._ductHintCd = 0; // U12: shared cooldown for the vent-pinch "only tiny fits" hint
+    // U13: co-op deep-pit rescue hint state (in-memory, per level instance).
+    this._pitNextCheck = 0; this._pitStuckSince = 0; this._pitHintFired = false; this._pitHintCd = 0;
   }
 
   drawCoachIcon(g, kind, cx, cy, idx, extra) {
@@ -2259,6 +2261,9 @@ export default class GameScene extends Phaser.Scene {
   updateCoach(time) {
     const co = this.coach;
     if (!co) return;
+    // U13 (tutorial-only): co-op deep-pit rescue hint. Passive reads; gated to a
+    // level that DECLARES a pit-hint zone (only the tutorial does — never campaign).
+    if (this.def.pitHint) this.updatePitHint(time);
     const cam = this.cameras.main;
     const scH = this.scale.height;
     const zoom = cam.zoom || 1;
@@ -2351,6 +2356,67 @@ export default class GameScene extends Phaser.Scene {
 
     co.actEdge[0] = false;
     co.actEdge[1] = false;
+  }
+
+  // --- U13: co-op deep-pit rescue hint (tutorial-only) --------------------------
+  // The tutorial's Station-4 grapple gap is a 4-tile-deep pit floored by the world
+  // bottom: BOTH robots can end up standing at the bottom with no jump-height way
+  // out (a soft-lock feeling for a first-timer). When both sit stuck for ~2.2s we
+  // teach the verified co-op escape: the GRAPPLE zips UP to the anchor above the
+  // pit, then REELS its buddy up. ALL reads are passive (positions/velocity/flags);
+  // this mutates no physics, geometry, or save. Gated on def.pitHint (only the
+  // tutorial declares it) + uxHints(); throttled to ~4Hz on its own timer. Fires
+  // ONCE per trap episode, re-arming only after BOTH escape the pit.
+  updatePitHint(time) {
+    if (time < this._pitNextCheck) return;
+    this._pitNextCheck = time + 250;
+    const ph = this.def.pitHint;
+    const x0 = ph.x * TILE, x1 = (ph.x2 + 1) * TILE, yLine = ph.yRow * TILE;
+    // "in the pit": inside the pit's x-band, below the floor line, grounded, not on
+    // a rope/zip/carry, and roughly still.
+    const inPit = (p) => !p.dead && p.grounded && !p.zip && !p.reeled && !p.carriedBy &&
+      !p.carrying && p.x > x0 && p.x < x1 && p.y > yLine && Math.abs(p.body.velocity.x) < 30;
+    const bothStuck = uxHints() && this.players.length >= 2 && this.players.every(inPit);
+    if (bothStuck) {
+      if (!this._pitStuckSince) this._pitStuckSince = time;
+      else if (!this._pitHintFired && time - this._pitStuckSince > 2200 && time > this._pitHintCd) {
+        this._pitHintFired = true;
+        this._pitHintCd = time + 12000; // rate-limit re-fires
+        this.showPitHint();
+      }
+    } else {
+      this._pitStuckSince = 0;
+      // Re-arm + clear only once BOTH are back out of the pit (they escaped).
+      const anyInBand = this.players.some((p) => !p.dead && p.x > x0 && p.x < x1 && p.y > yLine);
+      if (!anyInBand && this._pitHintFired) {
+        this._pitHintFired = false;
+        this.clearPitHint();
+      }
+    }
+  }
+
+  showPitHint() {
+    const g = this.players.find((p) => p.skill === "grapple");
+    if (!g) return; // no grapple = no taught escape; stay silent
+    const gi = g.idx;
+    const tokens = gi === 0
+      ? [{ icon: "up" }, { cap: "W" }, { plus: true }, { cap: "SPACE" }]
+      : [{ icon: "up" }, { cap: "↑" }, { plus: true }, { cap: "L", p: 1 }];
+    this.coachShow(gi, {
+      tokens, caption: "ZIP UP TO THE ANCHOR",
+      follow: { obj: g, dy: -g.displayHeight / 2 - 30 },
+      key: "pithint", dur: 6000, colorP: gi,
+    });
+    // KOBI flavor blip carrying the full two-step teamwork plan (display-only).
+    this.game.events.emit("bb:blip", "KOBI: Stuck? Work TOGETHER — zip UP, then REEL your buddy out.");
+  }
+
+  clearPitHint() {
+    for (const b of this.coach.bubbles) {
+      if (b.active && b.key === "pithint") {
+        b.active = false; b.follow = null; b.c.setVisible(false); this.tweens.killTweensOf(b.c);
+      }
+    }
   }
 
   // --- U2: lock & timer feedback ------------------------------------------------
