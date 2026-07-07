@@ -28,28 +28,69 @@ import { makePose, PoseMachine } from "./pose.js";
 
 // A single visual part hung off a rig. Pooled: created once, repositioned each
 // frame, never re-created. `place()` is allocation-free.
+//
+// A2 gave each part an explicit set of POSE CHANNELS it subscribes to (via the
+// `opts` flags) so a pupil follows the eye-look channel, a tread follows the
+// scroll channel, and an antenna follows the bend channel — instead of A1's
+// one-size placement that fed every channel into every part. The part also
+// tracks the host's visual scale so overlays stay glued on heavy/tiny forms.
 class Part {
   // host: the sprite the part follows.
-  // obj: a Phaser GameObject (Image or Graphics) — the pooled visual.
-  // offset: { x, y } base offset in host-local px (x is mirrored by facing).
-  constructor(name, host, obj, offset) {
+  // obj: a Phaser GameObject (Image / TileSprite) — the pooled visual.
+  // offset: { x, y } base offset in host-LOCAL texture px (x mirrored by facing,
+  //         both scaled by the host's live display scale so parts track the form).
+  // opts: { look, antenna, tread } — which pose channels this part subscribes to.
+  constructor(name, host, obj, offset, opts) {
     this.name = name;
     this.host = host;
     this.obj = obj;
     this.ox = offset && offset.x || 0;
     this.oy = offset && offset.y || 0;
+    this.useLook = !!(opts && opts.look);
+    this.useAntenna = !!(opts && opts.antenna);
+    this.treadKeys = (opts && opts.treadKeys) || null; // frame-swap tread cycle
+    this._tf = -1; // last tread frame index shown (avoid redundant setTexture)
+    this._sc = -1; this._flip = null; // cached scale/flip (skip redundant writes)
     this.visible = true;
   }
 
-  // Place from the current pose. Mirrors x by facing, adds the pose's body
-  // offset + per-part look/tread channels (A2+). Allocation-free.
+  // Place from the current pose. Mirrors x by facing, tracks the host's live
+  // display scale (so heavy/tiny overlays stay attached), and adds only the pose
+  // channels this part subscribes to. Body bob rides on the host transform, so
+  // parts inherit it for free through h.x/h.y. Allocation-free.
   place(pose) {
     const h = this.host;
     const face = pose.face || 1;
-    this.obj.x = h.x + face * (this.ox + pose.lookX) + pose.ox;
-    this.obj.y = h.y + this.oy + pose.oy + pose.lookY;
-    this.obj.setFlipX && this.obj.setFlipX(face < 0);
-    this.obj.setVisible(this.visible && h.visible);
+    // magnitude of the host's live scale (squash + skill form); flip is separate
+    const sc = h.scaleX < 0 ? -h.scaleX : h.scaleX;
+    let ox = this.ox, oy = this.oy;
+    if (this.useLook) { ox += pose.lookX; oy += pose.lookY; }
+    if (this.useAntenna) { ox += pose.antenna; oy += pose.antennaY || 0; }
+    // scaled, facing-mirrored local offset, then rotated by the host's lean so the
+    // overlay stays glued to the body (matters most for the tread during a skid).
+    const lx = face * ox * sc, ly = oy * sc;
+    const r = h.rotation || 0;
+    if (r) {
+      const c = Math.cos(r), s = Math.sin(r);
+      this.obj.x = h.x + lx * c - ly * s;
+      this.obj.y = h.y + lx * s + ly * c;
+    } else {
+      this.obj.x = h.x + lx;
+      this.obj.y = h.y + ly;
+    }
+    this.obj.rotation = r;
+    if (sc !== this._sc) { this.obj.setScale(sc); this._sc = sc; } // skip redundant scale writes
+    // tread cycle: advance a frame every ~2.5 px of accumulated vx travel. A plain
+    // texture swap (only when the index actually changes) — cheap on Canvas.
+    if (this.treadKeys) {
+      const n = this.treadKeys.length;
+      let idx = Math.floor(pose.tread / 2.5) % n;
+      if (idx < 0) idx += n;
+      if (idx !== this._tf) { this.obj.setTexture(this.treadKeys[idx]); this._tf = idx; }
+    }
+    const flip = face < 0;
+    if (this.obj.setFlipX && flip !== this._flip) { this.obj.setFlipX(flip); this._flip = flip; }
+    this.obj.setVisible(this.visible && h.visible && !h.dead);
   }
 
   destroy() {
@@ -94,7 +135,7 @@ export class CharRig {
   // Add a pooled visual part. `spec` is either a texture key (creates an Image)
   // or a draw function (fn(g) => void, baked once into a Graphics). Called by
   // A2+; A1 never calls this, so `parts` stays empty and the rig is invisible.
-  addPart(name, spec, offset) {
+  addPart(name, spec, offset, opts) {
     let obj;
     if (typeof spec === "function") {
       obj = this.scene.add.graphics();
@@ -103,7 +144,7 @@ export class CharRig {
       obj = this.scene.add.image(this.host.x, this.host.y, spec);
     }
     obj.setDepth(this.depth);
-    const part = new Part(name, this.host, obj, offset);
+    const part = new Part(name, this.host, obj, offset, opts);
     this.parts.push(part);
     return part;
   }

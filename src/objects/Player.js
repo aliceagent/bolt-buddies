@@ -47,6 +47,16 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.sqY = 1;
     this._sqTween = null;
     this.tilt = 0; // lerped sprite lean (degrees)
+    // --- ANIM A2 locomotion channels (driven by the rig, applied physics-safe) --
+    // The rig writes these each frame; applyLocomotion composes them onto the
+    // visual transform and _syncBody counter-corrects the body so geometry never
+    // drifts (same guarantee the squash multipliers already have). animBobY is a
+    // VISUAL vertical offset: the sprite is translated by it and the body offset
+    // cancels it exactly, so the collision box (size + world position) is unchanged.
+    this.animLeanDeg = 0; // extra lean from the rig (skid back-lean, air tilt)
+    this.animSX = 1; // rig scale-X multiplier (tiny step-crest micro-squash)
+    this.animSY = 1; // rig scale-Y multiplier
+    this._appliedBobY = 0; // the visual bob currently added to this.y (undo-tracked)
     this.blinkTimer = Phaser.Math.Between(3000, 5000); // next blink
     this.blinking = 0; // ms remaining of the current blink
     this.dustCd = 0; // throttles run-dust puffs
@@ -145,11 +155,51 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   _syncBody() {
     const b = this.body;
     if (!b) return;
-    b.setSize(BODY.w / this.sqX, BODY.h / this.sqY, false);
+    // total visual scale = squash (tween) * rig anim multiplier. Both are divided
+    // back out so body width/height stay exactly BODY at the skill baseScale.
+    const sX = this.sqX * this.animSX;
+    const sY = this.sqY * this.animSY;
+    b.setSize(BODY.w / sX, BODY.h / sY, false);
+    // The bob translate added to this.y is cancelled here: body worldY =
+    // spriteY + scaleY*(offsetY - originY); subtracting animBobY/scaleY from the
+    // offset removes exactly the +animBobY on the sprite, so the body never moves.
     b.setOffset(
-      this.displayOriginX + (BODY.ox - this.displayOriginX) / this.sqX,
-      this.displayOriginY + (BODY.oy - this.displayOriginY) / this.sqY
+      this.displayOriginX + (BODY.ox - this.displayOriginX) / sX,
+      this.displayOriginY + (BODY.oy - this.displayOriginY) / sY
+        - this._appliedBobY / (this.baseScaleY * sY)
     );
+  }
+
+  // ANIM A2: apply one frame of rig-driven locomotion — a VISUAL vertical bob, an
+  // extra lean, and scale multipliers — on top of the base scale + squash tweens.
+  // Called by the rig AFTER Player.present() each frame (rig runs at end of the
+  // scene update). Everything here is counter-corrected in _syncBody so the
+  // physics body's size and world position are byte-identical to the un-animated
+  // frame — the bob/lean/micro-squash never leak into collision (physics sacred).
+  applyLocomotion(bobY, leanDeg, sxMul, syMul) {
+    // undo last frame's visual bob before re-applying, so the sprite offset never
+    // accumulates (the body position is authoritative; the bob is pure overlay)
+    this.y -= this._appliedBobY;
+    this.y += bobY;
+    this._appliedBobY = bobY;
+    this.animLeanDeg = leanDeg;
+    this.animSX = sxMul;
+    this.animSY = syMul;
+    this.scaleX = this.baseScaleX * this.sqX * sxMul;
+    this.scaleY = this.baseScaleY * this.sqY * syMul;
+    this.setAngle(this.tilt + leanDeg);
+    this._syncBody();
+  }
+
+  // Drop any rig-applied visual offset back to neutral (called when the anim
+  // system is disabled — the A/B switch — so toggling it off leaves the body and
+  // sprite exactly where the un-animated game would have them).
+  clearLocomotion() {
+    if (this._appliedBobY) this.y -= this._appliedBobY;
+    this._appliedBobY = 0;
+    this.animLeanDeg = 0;
+    this.animSX = 1;
+    this.animSY = 1;
   }
 
   // Blink, sprite lean, carried wiggle, and the squash/skill scale compose here —
@@ -191,11 +241,19 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.tilt = Phaser.Math.Linear(this.tilt, target, Math.min(1, (delta / 1000) * 10));
     this.setAngle(this.tilt);
 
-    // compose squash onto the skill base scale (flip is independent of scale)
-    // and immediately counter-scale the body so collision geometry never moves
-    this.scaleX = this.baseScaleX * this.sqX;
-    this.scaleY = this.baseScaleY * this.sqY;
-    this._syncBody();
+    // Body transform ownership: when the anim system is ON, the rig's
+    // applyLocomotion() (run at the END of the scene update) is the SOLE writer of
+    // scale + body sync each frame — it composes the squash tweens, the skill base
+    // scale AND the rig multipliers/bob in one pass, so _syncBody runs exactly once
+    // per frame (no A2 cost regression, no 1-frame compensation lag). When the anim
+    // system is OFF (the A/B switch, or non-Game contexts), present() owns it and
+    // restores the un-animated transform.
+    if (!this.scene.anim || !this.scene.anim.enabled) {
+      if (this._appliedBobY) this.clearLocomotion();
+      this.scaleX = this.baseScaleX * this.sqX;
+      this.scaleY = this.baseScaleY * this.sqY;
+      this._syncBody();
+    }
 
     // P6 shadow blob: parked on the last-grounded feet line, shrinking as the
     // robot lifts off it and hidden while carried/dead. Visual-only — reads the

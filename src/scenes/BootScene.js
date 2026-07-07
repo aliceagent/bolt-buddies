@@ -493,6 +493,39 @@ export default class BootScene extends Phaser.Scene {
       g.lineStyle(3, 0xc39dff, 0.16).strokeRoundedRect(2, 39.5, 40, 8.5, 3); // tread halo
     });
 
+    // --- ANIM A2: player locomotion overlay parts (pooled, drawn art) -------
+    // Tread-scroll cycle: 4 phase frames of the 40x9 belt (dark base + top rim +
+    // wheel bumps stepped 2.5px each) drawn to match the baked robot tread palette.
+    // The rig swaps between them by |vx| — a cheap CANVAS-friendly texture cycle
+    // (no TileSprite pattern re-fill), giving visibly rolling treads at ~zero cost.
+    for (let p = 0; p < 4; p++) {
+      make(`tread${p}`, 40, 9, (g) => {
+        g.fillStyle(0x0c1019).fillRect(0, 0, 40, 9);     // belt base (== baked)
+        g.fillStyle(0x151b2b).fillRect(0, 0, 40, 2);      // top rim line
+        for (let i = -1; i < 5; i++) {
+          const x = i * 10 + p * 2.5;                     // bumps march by phase
+          g.fillStyle(0x2a3247).fillCircle(x, 5.5, 3.9);
+          g.fillStyle(0x384360, 0.7).fillCircle(x - 1.3, 4.2, 1);
+        }
+      });
+    }
+    // Pupils overlay: BOTH dark lenses in one 16x8 image, sitting ON the baked
+    // white eyes so the gaze can shift up/down/around (P6 baked the static white
+    // eyes into the body; this moving overlay augments them, never fights them).
+    // One merged part keeps the display list small (cheap on the Canvas tier).
+    make("pupils", 16, 8, (g) => {
+      g.fillStyle(0x0a1626);
+      g.fillCircle(3, 4, 2.1); g.fillCircle(14, 4, 2.1);   // L / R lenses
+      g.fillStyle(0x9fd4ff, 0.85);
+      g.fillCircle(2.3, 3.3, 0.8); g.fillCircle(13.3, 3.3, 0.8); // catch-lights
+    });
+    // Antenna tip accent: a tiny light ball that rides the baked antenna tip and
+    // trails (leans back / lifts) with the rising/falling pose.
+    make("anttip", 6, 6, (g) => {
+      g.fillStyle(0xdfe8ff, 0.95).fillCircle(3, 3, 2);
+      g.fillStyle(0xffffff, 0.9).fillCircle(2.3, 2.3, 0.8);
+    });
+
     // --- interactables -----------------------------------------------------
     make("anchor", 32, 32, (g) => {
       g.lineStyle(4, COLORS.neon).strokeCircle(16, 16, 11);

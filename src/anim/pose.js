@@ -26,8 +26,9 @@ export function makePose() {
     face: 1, // facing (-1 / +1) mirrored from the host each frame
     lookX: 0, // pupil / eye look offset X (parts)
     lookY: 0, // pupil / eye look offset Y (parts)
-    antenna: 0, // antenna bend, degrees (parts)
-    tread: 0, // tread-overlay scroll phase, 0..1 (parts)
+    antenna: 0, // antenna tip bend, host-local px X (parts)
+    antennaY: 0, // antenna tip lift/trail, host-local px Y (parts)
+    tread: 0, // tread-overlay scroll offset, px (vx-accumulated; parts)
     t: 0, // state-local elapsed time (ms) — reset on every state enter
   };
 }
@@ -35,7 +36,7 @@ export function makePose() {
 // Reset a pose to neutral WITHOUT allocating (mutate in place).
 export function resetPose(p) {
   p.sx = 1; p.sy = 1; p.ox = 0; p.oy = 0; p.lean = 0;
-  p.lookX = 0; p.lookY = 0; p.antenna = 0; p.tread = 0;
+  p.lookX = 0; p.lookY = 0; p.antenna = 0; p.antennaY = 0; p.tread = 0;
   // p.face and p.t are managed by the machine, not cleared here.
 }
 

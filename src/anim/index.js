@@ -14,6 +14,7 @@
 
 import { CharRig } from "./rig.js";
 import { FidgetScheduler } from "./fidget.js";
+import { installPlayerAnim } from "./player_anim.js";
 import { DEPTH } from "../constants.js";
 
 // --- per-kind PROBES: write the host's ALREADY-RESOLVED state into a preallocated
@@ -60,7 +61,10 @@ export class AnimSystem {
   rigFor(host) { return this.byHost.get(host); }
 
   registerPlayer(p) {
-    return this._add(p, { kind: "player", probe: probePlayer, depth: DEPTH.player + 2 });
+    const rig = this._add(p, { kind: "player", probe: probePlayer, depth: DEPTH.player + 2 });
+    // A2: hang the visible locomotion set (tread/pupils/antenna parts + pose hooks)
+    installPlayerAnim(rig, this.scene);
+    return rig;
   }
 
   registerBug(bug) {
