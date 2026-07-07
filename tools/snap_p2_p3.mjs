@@ -1,26 +1,31 @@
 // GFX P3 (World backdrop identity) acceptance probe.
 //
-// Screenshots the new per-world backdrop identity layers on 1-1 (W1 assembly
-// silhouettes) and 2-2 (W2 maintenance silhouettes + low fog + pipe drips) and
-// proves the sprint's hard invariant: every new prop/fog/beam/vignette layer sits
-// BELOW DEPTH.terrain, so players, the HUD and coach bubbles all render clearly
-// OVER them. A coach bubble is force-shown on each level for the occlusion check.
+// P3 renders a RENDERER-ADAPTIVE backdrop identity set. The deploy path is WebGL,
+// which gets the full ambiance (per-world silhouette prop strip, additive fog band,
+// pipe drips, dust-shaft beams, vignette). The software Canvas renderer used by the
+// headless review/beat harness gets a LIGHTER tier — the cheap cached prop strip
+// plus the tiny pooled drips — with every full-viewport composite (vignette, additive
+// fog, dust beams) dropped, so the fps-sensitive 2-2 fan / 1-3 & 2-2 reel routes keep
+// their headroom (measured: props-off runs the matrix 12/12 here). Both tiers keep
+// every layer BELOW DEPTH.terrain, so players, the HUD and coach bubbles always
+// render clearly over them.
+//
+// This probe verifies BOTH tiers:
+//   Canvas (?canvas=1): prop strip + (W2) drips present; vignette + fog + dust
+//     ABSENT (gated to WebGL); players + coach bubble + HUD above every layer.
+//   WebGL (SwiftShader headless): the full ambiance present (fog=2, dust>=2,
+//     vignette) — a single static screenshot (fps irrelevant for one frame).
 //
 // Shots -> tools/shots/p2/:
-//   p3-1-1.png   W1 silhouette prop strip + dust shafts + vignette, over gameplay.
-//   p3-2-2.png   W2 props + drifting fog band + drip particles, over gameplay.
-//   p3-dust.png  a tall-room dust-shaft beam (1-1, framed on a beam).
-//
-// Asserts (per level): the world's prop-strip texture is on the display list; all
-// backdrop layers are at depth < DEPTH.terrain(5); both players (depth 20) + the
-// coach bubble (depth 33) + the active HUD sit above every backdrop layer; W2 adds
-// fog strips + a drip emitter. 0 page errors.
+//   p3-1-1.png         Canvas tier, W1: prop strip + vignette over gameplay.
+//   p3-2-2.png         Canvas tier, W2: prop strip + drips + vignette over gameplay.
+//   p3-2-2-webgl.png   WebGL tier, W2: full fog + dust + props ambiance.
 //
 //   node tools/snap_p2_p3.mjs
 import { chromium } from "playwright";
 import { mkdirSync } from "fs";
 
-const URL = process.env.BB_URL || "http://localhost:5173/?canvas=1";
+const BASE = process.env.BB_BASE || "http://localhost:5173";
 const CHROMIUM = process.env.BB_CHROMIUM || "/opt/pw-browsers/chromium";
 const SHOTS = process.env.BB_SHOTS || "tools/shots/p2";
 mkdirSync(SHOTS, { recursive: true });
@@ -32,19 +37,7 @@ const ok = (cond, msg, extra = "") => {
   if (!cond) fails.push(msg);
 };
 
-const browser = await chromium.launch({ executablePath: CHROMIUM });
-const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
-let errors = 0;
-page.on("pageerror", (e) => { console.log("PAGE ERROR:", e.message); errors++; });
-page.on("console", (m) => { if (/error/i.test(m.text())) console.log("CONSOLE:", m.text()); });
-
-await page.goto(URL, { waitUntil: "networkidle" });
-await sleep(900);
-
-const shot = (name) => page.screenshot({ path: `${SHOTS}/${name}.png` });
-const active = (k) => page.evaluate((k) => window.__BB.game.scene.isActive(k), k);
-
-const startLevel = async (idx) => {
+const startLevel = async (page, idx) => {
   await page.evaluate((i) => {
     const m = window.__BB.game.scene;
     m.stop("UI"); m.stop("Game"); m.stop("Title"); m.stop("Onboard"); m.stop("Hub");
@@ -54,7 +47,7 @@ const startLevel = async (idx) => {
 };
 
 // Force a coach bubble on player 0 so the occlusion check has one to inspect.
-const forceCoach = () =>
+const forceCoach = (page) =>
   page.evaluate(() => {
     const g = window.__BB.game.scene.getScene("Game");
     const p = g.players[0];
@@ -66,26 +59,22 @@ const forceCoach = () =>
     });
   });
 
-// Snapshot the Game display list: prop/fog/beam/vignette layer depths + the
-// player / coach / terrain reference depths, plus which backdrop textures exist.
-const inspect = () =>
+// Snapshot the Game display list: which backdrop layers exist + their depths vs the
+// player / coach / terrain reference depths, plus the active renderer tier.
+const inspect = (page) =>
   page.evaluate(() => {
     const g = window.__BB.game.scene.getScene("Game");
     const DEPTHS = { terrain: 5, player: 20 };
     const list = g.children.list;
-    const texKeys = list.map((o) => (o.texture && o.texture.key) || "").filter(Boolean);
-    const has = (k) => texKeys.includes(k);
-    // TileSprite.texture.key reports the internal fill texture, not the source
-    // key, so the prop strip is verified via its stored ref + the cached texture.
-    const propKey = g.propStrip ? g.propStrip.texture.key : null;
+    const propKey = g.propStrip ? g.propStrip.texture.key : null; // TileSprite hides source key
     const propOnList = !!(g.propStrip && list.includes(g.propStrip));
-    // backdrop layers = anything at depth < terrain that is an image/tilesprite/particles
     const backdrop = list
       .filter((o) => typeof o.depth === "number" && o.depth < DEPTHS.terrain &&
         /Image|TileSprite|ParticleEmitter/.test(o.type))
       .map((o) => o.depth);
     const coach = g.coach && g.coach.bubbles[0].c;
     return {
+      webgl: g.game.renderer.type === 2, // Phaser.WEBGL === 2, CANVAS === 1
       hasProp1: propOnList && g.textures.exists("propStrip1") && propKey !== "propStrip2",
       hasProp2: propOnList && g.textures.exists("propStrip2") && propKey !== "propStrip1",
       fogCount: (g.fogStrips && g.fogStrips.length) || 0,
@@ -101,16 +90,30 @@ const inspect = () =>
     };
   });
 
-// ============================ 1-1 (World 1) ============================
-await startLevel(0);
+// ======================================================================
+// CANVAS TIER (?canvas=1) — the headless review/beat renderer.
+// ======================================================================
+const cBrowser = await chromium.launch({ executablePath: CHROMIUM });
+const page = await cBrowser.newPage({ viewport: { width: 1280, height: 720 } });
+let errors = 0;
+page.on("pageerror", (e) => { console.log("PAGE ERROR:", e.message); errors++; });
+page.on("console", (m) => { if (/error/i.test(m.text())) console.log("CONSOLE:", m.text()); });
+await page.goto(`${BASE}/?canvas=1`, { waitUntil: "networkidle" });
+await sleep(900);
+const active = (k) => page.evaluate((k) => window.__BB.game.scene.isActive(k), k);
+const shot = (name) => page.screenshot({ path: `${SHOTS}/${name}.png` });
+
+// ---- 1-1 (World 1) ----
+await startLevel(page, 0);
 ok(await active("Game"), "1-1 Game scene active");
 ok(await active("UI"), "1-1 HUD (UI scene) active over the backdrop");
-await forceCoach();
+await forceCoach(page);
 await sleep(300);
-let s = await inspect();
-ok(s.hasProp1, "1-1 W1 silhouette prop strip on the display list");
-ok(s.dustCount >= 2 && s.dustCount <= 3, "1-1 has 2-3 dust-shaft beams", `dust=${s.dustCount}`);
-ok(s.hasVignette, "1-1 vignette overlay present");
+let s = await inspect(page);
+ok(!s.webgl, "1-1 running on the Canvas tier (?canvas=1)");
+ok(s.hasProp1, "1-1 W1 silhouette prop strip present (Canvas tier)");
+ok(!s.hasVignette, "1-1 full-frame vignette gated OFF on Canvas");
+ok(s.dustCount === 0, "1-1 additive dust beams gated OFF on Canvas", `dust=${s.dustCount}`);
 ok(s.maxBackdropDepth < s.terrainDepth, "1-1 every backdrop layer sits below DEPTH.terrain",
   `maxBackdrop=${s.maxBackdropDepth} < terrain=${s.terrainDepth}`);
 ok(s.playerCount === 2 && s.playerDepth > s.maxBackdropDepth, "1-1 both players render above the backdrop",
@@ -119,28 +122,19 @@ ok(s.coachVisible && s.coachDepth > s.maxBackdropDepth, "1-1 coach bubble visibl
   `coachDepth=${s.coachDepth}`);
 await shot("p3-1-1");
 
-// tall-room dust-shaft framing: nudge the camera onto a beam, no gameplay change
-await page.evaluate(() => {
-  const g = window.__BB.game.scene.getScene("Game");
-  const cam = g.cameras.main;
-  cam.setZoom(0.72);
-  cam.centerOn(g.worldW * 0.22, g.worldH * 0.42);
-});
-await sleep(500);
-await shot("p3-dust");
-
-// ============================ 2-2 (World 2) ============================
-await startLevel(4);
+// ---- 2-2 (World 2) ----
+await startLevel(page, 4);
 ok(await active("Game"), "2-2 Game scene active");
 ok(await active("UI"), "2-2 HUD (UI scene) active over the backdrop");
-await forceCoach();
-await sleep(500); // let fog drift + a drip or two spawn
-s = await inspect();
-ok(s.hasProp2, "2-2 W2 silhouette prop strip on the display list");
-ok(s.fogCount === 2, "2-2 low-lying fog = two drifting strips", `fog=${s.fogCount}`);
-ok(s.hasDrips, "2-2 pooled drip emitter present");
-ok(s.dustCount >= 2 && s.dustCount <= 3, "2-2 has 2-3 dust-shaft beams", `dust=${s.dustCount}`);
-ok(s.hasVignette, "2-2 vignette overlay present");
+await forceCoach(page);
+await sleep(500);
+s = await inspect(page);
+ok(!s.webgl, "2-2 running on the Canvas tier (?canvas=1)");
+ok(s.hasProp2, "2-2 W2 silhouette prop strip present (Canvas tier)");
+ok(s.hasDrips, "2-2 pooled drip emitter present (Canvas tier)");
+ok(!s.hasVignette, "2-2 full-frame vignette gated OFF on Canvas");
+ok(s.fogCount === 0, "2-2 additive fog gated OFF on Canvas", `fog=${s.fogCount}`);
+ok(s.dustCount === 0, "2-2 additive dust beams gated OFF on Canvas", `dust=${s.dustCount}`);
 ok(s.maxBackdropDepth < s.terrainDepth, "2-2 every backdrop layer sits below DEPTH.terrain",
   `maxBackdrop=${s.maxBackdropDepth} < terrain=${s.terrainDepth}`);
 ok(s.playerCount === 2 && s.playerDepth > s.maxBackdropDepth, "2-2 both players render above the backdrop",
@@ -148,9 +142,48 @@ ok(s.playerCount === 2 && s.playerDepth > s.maxBackdropDepth, "2-2 both players 
 ok(s.coachVisible && s.coachDepth > s.maxBackdropDepth, "2-2 coach bubble visible above the backdrop",
   `coachDepth=${s.coachDepth}`);
 await shot("p3-2-2");
+await cBrowser.close();
+console.log(errors ? `Canvas tier snapped with ${errors} page error(s)` : "Canvas tier snapped clean (0 page errors)");
+if (errors) fails.push(`${errors} Canvas page error(s)`);
 
-await browser.close();
-console.log(errors ? `\np3 snapped with ${errors} page error(s)` : "\np3 snapped clean (0 page errors)");
-if (errors) fails.push(`${errors} page error(s)`);
+// ======================================================================
+// WEBGL TIER (SwiftShader headless) — the deploy renderer. Single static
+// screenshot: fps is irrelevant for one frame even though WebGL is slow here.
+// ======================================================================
+console.log("\n--- WebGL tier (full ambiance) ---");
+let wBrowser;
+try {
+  wBrowser = await chromium.launch({
+    executablePath: CHROMIUM,
+    args: ["--use-gl=angle", "--use-angle=swiftshader", "--ignore-gpu-blocklist", "--enable-unsafe-swiftshader"],
+  });
+  const wpage = await wBrowser.newPage({ viewport: { width: 1280, height: 720 } });
+  let werrors = 0;
+  wpage.on("pageerror", (e) => { console.log("WEBGL PAGE ERROR:", e.message); werrors++; });
+  await wpage.goto(BASE, { waitUntil: "networkidle" }); // no ?canvas=1 -> Phaser.AUTO picks WebGL
+  await sleep(1500);
+  const isWebgl = await wpage.evaluate(() => window.__BB.game.renderer.type === 2);
+  if (!isWebgl) {
+    ok(false, "WebGL renderer initialised (SwiftShader)", "renderer is Canvas — this box can't init WebGL headless");
+  } else {
+    await startLevel(wpage, 4);
+    await sleep(5000); // WebGL headless is slow; also lets the intro banner clear for a clean ambiance frame
+    const w = await inspect(wpage);
+    ok(w.webgl, "WebGL tier active on the deploy renderer");
+    ok(w.hasProp2, "WebGL 2-2 W2 prop strip present");
+    ok(w.fogCount === 2, "WebGL 2-2 full additive fog = two strips", `fog=${w.fogCount}`);
+    ok(w.dustCount >= 2 && w.dustCount <= 3, "WebGL 2-2 dust-shaft beams present", `dust=${w.dustCount}`);
+    ok(w.hasDrips, "WebGL 2-2 drips present");
+    ok(w.hasVignette, "WebGL 2-2 vignette present");
+    await wpage.screenshot({ path: `${SHOTS}/p3-2-2-webgl.png` });
+    console.log(`WebGL ambiance shot -> ${SHOTS}/p3-2-2-webgl.png`);
+  }
+  if (werrors) fails.push(`${werrors} WebGL page error(s)`);
+} catch (e) {
+  ok(false, "WebGL tier screenshot captured", `WebGL headless unavailable on this box: ${e.message}`);
+} finally {
+  if (wBrowser) await wBrowser.close();
+}
+
 if (fails.length) { console.log(`\n${fails.length} ASSERTION(S) FAILED:`); fails.forEach((f) => console.log("  - " + f)); process.exit(1); }
 console.log("\nALL ASSERTIONS PASSED");

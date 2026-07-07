@@ -750,6 +750,20 @@ matrix — behind `--full`/`--chaos`.
   a real robustness pass in a future beat-kit sprint — either widen the draft's
   keyless-centering capture, or add a jump-assist into the column on the route —
   so 2-2 stops needing re-runs. Tracked here; out of scope for the UX audit.
+- **RESOLVED (root cause) in GFX P3:** the fan's horizontal keyless-centering at
+  `GameScene.js` was a FIXED `Phaser.Math.Linear(vx, pull, 0.12)` **per frame** —
+  frame-rate-DEPENDENT (the vertical updraft beside it was already `* dt`). Under
+  render load (heavy backdrops on the software-Canvas review box, ~40 fps vs the
+  reference ~53-54) the per-second centering weakened and Tiny drifted out of the
+  one-tile draft — the recurring 2-2 fan flake. Fix: a real-time exponential,
+  `t = 1 - (1-0.12)^(dt*60)`, byte-IDENTICAL at the 60 fps reference (dt*60=1 →
+  t=0.12) and self-correcting at low fps. This sharply cut the flake (a full 12/12
+  Canvas matrix that this box could not previously hold, + 2-2 green twice
+  consecutively standalone). A residual ~1-in-several 2-2 flake remains ONLY on
+  this underpowered Canvas harness box and re-runs green; the WebGL deploy path
+  (fps in budget) is unaffected. GFX P3 additionally renderer-gates its expensive
+  additive backdrop layers (fog/dust/vignette WebGL-only; Canvas keeps the cached
+  prop strip + drips) so the beat harness keeps its fps headroom.
 
 ## Maintenance rule (add to both other roadmaps' ground rules)
 

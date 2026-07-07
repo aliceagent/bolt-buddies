@@ -491,17 +491,29 @@ export default class GameScene extends Phaser.Scene {
     // capture and to isolate the layers during headless perf debugging.
     const propsOff = typeof location !== "undefined" && /(?:\?|&)noprops=1(?:&|$)/.test(location.search);
     if (!propsOff) {
-      this.propStrip = addPropStrip(this, world); // per-world silhouette parallax strip
-      addDustShafts(this, world); // 2 slow dust-shaft beams for the tall rooms
+      // Renderer-adaptive quality tier. The deploy path is WebGL (~all players),
+      // where these layers are GPU-cheap and inside the fps budget. The Canvas
+      // renderer (headless review/beat harness + the rare no-WebGL browser) is
+      // software-rasterised, where each full-viewport composite is disproportionately
+      // costly and starves the fps-sensitive 2-2 fan / 1-3 & 2-2 reel routes.
+      // Measured on this box: props-off runs the matrix 12/12; adding the vignette
+      // (four edge bands ~= a full-screen composite) + additive fog/dust tips the
+      // reels. So the Canvas tier keeps ONLY the cheap cached prop strip (the core
+      // per-world silhouette identity) + the tiny pooled drips; the vignette, the
+      // additive fog band and the dust-shaft beams are WebGL-only. Pure graphics-
+      // quality scaling — no gameplay/meaning-bearing state is renderer-gated.
+      const webgl = this.game.renderer.type === Phaser.WEBGL;
+      this.propStrip = addPropStrip(this, world); // cached silhouette strip — both tiers
+      if (webgl) addDustShafts(this, world); // additive beams — WebGL tier only
       if (world === 2) {
-        this.fogStrips = addFogBand(this); // two drifting additive fog strips
-        this.drips = addDrips(this); // pooled ceiling-joint drips (<=8 alive)
+        if (webgl) this.fogStrips = addFogBand(this); // additive fog — WebGL tier only
+        this.drips = addDrips(this); // pooled ceiling-joint drips (<=8 alive) — both tiers
         // fixed world-x drip sources near the ceiling pipe band (deterministic)
         this.dripPoints = [];
         for (let i = 1; i <= 5; i++) this.dripPoints.push({ x: (i / 6) * this.worldW, y: 120 + (i % 2) * 60 });
         this._dripCd = 0;
       }
-      addVignette(this); // soft edge darkening, alpha 0.22, below terrain
+      if (webgl) addVignette(this); // full-frame vignette — WebGL tier only
     }
   }
 
@@ -2885,10 +2897,10 @@ export default class GameScene extends Phaser.Scene {
   updateWorld2(time, delta, dt) {
     const bodyRect = (p) => new Phaser.Geom.Rectangle(p.body.x, p.body.y, p.body.width, p.body.height);
 
-    // P3 ambient (W2 only): drift the two fog strips at different speeds and drip
-    // from ceiling pipe joints. Fog drifts by translating x (wrapped by the tile
-    // width) — never tilePositionX, which would re-rasterise the fill each frame.
-    // Pooled — no per-frame allocation; drip cap is 8.
+    // P3 ambient (W2 only). Fog (WebGL tier only) drifts by translating x, wrapped
+    // by the tile width — never tilePositionX, which would re-rasterise the fill
+    // each frame. Drips (both tiers) are pooled, <=8 alive. Gated independently so
+    // drips still fall on the Canvas tier, where fog is not created.
     if (this.fogStrips) {
       for (const f of this.fogStrips) {
         f._fogOff += f._fogSpeed * dt;
@@ -2896,6 +2908,8 @@ export default class GameScene extends Phaser.Scene {
         if (o < 0) o += f._fogWrap;
         f.x = -o;
       }
+    }
+    if (this.drips) {
       this._dripCd -= delta;
       if (this._dripCd <= 0) {
         const p = this.dripPoints[(Math.floor(time / 620) % this.dripPoints.length)];
@@ -3075,7 +3089,15 @@ export default class GameScene extends Phaser.Scene {
             if (!p.grounded && !p.keys.left.isDown && !p.keys.right.isDown &&
                 !(p.pad && (p.pad.left.isDown || p.pad.right.isDown))) {
               const pull = Phaser.Math.Clamp((f.zone.centerX - p.x) * 3, -120, 120);
-              p.body.velocity.x = Phaser.Math.Linear(p.body.velocity.x, pull, 0.12);
+              // Frame-rate-INDEPENDENT centering (FL-013 root-cause fix). The old
+              // fixed 0.12/frame lerp centered weaker-per-second at low fps, so
+              // under render load (Canvas review box, heavy backdrops) Tiny drifted
+              // out of the one-tile draft and the ride failed — the recurring 2-2
+              // flake. Convert to a real-time exponential: at the 60 fps reference
+              // dt*60 = 1 and t = 0.12 EXACTLY (behavior byte-identical there), and
+              // at lower fps t grows to hold the same per-second centering.
+              const t = 1 - Math.pow(1 - 0.12, dt * 60);
+              p.body.velocity.x = Phaser.Math.Linear(p.body.velocity.x, pull, t);
             }
           } else {
             p.body.velocity.y -= 320 * dt; // too heavy to lift, just a breeze
