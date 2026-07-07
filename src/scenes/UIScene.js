@@ -106,6 +106,10 @@ export default class UIScene extends Phaser.Scene {
     pg.fillStyle(COLORS.panel, 0.97).fillRoundedRect(-pw / 2, -ph / 2, pw, ph, 18);
     pg.lineStyle(3, this.accent, 1).strokeRoundedRect(-pw / 2, -ph / 2, pw, ph, 18);
     pg.lineStyle(7, this.accent, 0.16).strokeRoundedRect(-pw / 2 - 4, -ph / 2 - 4, pw + 8, ph + 8, 21);
+    // P8: soft top-light gradient over the clear panel — a gentle key light from
+    // above (inset clear of the rounded corners; cheap non-additive cached image).
+    const winTopLight = this.add.image(0, -ph / 2 + 6, "toplight")
+      .setOrigin(0.5, 0).setDisplaySize(pw - 64, ph * 0.5).setAlpha(0.1);
     this.winTitle = this.add.text(0, -108, "CHAMBER CLEAR!", {
       fontFamily: FONT, fontSize: FS.h2, fontStyle: "bold", color: TEXT.good,
     }).setOrigin(0.5);
@@ -147,7 +151,7 @@ export default class UIScene extends Phaser.Scene {
     }).setOrigin(0, 0.5);
     this.recordBurst.add([rbg, rlabel]);
     this.recordBurst.rbg = rbg;
-    this.winPanel = this.add.container(W / 2, H / 2, [pg, this.winTitle, this.winSub, slots, ...this.winCoreQ, ...this.winCores, this.savedTag, this.statsText, this.gradeText, this.recordBurst, this.winPrompt]);
+    this.winPanel = this.add.container(W / 2, H / 2, [pg, winTopLight, this.winTitle, this.winSub, slots, ...this.winCoreQ, ...this.winCores, this.savedTag, this.statsText, this.gradeText, this.recordBurst, this.winPrompt]);
     this.overlay.add([this.winDim, this.winPanel]);
     this.completed = null;
 

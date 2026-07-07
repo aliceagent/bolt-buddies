@@ -232,6 +232,28 @@ export default class BootScene extends Phaser.Scene {
       make(`glowBlob${w}`, 256, 256, blob(t.glow));
     }
 
+    // P8: light-pool — a soft radial with a quadratic falloff, baked white so the
+    // per-device tint (WebGL) colours it and the Canvas tier still shows a faint
+    // neutral pool. Denser core than glowBlob so the ≤0.3-alpha tint still reads.
+    make("lightpool", 128, 128, (g) => {
+      for (let r = 64; r > 0; r -= 2) {
+        const t = 1 - r / 64; // 0 at the rim -> 1 at the centre
+        g.fillStyle(0xffffff, 0.05 * t * t);
+        g.fillCircle(64, 64, r);
+      }
+    });
+
+    // P8: soft top-light gradient strip (white at the top edge, fading to clear).
+    // Laid low-alpha over the intro banner + clear panel so a gentle key light
+    // reads from above. Non-additive + cached image = canvas-cheap.
+    make("toplight", 64, 128, (g) => {
+      for (let i = 0; i < 128; i++) {
+        const a = 0.5 * Math.pow(1 - i / 128, 1.7);
+        g.fillStyle(0xffffff, a);
+        g.fillRect(0, i, 64, 1);
+      }
+    });
+
     // --- robots ------------------------------------------------------------
     // Multiply a colour by a factor to make canvas-safe lighter/darker shades
     // (setTint / fillGradientStyle no-op under the Canvas renderer, so the whole

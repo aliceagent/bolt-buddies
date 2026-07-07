@@ -106,6 +106,14 @@ export default class GameScene extends Phaser.Scene {
     this.lifts = [];
     this.crushers = [];
     this.pedestals = [];
+    // P8: ambient light pools (static images, ≤40/level). Flicker via 2-3 SHARED
+    // tweens (hazard buckets), never per-pool timers. NOTE: buildBackground() runs
+    // EARLIER in create() and sets `_webglTier`/`_poolDim`/`_poolScale`/`_noLights`
+    // before any pool is built — so those are NOT (re)initialised here (doing so
+    // would clobber the per-world dim). These two collections are reset every
+    // create() and consumed later by buildTerrain()/spawnEntity().
+    this.lightPools = [];
+    this._flickBuckets = [[], [], []];
     this.coreItems = [];
     this.keyItems = [];
     this.checkpoints = [];
@@ -449,6 +457,9 @@ export default class GameScene extends Phaser.Scene {
     // accent end caps
     g.fillStyle(accent, 0.9).fillRoundedRect(-bw / 2, -bh / 2, 7, bh, { tl: 14, bl: 14, tr: 0, br: 0 });
     g.fillStyle(accent, 0.9).fillRoundedRect(bw / 2 - 7, -bh / 2, 7, bh, { tr: 14, br: 14, tl: 0, bl: 0 });
+    // P8: soft top-light gradient washing down from the banner's top edge.
+    const topLight = this.add.image(0, -bh / 2 + 3, "toplight")
+      .setOrigin(0.5, 0).setDisplaySize(bw - 22, bh * 0.72).setAlpha(0.14);
 
     // the tutorial has no chamber number ("tut"), so show just its name; real
     // levels keep the "CHAMBER <id> — <NAME>" plate.
@@ -460,7 +471,7 @@ export default class GameScene extends Phaser.Scene {
     const sub = this.add.text(0, 18, pair, {
       fontFamily: FONT, fontSize: FS.body, fontStyle: "bold", color: accentHex,
     }).setOrigin(0.5);
-    c.add([g, head, sub]);
+    c.add([g, topLight, head, sub]);
     this.introBanner = c;
 
     this.tweens.add({
@@ -556,8 +567,25 @@ export default class GameScene extends Phaser.Scene {
         for (let i = 1; i <= 5; i++) this.dripPoints.push({ x: (i / 6) * this.worldW, y: 120 + (i % 2) * 60 });
         this._dripCd = 0;
       }
-      if (webgl) addVignette(this); // full-frame vignette — WebGL tier only
+      if (webgl) {
+        // Per-world vignette tuning (P8): W2's maintenance tunnels want darker
+        // corners than W1. Tuned by nudging the (already WebGL-gated) P3 edge
+        // bands' alpha up — NO new Canvas vignette, backdrop.js untouched.
+        const vig = addVignette(this); // full-frame vignette — WebGL tier only
+        if (world === 2 && vig) vig.forEach((b) => b.setAlpha(0.31));
+      }
     }
+
+    // P8 light-pool tier flags (set BEFORE buildTerrain/spawnEntity create pools):
+    // additive+tinted on WebGL, cheap non-additive fallback on Canvas; W2 pools
+    // dimmer (`_poolDim`) and, on WebGL, a touch wider (`_poolScale`) so they read
+    // as the low fog catching the light (the "fog interacts near pools" beat,
+    // approximated locally — see addLightPool — rather than modulating the P3 fog
+    // band per-frame, which would cost fps and risk P3's fog. Noted in the report).
+    this._webglTier = this.game.renderer.type === Phaser.WEBGL;
+    this._poolDim = world === 2 ? 0.62 : 1;
+    this._poolScale = this._webglTier && world === 2 ? 1.22 : 1;
+    this._noLights = typeof location !== "undefined" && /(?:\?|&)nolights=1(?:&|$)/.test(location.search);
   }
 
   // --- terrain -------------------------------------------------------------
@@ -695,6 +723,27 @@ export default class GameScene extends Phaser.Scene {
         quantity: 1, frequency: -1, maxAliveParticles: Math.min(2 * this.hazardStrips.length, 12),
         blendMode: Phaser.BlendModes.ADD,
       }).setDepth(DEPTH.terrain + 2);
+    }
+
+    // P8: a flickering ambient glow pool over each hazard run. The flicker is
+    // driven by 2-3 SHARED tweens (round-robin buckets), NOT per-pool timers, so
+    // strips throb slightly out of phase for zero per-frame allocation. The tween
+    // sets alpha absolutely, so `hazA` mirrors what addLightPool bakes for this
+    // tier/world (WebGL vs the halved Canvas fallback; W2 dimmed via _poolDim).
+    if (this.hazardStrips.length && !this._noLights) {
+      const hazA = Math.min(0.3, 0.26) * this._poolDim * (this._webglTier ? 1 : 0.5);
+      this.hazardStrips.forEach((h, i) => {
+        const pool = this.addLightPool((h.x1 + h.x2) / 2, h.y, COLORS.hazard, { alpha: 0.26, scale: 1.05 });
+        if (pool) this._flickBuckets[i % 3].push(pool);
+      });
+      const durs = [520, 700, 880];
+      this._flickBuckets.forEach((bucket, i) => {
+        if (!bucket.length) return;
+        this.tweens.add({
+          targets: bucket, alpha: { from: hazA * 0.5, to: hazA },
+          duration: durs[i], yoyo: true, repeat: -1, ease: "sine.inOut",
+        });
+      });
     }
   }
 
@@ -866,6 +915,30 @@ export default class GameScene extends Phaser.Scene {
     return true;
   }
 
+  // P8: place ONE static ambient light-pool image under a device. Additive +
+  // tinted on WebGL (the deploy path); on the software-Canvas tier (the beat
+  // harness) additive compositing is disproportionately costly, so we fall back
+  // to a smaller, fainter NON-additive neutral pool — the same renderer-quality
+  // scaling P3/P4/P5 used, no meaning-bearing state is gated. Alpha is capped at
+  // 0.3 and dimmed further in W2 (`_poolDim`); W2 pools also spread a touch wider
+  // on WebGL (`_poolScale`) so they read as the low fog catching the light (the
+  // "fog interacts near pools" beat — see buildBackground note). Hard-capped at
+  // 40 pools/level. Created once; only ever repositioned/toggled to READ state.
+  addLightPool(x, y, tint, opts = {}) {
+    if (this._noLights) return null; // temporary fps-A/B flag (?nolights=1)
+    if (this.lightPools.length >= 40) return null; // spec cap
+    const { alpha = 0.28, scale = 1, visible = true } = opts;
+    const img = this.add.image(x, y, "lightpool").setDepth(DEPTH.light).setVisible(visible);
+    const a = Math.min(0.3, alpha) * this._poolDim;
+    if (this._webglTier) {
+      img.setTint(tint).setBlendMode(Phaser.BlendModes.ADD).setAlpha(a).setScale(scale * this._poolScale);
+    } else {
+      img.setAlpha(a * 0.5).setScale(scale * 0.7); // cheap Canvas fallback
+    }
+    this.lightPools.push(img);
+    return img;
+  }
+
   // --- entities --------------------------------------------------------------
   spawnEntity(e) {
     const px = e.x * TILE + 24;
@@ -902,6 +975,8 @@ export default class GameScene extends Phaser.Scene {
           }).setDepth(DEPTH.entity - 1);
         }
         const img = this.add.image(px, py + 2, "pedestal").setDepth(DEPTH.entity);
+        // P8: ambient light pool washing the floor under the pedestal, skill-tinted.
+        this.addLightPool(px, py + 8, info ? info.color : COLORS.neon, { alpha: 0.26, scale: 1.15 });
         // floating skill icon orbited by 2 sparkle particles (icon = container so
         // handleAction's ped.icon.destroy() removes the sparkles too)
         const iconImg = this.add.image(0, 0, `icon_${e.skill}`).setScale(1.2);
@@ -996,8 +1071,10 @@ export default class GameScene extends Phaser.Scene {
         if (e.t === "exit") img.setTint(0x77ffb0);
         // status lamp on the light bar: red = closed, green = opening
         const lamp = this.add.image(cx, top - 8, "lamp_red").setDepth(DEPTH.entity);
+        // P8: small light pool under the status lamp (red closed -> green on open).
+        const lampPool = this.addLightPool(cx, top - 8, COLORS.hazard, { alpha: 0.22, scale: 0.62 });
         const door = {
-          id: e.id || "exit", img, frame, lamp, needs: e.needs || {}, latch: !!e.latch || e.t === "exit",
+          id: e.id || "exit", img, frame, lamp, lampPool, needs: e.needs || {}, latch: !!e.latch || e.t === "exit",
           timer: e.timer || 0, closeAt: 0,
           open: false, isExit: e.t === "exit",
           zone: new Phaser.Geom.Rectangle(cx - TILE, e.y * TILE, TILE * 2, h),
@@ -1016,6 +1093,8 @@ export default class GameScene extends Phaser.Scene {
         }
         if (door.isExit) {
           this.exitDoor = door;
+          // P8: broad green light pool washing the exit marquee frame + threshold.
+          this.addLightPool(cx, cy, 0x77ffb0, { alpha: 0.24, scale: 1.55 });
           // EXIT light panel above the door with a soft glow pulse (Sprint 4 sign)
           const ly = top - 20;
           const glow = this.add.image(cx, ly, "glowBlob").setDepth(DEPTH.entity - 1)
@@ -1123,7 +1202,10 @@ export default class GameScene extends Phaser.Scene {
           .setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
         cone.fillStyle(COLORS.green, 0.16).fillTriangle(px, py - 30, px - 20, py + 8, px + 20, py + 8);
         this.tweens.add({ targets: cone, alpha: { from: 0.55, to: 1 }, duration: 900, yoyo: true, repeat: -1, ease: "sine.inOut" });
-        this.checkpoints.push({ x: px, y: py, img, active: false, cone });
+        // P8: green light pool at the base, revealed only while this checkpoint is
+        // the active one (toggled with the lamp texture in the activation handler).
+        const pool = this.addLightPool(px, py + 6, COLORS.green, { alpha: 0.26, scale: 1.1, visible: false });
+        this.checkpoints.push({ x: px, y: py, img, active: false, cone, pool });
         break;
       }
       case "trigger": {
@@ -1233,10 +1315,14 @@ export default class GameScene extends Phaser.Scene {
         // P7: cab-roof warning lamp (lit/unlit texture states, swapped by state
         // in updateWorld2 — static, not spinning).
         const lamp = this.add.image(img.x, img.y - 20, "roller_lamp").setDepth(DEPTH.entity + 1);
+        // P8: alarm light pool under the cab lamp — shown + repositioned only while
+        // the roller is alerted (updated alongside the existing lamp reposition, so
+        // it adds no new per-frame allocation).
+        const lampPool = this.addLightPool(img.x, img.y - 20, COLORS.hazard, { alpha: 0.28, scale: 0.9, visible: false });
         this.rollers.push({
           img, minX: e.min * TILE, maxX: (e.max + 1) * TILE, dir: 1,
           state: "patrol", timer: 0, beamLen: e.beam || 140,
-          pupil, wheels, excl, lamp, wheelAngle: 0,
+          pupil, wheels, excl, lamp, lampPool, wheelAngle: 0,
         });
         break;
       }
@@ -1283,7 +1369,9 @@ export default class GameScene extends Phaser.Scene {
         bracket.fillStyle(0x2a3350, 1).fillRoundedRect(px - 13, py - 4, 26, 12, 3);
         bracket.fillStyle(0x1c2742, 1).fillRect(px - 2, py + 6, 4, 8); // stem to the wall
         const lamp = this.add.image(px, py, "lamp_red").setDepth(DEPTH.entity);
-        this.ventLamps.push({ lamp, wiredTo: e.wiredTo, lit: false });
+        // P8: light pool under the vent lamp (red while live -> green once cleared).
+        const pool = this.addLightPool(px, py + 4, COLORS.hazard, { alpha: 0.22, scale: 0.7 });
+        this.ventLamps.push({ lamp, pool, wiredTo: e.wiredTo, lit: false });
         break;
       }
       case "fan": {
@@ -2944,6 +3032,7 @@ export default class GameScene extends Phaser.Scene {
             o.active = false;
             o.img.setTexture("checkpoint").setAlpha(0.85); // dim grey lamp
             if (o.cone) o.cone.setVisible(false);
+            if (o.pool) o.pool.setVisible(false); // P8: extinguish its light pool
           });
           cp.active = true;
           // U9 (F16): a NEW segment begins — reset the streak counter + one-shot
@@ -2952,6 +3041,7 @@ export default class GameScene extends Phaser.Scene {
           this._segStreakFired = false;
           cp.img.setTexture("checkpoint_on").setAlpha(1); // green lamp
           if (cp.cone) cp.cone.setVisible(true); // light-cone below
+          if (cp.pool) cp.pool.setVisible(true); // P8: light pool lit while active
           // expanding ring burst on activation
           const ring = this.add.image(cp.x, cp.y - 31, "ring").setDepth(DEPTH.fx)
             .setBlendMode(Phaser.BlendModes.ADD);
@@ -3096,6 +3186,7 @@ export default class GameScene extends Phaser.Scene {
         this.opened.add(d.id);
         d.img.body.enable = false;
         if (d.lamp) d.lamp.setTexture("lamp_green"); // lamp flips green on open
+        if (d.lampPool) d.lampPool.setTint(0x59ff9c); // P8: pool follows lamp to green
         // dust jets venting from both sides of the frame at the floor
         const fy = d.baseY + d.h / 2 - 4;
         this.dust.emitParticleAt(d.zone.centerX - TILE * 0.4, fy, 6);
@@ -3109,6 +3200,7 @@ export default class GameScene extends Phaser.Scene {
         if (!blocked) {
           d.open = false;
           if (d.lamp) d.lamp.setTexture("lamp_red"); // lamp back to red on close
+          if (d.lampPool) d.lampPool.setTint(0xff5566); // P8: pool back to red
           sfx.doorClose(d.zone.centerX, d.baseY);
           this.tweens.add({
             targets: d.img, y: d.baseY, duration: 400, ease: "sine.inOut",
@@ -3499,6 +3591,12 @@ export default class GameScene extends Phaser.Scene {
       const lampTex = r.state === "alert" ? "roller_lamp_lit" : "roller_lamp";
       if (r._lampTex !== lampTex) { r._lampTex = lampTex; r.lamp.setTexture(lampTex); }
       r.lamp.setPosition(img.x, img.y - 20);
+      // P8: alarm light pool tracks the cab lamp, lit only while alerted.
+      if (r.lampPool) {
+        const alerted = r.state === "alert";
+        if (r.lampPool.visible !== alerted) r.lampPool.setVisible(alerted);
+        if (alerted) r.lampPool.setPosition(img.x, img.y - 20);
+      }
       // alert = red flash (texture swap; setTint no-ops on Canvas) + "!" popup
       // U11 FLASH soft: the alert strobe stays red (meaning-bearing) but slows
       // from a 200ms to a 400ms period.
@@ -3588,6 +3686,7 @@ export default class GameScene extends Phaser.Scene {
       if (!this.levers.find((l) => l.id === vl.wiredTo)?.on) continue;
       vl.lit = true;
       vl.lamp.setTexture("lamp_green");
+      if (vl.pool) vl.pool.setTint(0x59ff9c); // P8: pool follows lamp to green
       if (!this._allClearFired) {
         this._allClearFired = true;
         for (const j of this.jets) {
