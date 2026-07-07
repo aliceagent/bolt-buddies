@@ -13,7 +13,19 @@
 const STORAGE_KEY = "bolt-buddies-audio-v1";
 // NOTE: music default is 0.45 (the binding "Music direction" section — music must
 // sit *under* the game), not the 0.7 sketched in the architecture diagram.
-const DEFAULTS = { music: 0.45, sfx: 0.8, muted: false };
+//
+// MUTE MODEL (global mute dropdown): the source of truth is TWO independent
+// per-bus flags — `musicMuted` and `sfxMuted` — plus the saved volumes (muting
+// zeroes the *bus gain*, never the saved volume, so unmute restores exactly).
+// The master `muted` is DERIVED: muted === (musicMuted && sfxMuted). "MUTE ALL"
+// (the Settings row, the 'M' key, and the dropdown's MUTE ALL row) is therefore
+// just `setBothMuted(bool)` — it flips BOTH per-bus flags together, which makes
+// the derived master `muted` follow. There is no separate stored master flag to
+// diverge: individually muting music AND sfx in the dropdown flips the Settings
+// "MUTE ALL" row on too, and M toggles both flags at once. masterGain still
+// drops to 0 whenever derived-muted is true (keeps the old master-kill behaviour
+// and the audio suite's masterGain->0 assertion green).
+const DEFAULTS = { music: 0.45, sfx: 0.8, musicMuted: false, sfxMuted: false, muted: false };
 
 // Master ceiling (Sound Sprint S5): the unmuted masterGain sits at 0.8, not 1.0,
 // so the summed output keeps headroom below full scale even when many voices +
@@ -42,10 +54,17 @@ function loadSettings() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const p = JSON.parse(raw);
+      // Back-compat: an old blob only had a master `muted`. Map it onto both
+      // per-bus flags so a previously-muted profile stays muted.
+      const legacy = !!p.muted;
+      const musicMuted = typeof p.musicMuted === "boolean" ? p.musicMuted : legacy;
+      const sfxMuted = typeof p.sfxMuted === "boolean" ? p.sfxMuted : legacy;
       return {
         music: typeof p.music === "number" ? clamp01(p.music) : DEFAULTS.music,
         sfx: typeof p.sfx === "number" ? clamp01(p.sfx) : DEFAULTS.sfx,
-        muted: !!p.muted,
+        musicMuted,
+        sfxMuted,
+        muted: musicMuted && sfxMuted, // derived master
       };
     }
   } catch (e) {
@@ -68,8 +87,15 @@ function applySettings() {
   if (!ctx) return;
   const t = ctx.currentTime;
   masterGain.gain.setTargetAtTime(settings.muted ? 0 : MASTER, t, 0.008);
-  musicBus.gain.setTargetAtTime(settings.music * (ducked ? 0.7 : 1) * (pauseDucked ? 0.5 : 1), t, 0.02);
-  sfxBus.gain.setTargetAtTime(settings.sfx, t, 0.02);
+  musicBus.gain.setTargetAtTime(settings.musicMuted ? 0 : settings.music * (ducked ? 0.7 : 1) * (pauseDucked ? 0.5 : 1), t, 0.02);
+  sfxBus.gain.setTargetAtTime(settings.sfxMuted ? 0 : settings.sfx, t, 0.02);
+}
+
+// Keep the derived master flag in sync with the two per-bus flags. Called from
+// every mute mutator before save/apply so getAudioSettings().muted, the Settings
+// "MUTE ALL" row, and engineState all read one coherent value.
+function syncMuted() {
+  settings.muted = settings.musicMuted && settings.sfxMuted;
 }
 
 export function initAudio() {
@@ -95,8 +121,8 @@ export function initAudio() {
       limiter.connect(ctx.destination);
       // set gains immediately (no ramp) so the very first note is at the right level
       masterGain.gain.value = settings.muted ? 0 : MASTER;
-      musicBus.gain.value = settings.music * (ducked ? 0.7 : 1) * (pauseDucked ? 0.5 : 1);
-      sfxBus.gain.value = settings.sfx;
+      musicBus.gain.value = settings.musicMuted ? 0 : settings.music * (ducked ? 0.7 : 1) * (pauseDucked ? 0.5 : 1);
+      sfxBus.gain.value = settings.sfxMuted ? 0 : settings.sfx;
     } catch (e) {
       ctx = null; // audio unsupported — game stays silent
     }
@@ -126,15 +152,55 @@ export function setSfxVolume(v) {
   saveSettings();
   applySettings();
 }
+// --- MUTE ALL (master) -------------------------------------------------------
+// setMuted / toggleMute drive BOTH per-bus flags together (the derived master).
+// Kept named `setMuted`/`toggleMute` so mute.js, SettingsScene, and the audio
+// suite keep working unchanged.
 export function setMuted(b) {
-  settings.muted = !!b;
+  settings.musicMuted = settings.sfxMuted = !!b;
+  syncMuted();
   saveSettings();
   applySettings();
+}
+export function setBothMuted(b) {
+  setMuted(b);
 }
 export function toggleMute() {
   setMuted(!settings.muted);
   return settings.muted;
 }
+
+// --- per-bus mute ------------------------------------------------------------
+export function setMusicMuted(b) {
+  settings.musicMuted = !!b;
+  syncMuted();
+  saveSettings();
+  applySettings();
+}
+export function toggleMusicMuted() {
+  setMusicMuted(!settings.musicMuted);
+  return settings.musicMuted;
+}
+export function setSfxMuted(b) {
+  settings.sfxMuted = !!b;
+  syncMuted();
+  saveSettings();
+  applySettings();
+}
+export function toggleSfxMuted() {
+  setSfxMuted(!settings.sfxMuted);
+  return settings.sfxMuted;
+}
+
+// Current mute state for the global dropdown glyph + rows.
+export function getMuteState() {
+  return {
+    musicMuted: settings.musicMuted,
+    sfxMuted: settings.sfxMuted,
+    muted: settings.muted, // derived master (both buses muted)
+  };
+}
+
 export function getAudioSettings() {
   return { ...settings };
 }

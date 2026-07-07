@@ -7,6 +7,7 @@ import UIScene from "./scenes/UIScene.js";
 import PauseScene from "./scenes/PauseScene.js";
 import SettingsScene from "./scenes/SettingsScene.js";
 import OnboardScene from "./scenes/OnboardScene.js";
+import MuteScene from "./scenes/MuteScene.js";
 import { engineState } from "./audio/engine.js";
 import { musicState } from "./audio/music.js";
 import { sfx, sfxCounts, resetSfxCounts, kobi, panForX, setListener } from "./audio/sfx.js";
@@ -34,7 +35,16 @@ const game = new Phaser.Game({
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [BootScene, TitleScene, HubScene, GameScene, UIScene, PauseScene, SettingsScene, OnboardScene],
+  scene: [BootScene, TitleScene, HubScene, GameScene, UIScene, PauseScene, SettingsScene, OnboardScene, MuteScene],
+});
+
+// Global mute dropdown: launch the always-on-top overlay once the game is booted
+// and keep it above every scene. MuteScene draws only its own glyph/dropdown and
+// re-tops itself each frame, so it rides over gameplay, menus and the Pause
+// overlay without touching any other scene's input.
+game.events.once("ready", () => {
+  game.scene.start("Mute");
+  game.scene.bringToTop("Mute");
 });
 
 // handle used by the automated playtest harness (tools/playtest.mjs)
