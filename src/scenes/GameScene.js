@@ -102,6 +102,7 @@ export default class GameScene extends Phaser.Scene {
     this.plates = [];
     this.doors = [];
     this.bridges = [];
+    this.conduits = []; // P5: lever/plate → device wiring overlays
     this.lifts = [];
     this.crushers = [];
     this.pedestals = [];
@@ -194,6 +195,8 @@ export default class GameScene extends Phaser.Scene {
     this.cpPos = def.spawns.map(([tx, ty]) => ({ x: tx * TILE + 24, y: ty * TILE + 24 }));
 
     def.entities.forEach((e) => this.spawnEntity(e));
+    // P5: trace lever/plate → device wiring now that every entity exists.
+    this.buildConduits();
 
     // Sprint 10: static key-glyph clusters declared in the level def (tutorial).
     (def.glyphs || []).forEach((gz) => this.addGlyphs(gz.x * TILE + 24, gz.y * TILE + 24, gz.caps));
@@ -744,6 +747,96 @@ export default class GameScene extends Phaser.Scene {
     if (em && em.anims) em.emitParticleAt(x, y, n);
   }
 
+  // P5: CAUSALITY WIRING — trace every lever/plate to the device it drives and
+  // draw a dim, static L-shaped conduit between them. On trigger the base line
+  // lights in the world accent and a brief travel pulse runs source→device.
+  // Purely cosmetic: reads the existing wiring (needs.levers / needs.plates /
+  // needs.latchLever); it never gates or delays the instant trigger logic.
+  buildConduits() {
+    const accent = (WORLD_THEMES[this.def.world] || WORLD_THEMES[1]).accent;
+    const webgl = this.game.renderer.type === Phaser.WEBGL;
+    const devices = [...this.doors, ...this.bridges];
+    for (const dev of devices) {
+      const n = dev.needs || {};
+      const leverIds = [...(n.levers || [])];
+      if (n.latchLever) leverIds.push(n.latchLever);
+      const sources = [];
+      for (const id of leverIds) {
+        const l = this.levers.find((v) => v.id === id);
+        if (l) sources.push({ type: "lever", id, x: l.x, y: l.y - 18 });
+      }
+      for (const id of (n.plates || [])) {
+        const pl = this.plates.find((p) => p.id === id);
+        if (pl) sources.push({ type: "plate", id, x: pl.rect.centerX, y: pl.rect.y + 2 });
+      }
+      for (const s of sources) {
+        // L-shape along tile edges: vertical from the source, then horizontal
+        // into the device at the device's mid-height (corner hugs the source).
+        const tx = dev.wireX, ty = dev.wireY;
+        const pts = [{ x: s.x, y: s.y }, { x: s.x, y: ty }, { x: tx, y: ty }];
+        // arc-length table for the pulse
+        const segLen = [];
+        let total = 0;
+        for (let i = 1; i < pts.length; i++) {
+          const d = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+          segLen.push(d); total += d;
+        }
+        const base = this.add.graphics().setDepth(DEPTH.entity - 3);
+        this.drawConduitBase(base, pts, accent, 0.16, s, tx, ty);
+        const dot = this.add.image(s.x, s.y, "px").setDepth(DEPTH.entity - 2)
+          .setScale(1.7).setVisible(false).setTint(accent);
+        if (webgl) dot.setBlendMode(Phaser.BlendModes.ADD);
+        this.conduits.push({
+          srcType: s.type, srcId: s.id, base, pts, segLen, total: total || 1,
+          dot, accent, lit: false, _prox: { t: 0 },
+        });
+      }
+    }
+  }
+
+  // Draw a conduit polyline + end caps into a (cleared) Graphics at a given
+  // intensity. Called ONCE at spawn (dim) and ONCE more when the wire lights.
+  drawConduitBase(g, pts, accent, alpha, s, tx, ty) {
+    g.clear();
+    g.lineStyle(3, accent, alpha).strokePoints(pts, false, false);
+    g.lineStyle(1.5, 0xffffff, alpha * 0.5).strokePoints(pts, false, false);
+    // small junction caps at the source and the device
+    g.fillStyle(accent, Math.min(0.9, alpha * 3.4)).fillCircle(pts[0].x, pts[0].y, 3);
+    g.fillStyle(accent, Math.min(0.9, alpha * 3.4)).fillCircle(tx, ty, 3);
+  }
+
+  // Light + pulse every conduit driven by this source (cosmetic overlay).
+  fireConduits(type, id) {
+    for (const c of this.conduits) {
+      if (c.srcType !== type || c.srcId !== id) continue;
+      if (!c.lit) {
+        c.lit = true;
+        this.drawConduitBase(c.base, c.pts, c.accent, 0.5, c.pts[0], c.pts[c.pts.length - 1].x, c.pts[c.pts.length - 1].y);
+      }
+      // brief travel pulse source→device (~400ms), reusing a per-conduit proxy
+      this.tweens.killTweensOf(c._prox);
+      c._prox.t = 0;
+      c.dot.setVisible(true).setAlpha(1).setPosition(c.pts[0].x, c.pts[0].y);
+      this.tweens.add({
+        targets: c._prox, t: 1, duration: 400, ease: "sine.in",
+        onUpdate: () => {
+          let d = c._prox.t * c.total;
+          for (let i = 0; i < c.segLen.length; i++) {
+            if (d <= c.segLen[i] || i === c.segLen.length - 1) {
+              const f = c.segLen[i] > 0 ? d / c.segLen[i] : 1;
+              c.dot.setPosition(
+                c.pts[i].x + (c.pts[i + 1].x - c.pts[i].x) * f,
+                c.pts[i].y + (c.pts[i + 1].y - c.pts[i].y) * f);
+              return;
+            }
+            d -= c.segLen[i];
+          }
+        },
+        onComplete: () => c.dot.setVisible(false),
+      });
+    }
+  }
+
   tileAt(px, py) {
     const tx = Math.floor(px / TILE);
     const ty = Math.floor(py / TILE);
@@ -772,10 +865,34 @@ export default class GameScene extends Phaser.Scene {
     switch (e.t) {
       case "pedestal": {
         const info = SKILL_INFO[e.skill];
-        // holo-pillar: light beam rising from the base (additive, gentle pulse)
+        // holo-pillar: soft base glow rising from the base (additive, gentle pulse)
         const beam = this.add.image(px, py - 52, "holobeam").setDepth(DEPTH.entity - 1)
           .setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.2);
         this.tweens.add({ targets: beam, alpha: { from: 0.12, to: 0.3 }, duration: 1200, yoyo: true, repeat: -1, ease: "sine.inOut" });
+        // P5: two counter-scrolling alpha bands drifting up/down the column +
+        // rising glyph particles — WebGL tier ONLY. Per the P3/P4 renderer
+        // policy, the per-frame tileSprite pattern-fills + additive particles are
+        // disproportionately costly on the software Canvas beat harness (they
+        // shaved ~1fps off the fps-sensitive 1-1/2-2 pair), so on Canvas the
+        // pedestal keeps just the cheap holo-beam pulse above and NONE of this.
+        const webglTier = this.game.renderer.type === Phaser.WEBGL;
+        const bandH = 116, bandY = py - 54;
+        let band1 = null, band2 = null, glyphEmit = null;
+        if (webglTier) {
+          band1 = this.add.tileSprite(px, bandY, 22, bandH, "beamband")
+            .setDepth(DEPTH.entity - 1).setAlpha(0.3);
+          band2 = this.add.tileSprite(px, bandY, 22, bandH, "beamband")
+            .setDepth(DEPTH.entity - 1).setAlpha(0.22);
+          this.tweens.add({ targets: band1, tilePositionY: 48, duration: 1700, repeat: -1, ease: "linear" });
+          this.tweens.add({ targets: band2, tilePositionY: -48, duration: 2100, repeat: -1, ease: "linear" });
+          glyphEmit = this.add.particles(px, py + 4, "pedglyph", {
+            speedY: { min: -30, max: -14 }, speedX: { min: -6, max: 6 },
+            x: { min: -8, max: 8 }, scale: { start: 0.9, end: 0 },
+            alpha: { start: 0.7, end: 0 }, lifespan: 2200, frequency: 420,
+            maxAliveParticles: 6, rotate: { min: -30, max: 30 },
+            blendMode: Phaser.BlendModes.ADD,
+          }).setDepth(DEPTH.entity - 1);
+        }
         const img = this.add.image(px, py + 2, "pedestal").setDepth(DEPTH.entity);
         // floating skill icon orbited by 2 sparkle particles (icon = container so
         // handleAction's ped.icon.destroy() removes the sparkles too)
@@ -788,7 +905,7 @@ export default class GameScene extends Phaser.Scene {
         this.tweens.add({ targets: orbit, angle: 360, duration: 1800, repeat: -1 });
         // stagger card heights so neighbouring pedestals' cards don't overlap
         const cardY = py - 118 - this.pedestals.length * 96;
-        const ped = { x: px, y: py, skill: e.skill, taken: false, img, icon, beam };
+        const ped = { x: px, y: py, skill: e.skill, taken: false, img, icon, beam, bands: [band1, band2].filter(Boolean), glyphEmit };
         this.buildItemCard(ped, px, cardY, info);
         this.pedestals.push(ped);
         break;
@@ -857,6 +974,14 @@ export default class GameScene extends Phaser.Scene {
         frame.strokeRect(cx + halfW, top, 5, h);
         frame.fillStyle(0x2a3350).fillRect(cx - halfW - 5, top - 14, (halfW + 5) * 2, 12);
         frame.lineStyle(1, 0x44548c).strokeRect(cx - halfW - 5, top - 14, (halfW + 5) * 2, 12);
+        // P5: hinge caps — bolt seats at the top & bottom of each side rail.
+        for (const rx of [cx - halfW - 2.5, cx + halfW + 2.5]) {
+          for (const ry of [top + 8, top + h - 8]) {
+            frame.fillStyle(0x39415e).fillCircle(rx, ry, 3.2);
+            frame.lineStyle(1, 0x5a6aa0).strokeCircle(rx, ry, 3.2);
+            frame.fillStyle(0x8fa3d9, 0.9).fillCircle(rx - 0.8, ry - 0.8, 1.1);
+          }
+        }
         const img = this.doorGroup.create(cx, cy, e.t === "exit" ? "door_exit" : "door");
         img.setDisplaySize(TILE - 6, h).refreshBody();
         img.setDepth(DEPTH.entity);
@@ -869,8 +994,18 @@ export default class GameScene extends Phaser.Scene {
           open: false, isExit: e.t === "exit",
           zone: new Phaser.Geom.Rectangle(cx - TILE, e.y * TILE, TILE * 2, h),
           baseY: cy, h,
+          wireX: cx, wireY: cy, // P5 conduit target (device centre)
         };
         this.doors.push(door);
+        // P5: small ID plate riveted on the side rail (drawn detail, not a lamp).
+        if (!door.isExit && e.id) {
+          const pw = 26, ph = 12, plx = cx - halfW - 2.5, ply = top + h / 2;
+          frame.fillStyle(0x0c1424, 0.95).fillRoundedRect(plx - pw / 2, ply - ph / 2, pw, ph, 2);
+          frame.lineStyle(1, 0x44548c).strokeRoundedRect(plx - pw / 2, ply - ph / 2, pw, ph, 2);
+          this.add.text(plx, ply, String(e.id).slice(0, 4).toUpperCase(), {
+            fontFamily: FONT, fontSize: FS.tiny, color: TEXT.dim,
+          }).setOrigin(0.5).setDepth(DEPTH.entity - 1).setResolution(2);
+        }
         if (door.isExit) {
           this.exitDoor = door;
           // EXIT light panel above the door with a soft glow pulse (Sprint 4 sign)
@@ -884,6 +1019,24 @@ export default class GameScene extends Phaser.Scene {
           this.add.text(cx, ly, "EXIT", {
             fontFamily: FONT, fontSize: FS.small, fontStyle: "bold", color: TEXT.good,
           }).setOrigin(0.5).setDepth(DEPTH.entity + 1);
+
+          // P5: marquee dot-lights ringing the door frame, chasing while OPEN.
+          // Pooled (built once, hidden); a single head index sweeps them in the
+          // door update — no per-frame allocation. Additive glow gated to WebGL.
+          const webgl = this.game.renderer.type === Phaser.WEBGL;
+          const L = cx - halfW - 5, R = cx + halfW + 5, T = top, B = top + h;
+          const per = []; const step = 20;
+          for (let x = L; x < R; x += step) per.push([x, T]);
+          for (let y = T; y < B; y += step) per.push([R, y]);
+          for (let x = R; x > L; x -= step) per.push([x, B]);
+          for (let y = B; y > T; y -= step) per.push([L, y]);
+          const mdots = per.map(([mx, my]) => {
+            const d = this.add.image(mx, my, "marqueedot").setDepth(DEPTH.entity + 1)
+              .setScale(0.9).setVisible(false).setTint(0x9dffc4);
+            if (webgl) d.setBlendMode(Phaser.BlendModes.ADD);
+            return d;
+          });
+          door.marquee = { dots: mdots, phase: 0 };
 
           // "waiting for buddy" bubble floating above the EXIT sign — shows the
           // missing buddy's icon + a pulsing down-arrow while one player waits.
@@ -921,7 +1074,10 @@ export default class GameScene extends Phaser.Scene {
           });
           tiles.push(img);
         }
-        this.bridges.push({ id: e.id, tiles, needs: e.needs || {}, open: false });
+        this.bridges.push({
+          id: e.id, tiles, needs: e.needs || {}, open: false,
+          wireX: e.x * TILE + 24 + ((e.w - 1) * TILE) / 2, wireY: e.y * TILE + 24,
+        });
         break;
       }
       case "key": {
@@ -1011,6 +1167,11 @@ export default class GameScene extends Phaser.Scene {
         const pips = [];
         const spacing = 18;
         const startX = -((N - 1) * spacing) / 2;
+        // P5: tiny framed panel behind the weight pips (drawn once).
+        const panelW = N * spacing + 12;
+        const pipPanel = this.add.graphics().setDepth(DEPTH.entity - 1);
+        pipPanel.fillStyle(0x0c1424, 0.9).fillRoundedRect(cx - panelW / 2, e.y * TILE + 34 - 11, panelW, 22, 5);
+        pipPanel.lineStyle(1, 0x44548c).strokeRoundedRect(cx - panelW / 2, e.y * TILE + 34 - 11, panelW, 22, 5);
         const label = this.add.container(cx, e.y * TILE + 34).setDepth(DEPTH.entity);
         for (let i = 0; i < N; i++) {
           const pip = this.add.image(startX + i * spacing, 0, "pip_off");
@@ -1020,9 +1181,23 @@ export default class GameScene extends Phaser.Scene {
         // engine glow strip beneath the platform, lit while the lift is moving
         const glow = this.add.image(cx, e.y * TILE + 22, "px").setDepth(DEPTH.entity - 1)
           .setBlendMode(Phaser.BlendModes.ADD).setDisplaySize(w - 12, 9).setTint(0xffd9a0).setAlpha(0);
+        // P5: rail grooves flanking the shaft + a cable drum at the top that a
+        // cable descends from to the platform. Rails/drum drawn once (static);
+        // the drum rotates and the cable re-lengths in the lift loop (no alloc).
+        const topY = e.toY * TILE + 10, botY = e.y * TILE + 10;
+        const drumY = topY - 30;
+        const rail = this.add.graphics().setDepth(DEPTH.entity - 2);
+        for (const rx of [cx - w / 2 + 5, cx + w / 2 - 5]) {
+          rail.fillStyle(0x0c1424, 0.9).fillRect(rx - 3, drumY, 6, botY + 12 - drumY);
+          rail.lineStyle(1, 0x2f4066).strokeRect(rx - 3, drumY, 6, botY + 12 - drumY);
+          rail.fillStyle(0x1c2742).fillRect(rx - 1, drumY, 2, botY + 12 - drumY); // groove channel
+        }
+        const cable = this.add.image(cx, drumY, "liftcable").setOrigin(0.5, 0)
+          .setDepth(DEPTH.entity - 1).setDisplaySize(3, botY - drumY);
+        const drum = this.add.image(cx, drumY, "drum").setDepth(DEPTH.entity);
         const lift = {
-          img, topY: e.toY * TILE + 10, botY: e.y * TILE + 10,
-          threshold: N, holdTimer: 0, label, pips, glow,
+          img, topY, botY,
+          threshold: N, holdTimer: 0, label, pips, glow, drum, cable, drumY,
         };
         this.lifts.push(lift);
         break;
@@ -1228,6 +1403,10 @@ export default class GameScene extends Phaser.Scene {
     if (ped) {
       ped.taken = true;
       ped.icon.destroy();
+      // P5: the holo-beam dims out once its skill is claimed (cosmetic).
+      if (ped.beam) this.tweens.add({ targets: ped.beam, alpha: 0, duration: 400 });
+      if (ped.bands) ped.bands.forEach((b) => this.tweens.add({ targets: b, alpha: 0, duration: 400 }));
+      if (ped.glyphEmit) ped.glyphEmit.stop();
       this.equipItemCard(ped);
       p.setSkill(ped.skill);
       sfx.equip();
@@ -1360,6 +1539,7 @@ export default class GameScene extends Phaser.Scene {
       this.tweens.add({ targets: lev.handle, angle: 60, duration: 240, ease: "back.out" });
       this.sparks.explode(10, lev.handle.x, lev.y - 22); // spark burst at the knob
     }
+    this.fireConduits("lever", lev.id); // P5: light the wire to its device (cosmetic)
     sfx.lever();
   }
 
@@ -2729,7 +2909,7 @@ export default class GameScene extends Phaser.Scene {
         // LED strip lights (accent) via texture swap — setTint no-ops on Canvas
         pl.img.setTexture(active ? "plate_on" : "plate");
         pl.img.scaleY = pl.baseScaleY * (active ? 0.45 : 1);
-        if (active) sfx.platePress(pl.rect.centerX, pl.rect.centerY);
+        if (active) { sfx.platePress(pl.rect.centerX, pl.rect.centerY); this.fireConduits("plate", pl.id); }
         else sfx.plateRelease(pl.rect.centerX, pl.rect.centerY);
       }
     }
@@ -2802,6 +2982,19 @@ export default class GameScene extends Phaser.Scene {
           });
         }
       }
+      // P5: exit marquee dot-lights chase around the frame while the door is
+      // open. Pooled dots, one head index — a handful of setAlpha calls/frame.
+      if (d.marquee && d.open) {
+        const dots = d.marquee.dots, N = dots.length;
+        d.marquee.phase = (d.marquee.phase + delta * 0.012) % N;
+        const head = d.marquee.phase;
+        for (let i = 0; i < N; i++) {
+          let dd = ((i - head) % N + N) % N;
+          const a = dd < 3 ? 1 - dd * 0.28 : 0.22;
+          if (!dots[i].visible) dots[i].setVisible(true);
+          dots[i].setAlpha(a);
+        }
+      }
     }
 
     // bridges (latch once conditions met)
@@ -2817,6 +3010,17 @@ export default class GameScene extends Phaser.Scene {
             this.boom.explode(4, t.x, t.y - 10);
             sfx.bridgeTick(t.x, t.y); // one materialise tick per tile, rising left-to-right
           });
+        });
+        // P5: a bright light sweeps tile-by-tile as the bridge solidifies —
+        // one pooled image tweened across the span, then faded (cosmetic).
+        const accent = (WORLD_THEMES[this.def.world] || WORLD_THEMES[1]).accent;
+        const t0 = br.tiles[0], tN = br.tiles[br.tiles.length - 1];
+        const sweep = this.add.image(t0.x, t0.y, "glowBlob").setDepth(DEPTH.terrain + 1)
+          .setScale(0.28).setAlpha(0.7).setTint(accent);
+        if (this.game.renderer.type === Phaser.WEBGL) sweep.setBlendMode(Phaser.BlendModes.ADD);
+        this.tweens.add({
+          targets: sweep, x: tN.x, duration: (br.tiles.length - 1) * 70 + 200, ease: "sine.inOut",
+          onComplete: () => this.tweens.add({ targets: sweep, alpha: 0, duration: 250, onComplete: () => sweep.destroy() }),
         });
       }
     }
@@ -2863,6 +3067,11 @@ export default class GameScene extends Phaser.Scene {
       if (lf.glow) {
         lf.glow.setPosition(lf.img.x, body.bottom + 4);
         lf.glow.setAlpha(moving ? 0.55 : 0);
+      }
+      // P5: cable drum spins proportional to lift velocity; cable re-lengths.
+      if (lf.drum) {
+        lf.drum.rotation += body.velocity.y * dt * 0.05;
+        lf.cable.setDisplaySize(3, Math.max(1, lf.img.y - 10 - lf.drumY));
       }
       if (moving && !lf.movingWas) sfx.liftStart(lf.img.x, lf.img.y);
       else if (!moving && lf.movingWas) sfx.liftStop(lf.img.x, lf.img.y);

@@ -543,6 +543,55 @@ export default class BootScene extends Phaser.Scene {
       g.fillStyle(COLORS.neon, 0.3).fillCircle(24, 8, 10);
       g.fillStyle(COLORS.neon, 0.85).fillCircle(24, 8, 6.5);
     });
+    // P5 — Causality wiring & machine detail ------------------------------
+    // Pedestal beam band: a short vertical strip with two soft horizontal
+    // light bands on a transparent field. Two of these are tiled up the beam
+    // and their tilePositionY is tweened in opposite directions (counter-
+    // scrolling alpha bands). Neon-baked so it reads under Canvas (no tint).
+    make("beamband", 24, 48, (g) => {
+      for (let i = 0; i < 48; i++) {
+        // two gaussian-ish bright bands centred at y=12 and y=36
+        const d1 = Math.abs(i - 12), d2 = Math.abs(i - 36);
+        const a = Math.max(0, 0.5 - d1 * 0.05) + Math.max(0, 0.42 - d2 * 0.05);
+        if (a <= 0.01) continue;
+        const halfW = 4 + (a > 0.3 ? 3 : 0);
+        g.fillStyle(COLORS.neon, Math.min(0.5, a));
+        g.fillRect(12 - halfW, i, halfW * 2, 1);
+      }
+    });
+    // Rising pedestal glyph: a tiny neon data-mark (diamond + centre dot) that
+    // floats up through the beam (pooled emitter, WebGL only — see GameScene).
+    make("pedglyph", 10, 10, (g) => {
+      g.fillStyle(COLORS.neon, 0.9);
+      g.fillPoints([{ x: 5, y: 0 }, { x: 10, y: 5 }, { x: 5, y: 10 }, { x: 0, y: 5 }], true);
+      g.fillStyle(0xffffff, 0.95).fillCircle(5, 5, 1.5);
+    });
+    // Cable drum / pulley for the lift: a spoked wheel that rotates while the
+    // lift travels (rotation set from lift velocity in GameScene).
+    make("drum", 26, 26, (g) => {
+      g.fillStyle(0x1c2742).fillCircle(13, 13, 12);
+      g.lineStyle(2, 0x44548c).strokeCircle(13, 13, 12);
+      g.fillStyle(0x2a3350).fillCircle(13, 13, 8);
+      g.lineStyle(2, 0x5a6aa0);
+      for (let i = 0; i < 4; i++) {
+        const a = (Math.PI / 2) * i;
+        g.lineBetween(13, 13, 13 + Math.cos(a) * 11, 13 + Math.sin(a) * 11);
+      }
+      g.fillStyle(0x8fa3d9).fillCircle(13, 13, 3);
+      g.fillStyle(0xffd9a0, 0.9).fillCircle(11.5, 11.5, 1.3);
+    });
+    // Lift cable: a thin steel line (baked grey so it reads under Canvas, where
+    // setTint is a no-op) stretched between the drum and the platform.
+    make("liftcable", 3, 8, (g) => {
+      g.fillStyle(0x2a3350).fillRect(0, 0, 3, 8);
+      g.fillStyle(0x5a6aa0).fillRect(1, 0, 1, 8);
+    });
+    // Marquee dot for the exit-door frame chase (white; tinted per world on
+    // WebGL, additive glow gated to WebGL — a plain white dot under Canvas).
+    make("marqueedot", 10, 10, (g) => {
+      g.fillStyle(0xffffff, 0.28).fillCircle(5, 5, 5);
+      g.fillStyle(0xffffff, 1).fillCircle(5, 5, 2.6);
+    });
     // Checkpoint lamp housing: dim grey (inactive) + lit green (active).
     make("checkpoint", 26, 66, (g) => {
       g.fillStyle(0x2a3350).fillRect(11, 20, 4, 42);
