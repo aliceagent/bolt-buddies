@@ -196,3 +196,31 @@ In-flight GFX P1 (title cinematic) finishes first; then U1–U12 run as the
 priority series (fun/clarity first), then GFX P2–P12 resume. Every sprint:
 Opus implements on buddies dev → Fable reviews (screenshots + independent
 full stack) → buddies main on acceptance.
+
+## U12 audit results
+
+Sweep tool: `node tools/ux_sweep.mjs` (fresh-profile naive player, per-level
+first-contact checks + spawn overlap audit; report in
+`tools/ux_sweep_report.json`, screenshots in `tools/shots/p2/u12-*.png`).
+Final run: **70/70 checks PASS, 0 unfixed misses, 0 overlaps, 0 page errors.**
+All fixes use established vocabulary only (U2 bump-bubble pool, U5 push-hint
+pattern, coach icons); no level geometry was touched.
+
+| # | level | finding | fix |
+|---|-------|---------|-----|
+| 1 | all + tut | Skills gate gives ZERO feedback on bump — a kid pushing the first door before equipping learns nothing (F3's last hole) | `bumpContent` skills case: arrow toward the nearest waiting pedestal + "GRAB YOUR GADGETS" (U2 bubble pool; anchored at the pusher's height so it can't sit on the item cards it points at) |
+| 2 | 1-1 | Exit door (needs `opened: door1`) is a silent wall if bumped before the key door opens | `bumpContent` resolves `needs.opened` one level deep: teaches the referenced door's own first unmet need — here the key icon + "FIND THE KEY"/"USE YOUR KEY" |
+| 3 | 1-2 | Exit (needs `opened: d2`) silent before the latch door | same transitive fix → lever icon + arrow toward lv2 + "PULL THE LEVER" |
+| 4 | 1-3 | Tower door (needs `crane`) is a dead wall while the crane lives — nothing says the crane is the lock | `bumpContent`/`needContent` crane case: arrow back toward the live crane + "STOP THE CRANE FIRST" |
+| 5 | 1-3 | Exit (needs `opened: towerDoor`) silent on the tower top | transitive fix resolves towerDoor → crane case (same bubble) |
+| 6 | 2-1 | Vent pinch silently walls the WRONG robot (Phase pushes the duct lip forever; only Tiny fits — F2's sibling) | duct branch added to the U5 push-hint detector: pinch icon (duct lip + mint Tiny bot) + "ONLY TINY FITS" (new `pinch` coach icon, same bubble pool, 3s cooldown, HINTS-gated) |
+| 7 | 2-3 | Same silent pinch wall on the top lane (x16/30/40) | same duct hint (generalizes to every `d` tile) |
+| 8 | 2-3 | Exit (needs `opened: br1`) silent when Tiny is thrown across before lvF is pulled (F10-adjacent stranding) | transitive fix → lever icon + arrow toward lvF + "PULL THE LEVER" |
+| 9 | 1-1 | sweep coverage: 14/14 checks PASS (cards+hints, gate, equip, rope/up-zip/throw hints, lever→bridge, key door+chip, pit blip, lift pips, exit, bug glow, checkpoint) | none needed beyond #1/#2 |
+| 10 | 1-2 | sweep coverage: 9/9 PASS (crusher self-demo, plate pips, plate/latch doors, exit, bug glow, checkpoint) | none needed beyond #1/#3 |
+| 11 | 1-3 | sweep coverage: 7/7 PASS (crane telegraph + "YANK A PLATE!", tower door, exit, bug glow, checkpoint) | none needed beyond #1/#4/#5 |
+| 12 | 2-1 | sweep coverage: 10/10 PASS (duct, cross-lane doors, yard blip, hand-hold, exit, roller beam+alert, checkpoint) | none needed beyond #1/#6 |
+| 13 | 2-2 | sweep coverage: 11/11 PASS (hand-hold, fan column, timed jets, corridor jets + red lamp, valve all-clear, plate, exit, roller, checkpoint) | none needed beyond #1 |
+| 14 | 2-3 | sweep coverage: 11/11 PASS (hand-hold, duct, timed ring, TOO SLOW, cross-lane door, warden shove, exit, roller, checkpoint) | none needed beyond #1/#7/#8 |
+| 15 | tut | sweep coverage: 8/8 PASS (glyphs+hints, station blips, gate, plate pips, plate door, checkpoint, exit-waiting bubble) | none needed beyond #1 |
+| 16 | all + tut | Spawn overlap audit: item cards × gate bump bubble × KOBI blip bar × HUD plates × U8 stats-row region — pairwise clean at every spawn (8 visible elements each; stats row hidden at spawn as designed) | none needed (the known U7 controller-toast × intro-card overlap is GFX P9's and stays out of scope) |

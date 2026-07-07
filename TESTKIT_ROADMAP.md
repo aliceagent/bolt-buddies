@@ -719,6 +719,38 @@ matrix — behind `--full`/`--chaos`.
   zero page errors; `npm run playtest` (42/30/29/21 + matrix) green; full 12-run
   beat matrix green TWICE; `--full 2-1 2-2` W2 core variants green.
 
+### FL-013 — 2-2 fan-ride is an inherent route flake (~1/3 on the Tiny rider)
+
+- **Symptom:** during U12's final verification, `2-2` intermittently failed the
+  "fan lifts T to the deck" step with `T never rode the fan to deck height` — the
+  3-attempt draft-ride retry exhausting without lofting Tiny to `y < 5*48`. On a
+  just-restarted / resource-hot container it failed both A and B and once *hung*
+  the aggregate runner on `2-2 +cores`.
+- **Triage — NOT a game regression, NOT the U12 diff, NOT primarily load:**
+  - The U12 change is coach/feedback only (`bumpContent`/`needContent` teaching,
+    the `"pinch"` icon, the "ONLY TINY FITS" duct hint) — no physics, no page
+    errors in any 2-2 log. Confirmed inert.
+  - The game is beatable: `2-2 [A:P1=G]` passes cleanly (7/7, ~39 s) and 2-2 has
+    shipped green through eight prior sprints. The failure is on the **fan-ride
+    step only** and recurs ~1 run in 3 **even in a fresh browser** — so it is an
+    inherent timing fragility of the draft ride (FL-010's gentle keyless
+    centering only lofts T once she is actually inside the column; a frame-dropped
+    early release at the column edge leaves her grounded), *aggravated* by the
+    aggregate runner sharing one long-lived page across all 12 runs.
+- **Handling:** 2-2 is the project's historically flaky level (T2 onward); the
+  established practice is **re-run on flake**, which is legitimate because the
+  route logic and game are unchanged. A route-hardening attempt (hold-right until
+  `tx ≥ 14.2`) was tried and **reverted** — holding right longer walks Tiny
+  *through* the one-tile-wide column and out the far side, making it worse. Route
+  left at the eight-sprint-stable 3-attempt form.
+- **Verification:** full `npm run playtest` stages green (42/30/29/21); every
+  level green with a fresh browser per level (11/12 first pass, 2-2 green on
+  re-run); 2-2 re-run to two consecutive greens.
+- **Follow-up (deferred, not U12):** the fan draft's marginal engagement is worth
+  a real robustness pass in a future beat-kit sprint — either widen the draft's
+  keyless-centering capture, or add a jump-assist into the column on the route —
+  so 2-2 stops needing re-runs. Tracked here; out of scope for the UX audit.
+
 ## Maintenance rule (add to both other roadmaps' ground rules)
 
 From T2 onward, **every sprint (UI or sound) must leave the 12-run beat

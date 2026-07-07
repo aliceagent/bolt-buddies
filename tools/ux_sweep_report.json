@@ -1,0 +1,436 @@
+{
+  "when": "2026-07-07T01:15:13.523Z",
+  "levels": [
+    "1-1",
+    "1-2",
+    "1-3",
+    "2-1",
+    "2-2",
+    "2-3",
+    "tut"
+  ],
+  "results": [
+    {
+      "level": "1-1",
+      "mechanic": "spawn: item cards + action hints",
+      "status": "PASS",
+      "evidence": "item cards=2, action hints=2"
+    },
+    {
+      "level": "1-1",
+      "mechanic": "gate (needs: skills) bump",
+      "status": "PASS",
+      "evidence": "bubble[bump]: GRAB YOUR GADGETS"
+    },
+    {
+      "level": "1-1",
+      "mechanic": "pedestal equip (input)",
+      "status": "PASS",
+      "evidence": "skills=grapple/heavy + HUD icons lit + cards shrink to tags"
+    },
+    {
+      "level": "1-1",
+      "mechanic": "U1 rope-chord hint",
+      "status": "PASS",
+      "evidence": "bubble[rope]: S + SPACE REEL YOUR BUDDY"
+    },
+    {
+      "level": "1-1",
+      "mechanic": "U1 first-pickup throw hint",
+      "status": "PASS",
+      "evidence": "bubble[throw]: L THROW hold ↑ = high toss"
+    },
+    {
+      "level": "1-1",
+      "mechanic": "lever -> bridge feedback",
+      "status": "PASS",
+      "evidence": "handle flips + ghost bridge tiles turn solid"
+    },
+    {
+      "level": "1-1",
+      "mechanic": "U1 up-zip hint",
+      "status": "PASS",
+      "evidence": "bubble[upzip]: W + SPACE ZIP STRAIGHT UP"
+    },
+    {
+      "level": "1-1",
+      "mechanic": "key door bump (no key)",
+      "status": "PASS",
+      "evidence": "bubble[bump]: FIND THE KEY"
+    },
+    {
+      "level": "1-1",
+      "mechanic": "key pickup -> HUD key chip",
+      "status": "PASS",
+      "evidence": "key chip \"x1\" on the HUD"
+    },
+    {
+      "level": "1-1",
+      "mechanic": "U4 pit trigger blip",
+      "status": "PASS",
+      "evidence": "blip bar: \"pit is NOT a feature\" (bar visible)"
+    },
+    {
+      "level": "1-1",
+      "mechanic": "lift weight pips",
+      "status": "PASS",
+      "evidence": "weight pips read 1 of 3 — needs more weight"
+    },
+    {
+      "level": "1-1",
+      "mechanic": "exit bump (needs: opened door1)",
+      "status": "PASS",
+      "evidence": "bubble[bump]: USE YOUR KEY"
+    },
+    {
+      "level": "1-1",
+      "mechanic": "scuttlebug approach warning",
+      "status": "PASS",
+      "evidence": "eye-glow ramps up near player (alpha 0.72)"
+    },
+    {
+      "level": "1-1",
+      "mechanic": "checkpoint activation",
+      "status": "PASS",
+      "evidence": "green lamp texture + light cone on touch"
+    },
+    {
+      "level": "1-2",
+      "mechanic": "spawn: item cards + action hints",
+      "status": "PASS",
+      "evidence": "item cards=2, action hints=2"
+    },
+    {
+      "level": "1-2",
+      "mechanic": "gate (needs: skills) bump",
+      "status": "PASS",
+      "evidence": "bubble[bump]: GRAB YOUR GADGETS"
+    },
+    {
+      "level": "1-2",
+      "mechanic": "crusher cycle telegraph",
+      "status": "PASS",
+      "evidence": "crusher demonstrates its slam cycle (82px travel) in view"
+    },
+    {
+      "level": "1-2",
+      "mechanic": "plate w/ too little weight -> pips",
+      "status": "PASS",
+      "evidence": "weight pips flash: 1 lit of 2"
+    },
+    {
+      "level": "1-2",
+      "mechanic": "plate door bump",
+      "status": "PASS",
+      "evidence": "bubble[bump]: NEEDS WEIGHT"
+    },
+    {
+      "level": "1-2",
+      "mechanic": "latch door bump (lever+plate)",
+      "status": "PASS",
+      "evidence": "bubble[bump]: PULL THE LEVER"
+    },
+    {
+      "level": "1-2",
+      "mechanic": "exit bump (needs: opened d2)",
+      "status": "PASS",
+      "evidence": "bubble[bump]: PULL THE LEVER"
+    },
+    {
+      "level": "1-2",
+      "mechanic": "scuttlebug approach warning",
+      "status": "PASS",
+      "evidence": "eye-glow ramps up near player (alpha 0.72)"
+    },
+    {
+      "level": "1-2",
+      "mechanic": "checkpoint activation",
+      "status": "PASS",
+      "evidence": "green lamp texture + light cone on touch"
+    },
+    {
+      "level": "1-3",
+      "mechanic": "spawn: item cards + action hints",
+      "status": "PASS",
+      "evidence": "item cards=2, action hints=2"
+    },
+    {
+      "level": "1-3",
+      "mechanic": "gate (needs: skills) bump",
+      "status": "PASS",
+      "evidence": "bubble[bump]: GRAB YOUR GADGETS"
+    },
+    {
+      "level": "1-3",
+      "mechanic": "crane telegraph + YANK prompt",
+      "status": "PASS",
+      "evidence": "hazard-stripe slam telegraph column drawn"
+    },
+    {
+      "level": "1-3",
+      "mechanic": "tower door bump (needs: crane)",
+      "status": "PASS",
+      "evidence": "bubble[bump]: STOP THE CRANE FIRST"
+    },
+    {
+      "level": "1-3",
+      "mechanic": "exit bump (needs: opened towerDoor)",
+      "status": "PASS",
+      "evidence": "bubble[bump]: STOP THE CRANE FIRST"
+    },
+    {
+      "level": "1-3",
+      "mechanic": "scuttlebug approach warning",
+      "status": "PASS",
+      "evidence": "eye-glow ramps up near player (alpha 0.73)"
+    },
+    {
+      "level": "1-3",
+      "mechanic": "checkpoint activation",
+      "status": "PASS",
+      "evidence": "green lamp texture + light cone on touch"
+    },
+    {
+      "level": "2-1",
+      "mechanic": "spawn: item cards + action hints",
+      "status": "PASS",
+      "evidence": "item cards=2, action hints=2"
+    },
+    {
+      "level": "2-1",
+      "mechanic": "gate (needs: skills) bump",
+      "status": "PASS",
+      "evidence": "bubble[bump]: GRAB YOUR GADGETS"
+    },
+    {
+      "level": "2-1",
+      "mechanic": "vent pinch (wrong robot) hint",
+      "status": "PASS",
+      "evidence": "bubble[duct]: ONLY TINY FITS"
+    },
+    {
+      "level": "2-1",
+      "mechanic": "tunnel door bump (lever in other lane)",
+      "status": "PASS",
+      "evidence": "bubble[bump]: PULL THE LEVER"
+    },
+    {
+      "level": "2-1",
+      "mechanic": "slab door bump (lever in other lane)",
+      "status": "PASS",
+      "evidence": "bubble[bump]: PULL THE LEVER"
+    },
+    {
+      "level": "2-1",
+      "mechanic": "U5 yard-entrance trigger blip",
+      "status": "PASS",
+      "evidence": "blip bar: \"TEAM exercise\" (bar visible)"
+    },
+    {
+      "level": "2-1",
+      "mechanic": "shimmer wall (solo non-phase) hand-hold hint",
+      "status": "PASS",
+      "evidence": "bubble[handhold]: HOLD HANDS"
+    },
+    {
+      "level": "2-1",
+      "mechanic": "exit bump (lever inside pillar)",
+      "status": "PASS",
+      "evidence": "bubble[bump]: PULL THE LEVER"
+    },
+    {
+      "level": "2-1",
+      "mechanic": "roller vision beam + alert",
+      "status": "PASS",
+      "evidence": "beam wedge drawn (140px) + spotted: red strobe + '!' popup before zap"
+    },
+    {
+      "level": "2-1",
+      "mechanic": "checkpoint activation",
+      "status": "PASS",
+      "evidence": "green lamp texture + light cone on touch"
+    },
+    {
+      "level": "2-2",
+      "mechanic": "spawn: item cards + action hints",
+      "status": "PASS",
+      "evidence": "item cards=2, action hints=2"
+    },
+    {
+      "level": "2-2",
+      "mechanic": "gate (needs: skills) bump",
+      "status": "PASS",
+      "evidence": "bubble[bump]: GRAB YOUR GADGETS"
+    },
+    {
+      "level": "2-2",
+      "mechanic": "shimmer wall (solo non-phase) hand-hold hint",
+      "status": "PASS",
+      "evidence": "bubble[handhold]: HOLD HANDS"
+    },
+    {
+      "level": "2-2",
+      "mechanic": "fan updraft column visible",
+      "status": "PASS",
+      "evidence": "green updraft column + puff particles at the fan"
+    },
+    {
+      "level": "2-2",
+      "mechanic": "timed deck jets cycle visibly",
+      "status": "PASS",
+      "evidence": "steam plumes pulse on/off on their timers (dodgeable rhythm)"
+    },
+    {
+      "level": "2-2",
+      "mechanic": "corridor jets + U5 vent lamp red",
+      "status": "PASS",
+      "evidence": "corridor steam constant + red lamp at Phase's waiting spot"
+    },
+    {
+      "level": "2-2",
+      "mechanic": "valve -> all-clear moment",
+      "status": "PASS",
+      "evidence": "lamp flips green + blip bar: \"Steam's off\" (bar visible)"
+    },
+    {
+      "level": "2-2",
+      "mechanic": "plate (threshold met) activates",
+      "status": "PASS",
+      "evidence": "plate depresses + stays lit under one robot"
+    },
+    {
+      "level": "2-2",
+      "mechanic": "exit bump (lever+plate)",
+      "status": "PASS",
+      "evidence": "bubble[bump]: PULL THE LEVER"
+    },
+    {
+      "level": "2-2",
+      "mechanic": "roller vision beam + alert",
+      "status": "PASS",
+      "evidence": "beam wedge drawn (130px) + spotted: red strobe + '!' popup before zap"
+    },
+    {
+      "level": "2-2",
+      "mechanic": "checkpoint activation",
+      "status": "PASS",
+      "evidence": "green lamp texture + light cone on touch"
+    },
+    {
+      "level": "2-3",
+      "mechanic": "spawn: item cards + action hints",
+      "status": "PASS",
+      "evidence": "item cards=2, action hints=2"
+    },
+    {
+      "level": "2-3",
+      "mechanic": "gate (needs: skills) bump",
+      "status": "PASS",
+      "evidence": "bubble[bump]: GRAB YOUR GADGETS"
+    },
+    {
+      "level": "2-3",
+      "mechanic": "shimmer wall (solo non-phase) hand-hold hint",
+      "status": "PASS",
+      "evidence": "bubble[handhold]: HOLD HANDS"
+    },
+    {
+      "level": "2-3",
+      "mechanic": "vent pinch (wrong robot) hint",
+      "status": "PASS",
+      "evidence": "bubble[duct]: ONLY TINY FITS"
+    },
+    {
+      "level": "2-3",
+      "mechanic": "timed door drain ring (door + lever)",
+      "status": "PASS",
+      "evidence": "draining countdown ring on the door lamp AND the driving lever"
+    },
+    {
+      "level": "2-3",
+      "mechanic": "re-armed timed door bump -> TOO SLOW",
+      "status": "PASS",
+      "evidence": "bubble[bump]: TOO SLOW!"
+    },
+    {
+      "level": "2-3",
+      "mechanic": "timed door bump (lever in other lane)",
+      "status": "PASS",
+      "evidence": "bubble[bump]: PULL THE LEVER"
+    },
+    {
+      "level": "2-3",
+      "mechanic": "warden front shove feedback",
+      "status": "PASS",
+      "evidence": "firm shove + impact star (front is a no-go)"
+    },
+    {
+      "level": "2-3",
+      "mechanic": "exit bump (needs: opened br1)",
+      "status": "PASS",
+      "evidence": "bubble[bump]: PULL THE LEVER"
+    },
+    {
+      "level": "2-3",
+      "mechanic": "roller vision beam + alert",
+      "status": "PASS",
+      "evidence": "beam wedge drawn (120px) + spotted: red strobe + '!' popup before zap"
+    },
+    {
+      "level": "2-3",
+      "mechanic": "checkpoint activation",
+      "status": "PASS",
+      "evidence": "green lamp texture + light cone on touch"
+    },
+    {
+      "level": "tut",
+      "mechanic": "spawn: item cards + action hints",
+      "status": "PASS",
+      "evidence": "key glyph clusters=5, action hints=2"
+    },
+    {
+      "level": "tut",
+      "mechanic": "station trigger blip (hazards)",
+      "status": "PASS",
+      "evidence": "blip bar: \"sparky floor\" (bar visible)"
+    },
+    {
+      "level": "tut",
+      "mechanic": "station trigger blip (pedestals)",
+      "status": "PASS",
+      "evidence": "blip bar: \"pedestals hold your gadgets\" (bar visible)"
+    },
+    {
+      "level": "tut",
+      "mechanic": "gate (needs: skills) bump",
+      "status": "PASS",
+      "evidence": "bubble[bump]: GRAB YOUR GADGETS"
+    },
+    {
+      "level": "tut",
+      "mechanic": "plate w/ too little weight -> pips",
+      "status": "PASS",
+      "evidence": "weight pips flash: 1 lit of 2"
+    },
+    {
+      "level": "tut",
+      "mechanic": "plate door bump",
+      "status": "PASS",
+      "evidence": "bubble[bump]: NEEDS WEIGHT"
+    },
+    {
+      "level": "tut",
+      "mechanic": "checkpoint activation",
+      "status": "PASS",
+      "evidence": "green lamp texture + light cone on touch"
+    },
+    {
+      "level": "tut",
+      "mechanic": "exit waiting-for-buddy bubble",
+      "status": "PASS",
+      "evidence": "buddy icon + pulsing arrow over the EXIT sign"
+    }
+  ],
+  "overlaps": [],
+  "pageErrors": []
+}

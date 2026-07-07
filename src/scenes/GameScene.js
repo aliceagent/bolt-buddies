@@ -1575,7 +1575,7 @@ export default class GameScene extends Phaser.Scene {
           .setOrigin(0.5).setVisible(false));
       }
       const c = this.add.container(0, 0, [bg, ...texts]).setDepth(DEPTH.fx + 3).setVisible(false);
-      return { c, bg, texts, active: false, key: null, until: 0, guard: 0, follow: null, halfH: 24 };
+      return { c, bg, texts, active: false, key: null, until: 0, guard: 0, follow: null, halfH: 24, halfW: 95 };
     };
     // Faint re-show clones of the floating "SPACE/L = ACTION" hint (U1(d)).
     const reshow = this.players.map((p) => {
@@ -1600,8 +1600,9 @@ export default class GameScene extends Phaser.Scene {
       nextCheck: 0,
       lastCheck: 0,
     };
-    for (const p of this.players) { p._coachIdle = 0; p._lastActPress = 0; p._shimmerPushT = 0; }
+    for (const p of this.players) { p._coachIdle = 0; p._lastActPress = 0; p._shimmerPushT = 0; p._ductPushT = 0; }
     this._handholdCd = 0; // U5 (F2): shared cooldown for the shimmer-wall hand-hold hint
+    this._ductHintCd = 0; // U12: shared cooldown for the vent-pinch "only tiny fits" hint
   }
 
   drawCoachIcon(g, kind, cx, cy, idx, extra) {
@@ -1658,6 +1659,14 @@ export default class GameScene extends Phaser.Scene {
       drawBot(cx + 7, COLORS.boop);
       g.lineStyle(2, 0xc6d2f2, 1).lineBetween(cx - 3, cy + 1, cx + 3, cy + 1); // arms
       g.fillStyle(0xffffff, 1).fillCircle(cx, cy + 1, 2); // clasped hands
+    } else if (kind === "pinch") {
+      // U12: a vent pinch — steel duct lip above, a mint Tiny-coloured bot
+      // squeezing through the crawl gap beneath it. Drawn, canvas-safe (no tint).
+      g.fillStyle(0x2a3350, 1).fillRoundedRect(cx - 10, cy - 10, 20, 8, 2); // duct lip
+      g.lineStyle(1.5, 0x44548c, 1).strokeRoundedRect(cx - 10, cy - 10, 20, 8, 2);
+      g.fillStyle(0x9dffc4, 1); // SKILL_INFO.tiny colour
+      g.fillRoundedRect(cx - 2.5, cy - 1, 5, 3, 1); // tiny head ducking under the lip
+      g.fillRoundedRect(cx - 3, cy + 2, 6, 6, 1.5); // tiny body in the gap
     }
   }
 
@@ -1707,6 +1716,7 @@ export default class GameScene extends Phaser.Scene {
     const panelW = contentW + PAD * 2;
     const panelH = (caption ? CAPH + 4 + 16 : CAPH) + 12;
     b.halfH = panelH / 2;
+    b.halfW = panelW / 2; // U12: read by the overlap audit (passive)
     const rowY = caption ? -panelH / 2 + 6 + CAPH / 2 : 0;
     const capY = caption ? panelH / 2 - 6 - 8 : 0;
 
@@ -1936,22 +1946,18 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
-  // The first-unmet-need content for a bumped closed door, or null if the door's
-  // only needs are ones U2 doesn't teach on bump (skills/opened/crane/wardens).
-  bumpContent(d) {
-    const n = d.needs || {};
-    // re-armed timed door that already opened once → "too slow!" (F10/F4)
-    if (d.timer && d.openedEver) {
-      return { tokens: [{ icon: "clock" }], caption: "TOO SLOW!" };
-    }
+  // The lever/key/plate/crane teaching for an unmet needs-set, with direction
+  // arrows measured from (ox, oy) — the bumped door's centre, i.e. where the kid
+  // is standing and looking. `door` supplies keysGiven for key-needs.
+  needContent(n, ox, oy, door) {
     if (n.levers) {
       const lv = n.levers.map((id) => this.levers.find((l) => l.id === id)).find((l) => l && !l.on);
       if (lv) {
-        const ang = Math.atan2(lv.y - d.zone.centerY, lv.x - d.zone.centerX);
+        const ang = Math.atan2(lv.y - oy, lv.x - ox);
         return { tokens: [{ icon: "lever" }, { icon: "arrow", angle: ang }], caption: "PULL THE LEVER" };
       }
     }
-    if (n.keys && (d.keysGiven || 0) < n.keys) {
+    if (n.keys && ((door && door.keysGiven) || 0) < n.keys) {
       return { tokens: [{ icon: "key" }], caption: this.keysHeld > 0 ? "USE YOUR KEY" : "FIND THE KEY" };
     }
     if (n.plates) {
@@ -1961,13 +1967,58 @@ export default class GameScene extends Phaser.Scene {
         return { tokens: [{ icon: "plate" }, { pips: true, have, need: pl.threshold }], caption: "NEEDS WEIGHT" };
       }
     }
+    // U12: a door held shut by the live crane (1-3 towerDoor) — point back at it
+    if (n.crane && !this.craneDefeated && this.crane) {
+      const ang = Math.atan2(this.crane.body.y - oy, this.crane.body.x - ox);
+      return { tokens: [{ icon: "arrow", angle: ang }], caption: "STOP THE CRANE FIRST" };
+    }
+    return null;
+  }
+
+  // The first-unmet-need content for a bumped closed door, or null if the door's
+  // only needs are ones U2 doesn't teach on bump (wardens).
+  bumpContent(d) {
+    const n = d.needs || {};
+    // re-armed timed door that already opened once → "too slow!" (F10/F4)
+    if (d.timer && d.openedEver) {
+      return { tokens: [{ icon: "clock" }], caption: "TOO SLOW!" };
+    }
+    // U12 sweep fix: the skills gate gave ZERO feedback on bump — point back at
+    // the nearest waiting pedestal. `low` anchors the bubble at the pusher's
+    // height so it can never sit on top of the spawn item cards it points to.
+    if (n.skills && !this.players.every((p) => p.skill)) {
+      const ped = this.pedestals.find((pd) => !pd.taken);
+      if (ped) {
+        const ang = Math.atan2(ped.y - d.zone.centerY, ped.x - d.zone.centerX);
+        return { tokens: [{ icon: "arrow", angle: ang }], caption: "GRAB YOUR GADGETS", low: true };
+      }
+    }
+    const own = this.needContent(n, d.zone.centerX, d.zone.centerY, d);
+    if (own) return own;
+    // U12 sweep fix: needs.opened (exits behind an unopened door/bridge) taught
+    // NOTHING — resolve the referenced door/bridge and teach ITS first unmet
+    // need instead (2-3's exit before br1's lever, 1-3's exit while the crane
+    // still holds the tower door, ...). Depth 1 only — no cycles possible.
+    if (n.opened) {
+      const missing = n.opened.find((id) => !this.opened.has(id));
+      if (missing) {
+        const tgt = this.doors.find((x) => x.id === missing) || this.bridges.find((x) => x.id === missing);
+        if (tgt && tgt.needs) return this.needContent(tgt.needs, d.zone.centerX, d.zone.centerY, tgt.zone ? tgt : null);
+      }
+    }
     return null;
   }
 
   showBumpBubble(idx, d, content) {
+    // `low` (skills gate): follow the pusher's height at the door's x — the
+    // door-top spot would collide with the item cards the arrow points back to.
+    const p = this.players[idx];
+    const follow = content.low
+      ? { x: d.zone.centerX, y: p.y - p.displayHeight / 2 - 34 }
+      : { x: d.zone.centerX, y: d.zone.y - 30 };
     this.coachShow(idx, {
       tokens: content.tokens, caption: content.caption,
-      follow: { x: d.zone.centerX, y: d.zone.y - 30 },
+      follow,
       key: "bump", dur: 3000, colorP: 2,
     });
   }
@@ -2038,34 +2089,56 @@ export default class GameScene extends Phaser.Scene {
   // >400ms while its phase buddy is NOT in escort range (78px), pop a hand-hold
   // icon bubble at the pillar. Reuses the U2 icon-bubble variant. Generalizes to
   // ALL shimmer walls in both worlds; cooldown 3s; suppressed while escorted.
+  // U12 sweep fix: the same sustained-push detector now also covers vent-pinch
+  // duct lips (`d`) — a NON-tiny robot silently walled by one gets "ONLY TINY
+  // FITS" (2-1's tunnel and 2-3's top lane both hid this).
   // Read-only over gameplay (samples input/body state, never mutates it).
   updateHandholdHint(time, delta) {
-    if (!this.coach || !uxHints()) return; // U11: U5 hand-hold bubble respects HINTS
+    if (!this.coach || !uxHints()) return; // U11: U5/U12 push bubbles respect HINTS
     for (const p of this.players) {
-      if (p.dead || p.carriedBy || p.skill === "phase") { p._shimmerPushT = 0; continue; }
+      if (p.dead || p.carriedBy) { p._shimmerPushT = 0; p._ductPushT = 0; continue; }
       let dir = 0;
       if ((p.keys.right.isDown || (p.pad && p.pad.right.isDown)) && p.body.blocked.right) dir = 1;
       else if ((p.keys.left.isDown || (p.pad && p.pad.left.isDown)) && p.body.blocked.left) dir = -1;
-      const decay = () => { p._shimmerPushT = Math.max(0, p._shimmerPushT - delta * 2); };
-      if (dir === 0) { decay(); continue; }
+      const decayShim = () => { p._shimmerPushT = Math.max(0, p._shimmerPushT - delta * 2); };
+      const decayDuct = () => { p._ductPushT = Math.max(0, p._ductPushT - delta * 2); };
+      if (dir === 0) { decayShim(); decayDuct(); continue; }
       const wx = p.x + dir * (p.body.halfWidth + 6);
-      if (this.tileAt(wx, p.y) !== "~") { decay(); continue; }
-      // suppressed while the phase buddy is close enough to escort (the hand-hold rule)
-      const q = p.partner;
-      if (q && !q.dead && q.skill === "phase" && Math.hypot(q.x - p.x, q.y - p.y) < 78) {
-        p._shimmerPushT = 0; continue;
-      }
-      p._shimmerPushT += delta;
-      if (p._shimmerPushT > 400 && time > this._handholdCd) {
-        const tx = Math.floor(wx / TILE) * TILE + 24;
-        this.coachShow(p.idx, {
-          tokens: [{ icon: "handhold" }], caption: "HOLD HANDS",
-          follow: { x: tx, y: p.y - p.displayHeight / 2 - 30 },
-          key: "handhold", dur: 3000, colorP: 2,
-        });
-        this._handholdCd = time + 3000;
-        p._shimmerPushT = 0;
-      }
+      const c = this.tileAt(wx, p.y);
+      // (a) shimmer wall — unchanged U5 behavior (phase never blocks on these)
+      if (c === "~" && p.skill !== "phase") {
+        // suppressed while the phase buddy is close enough to escort (the hand-hold rule)
+        const q = p.partner;
+        if (q && !q.dead && q.skill === "phase" && Math.hypot(q.x - p.x, q.y - p.y) < 78) {
+          p._shimmerPushT = 0;
+        } else {
+          p._shimmerPushT += delta;
+          if (p._shimmerPushT > 400 && time > this._handholdCd) {
+            const tx = Math.floor(wx / TILE) * TILE + 24;
+            this.coachShow(p.idx, {
+              tokens: [{ icon: "handhold" }], caption: "HOLD HANDS",
+              follow: { x: tx, y: p.y - p.displayHeight / 2 - 30 },
+              key: "handhold", dur: 3000, colorP: 2,
+            });
+            this._handholdCd = time + 3000;
+            p._shimmerPushT = 0;
+          }
+        }
+      } else decayShim();
+      // (b) vent-pinch duct lip — tiny fits underneath, everyone else is walled
+      if (c === "d" && p.skill !== "tiny") {
+        p._ductPushT += delta;
+        if (p._ductPushT > 400 && time > this._ductHintCd) {
+          const tx = Math.floor(wx / TILE) * TILE + 24;
+          this.coachShow(p.idx, {
+            tokens: [{ icon: "pinch" }], caption: "ONLY TINY FITS",
+            follow: { x: tx, y: p.y - p.displayHeight / 2 - 30 },
+            key: "duct", dur: 3000, colorP: 2,
+          });
+          this._ductHintCd = time + 3000;
+          p._ductPushT = 0;
+        }
+      } else decayDuct();
     }
   }
 
