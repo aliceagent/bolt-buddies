@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { COLORS, WORLD_THEMES } from "../constants.js";
+import { COLORS, WORLD_THEMES, PARTICLES } from "../constants.js";
 
 // Every texture in the game is generated here with Graphics — zero asset files.
 export default class BootScene extends Phaser.Scene {
@@ -1232,6 +1232,41 @@ export default class BootScene extends Phaser.Scene {
     make("drip", 6, 8, (g) => {
       g.fillStyle(0xdfe8ff, 0.85).fillCircle(3, 5, 2.4);
       g.fillStyle(0xffffff, 0.6).fillCircle(3, 4, 1.2);
+    });
+
+    // --- P11 particle & motion-coherence textures --------------------------
+    // Soft radial dot for the thrown-buddy trail — PRE-COLOURED per player so the
+    // fading trail reads its owner's colour under the Canvas renderer (where
+    // setTint is a no-op). Additive when stamped. beep=cyan, boop=amber.
+    const trailDot = (col) => (g) => {
+      g.fillStyle(col, 0.28).fillCircle(6, 6, 6);
+      g.fillStyle(col, 0.6).fillCircle(6, 6, 3.4);
+      g.fillStyle(0xffffff, 0.85).fillCircle(6, 6, 1.4);
+    };
+    make("fxdot0", 12, 12, trailDot(COLORS.beep)); // player 1 (cyan)
+    make("fxdot1", 12, 12, trailDot(COLORS.boop)); // player 2 (amber)
+    // Respawn ground ring — a thin cyan-white halo that expands on the floor as a
+    // robot beams in (steam/air family: the beam column itself is blue-white).
+    make("fxring", 56, 56, (g) => {
+      g.lineStyle(4, PARTICLES.steam.body, 0.85).strokeEllipse(28, 28, 50, 24);
+      g.lineStyle(1.5, PARTICLES.steam.core, 0.9).strokeEllipse(28, 28, 42, 20);
+    });
+    // Checkpoint activation vertical light-sweep — a tall gold-white bar that
+    // rises up the lamp on activation (celebration family). Bright hot core,
+    // soft gold flanks, transparent top so the rise reads as a light wash.
+    make("cpsweep", 20, 128, (g) => {
+      for (let y = 0; y < 128; y += 2) {
+        const a = 1 - y / 128; // brightest at the base, fades toward the top
+        g.fillStyle(PARTICLES.celebration.body, 0.3 * a).fillRect(1, y, 18, 2);
+        g.fillStyle(PARTICLES.celebration.core, 0.6 * a).fillRect(6, y, 8, 2);
+        g.fillStyle(0xffffff, 0.9 * a).fillRect(8, y, 4, 2);
+      }
+    });
+    // Fan streaming air-line — a thin vertical cyan-white streak that rides the
+    // updraft (steam/air family). WebGL-only emitter (fps-gated in GameScene).
+    make("fanair", 3, 20, (g) => {
+      g.fillStyle(PARTICLES.steam.body, 0.5).fillRect(0, 0, 3, 20);
+      g.fillStyle(PARTICLES.steam.core, 0.9).fillRect(1, 0, 1, 20);
     });
 
     this.scene.start("Title");

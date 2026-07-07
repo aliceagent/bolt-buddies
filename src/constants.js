@@ -66,6 +66,24 @@ export const WORLD_THEMES = {
   4: { accent: 0x35f0ff, accent2: 0xff5566, bgTop: 0x1a2560, bgBottom: 0x03050e, glow: 0x3558e8 },
 };
 
+// --- P11: FX particle palette ----------------------------------------------
+// One coherent colour system for EVERY emitter, grouped by physical family so
+// the game's particles read as a single visual vocabulary instead of the old
+// arbitrary white/blue/purple/green mix:
+//   impact      — physical hits (stomp, boom, debris): world accent + white core
+//   electric    — hazards / energy arcs: hot red-pink ember with a pale core
+//   steam       — steam & moving air (vents, drips, fans, run-dust, smoke, respawn): cyan-white
+//   celebration — rewards (core collect, checkpoint, pedestal, lever, clear): gold
+// `budget` is the shared alive-particle cap the GameScene budget guard enforces
+// so a chaotic burst can never flood the software-Canvas renderer.
+export const PARTICLES = {
+  budget: 120,
+  impact: { core: 0xffffff, accent: 0xffd9a0, debris: 0xc7d0e6 },
+  electric: { core: 0xffe0e6, glow: 0xff5566 },
+  steam: { core: 0xeef4ff, body: 0xcdd8ff, dust: 0xc2ccdf, smoke: 0x9aa6c0 },
+  celebration: { core: 0xfff6c2, body: 0xffe066, spark: 0xffd94d },
+};
+
 export const PHYS = {
   grav: 1400,
   speed: 250,

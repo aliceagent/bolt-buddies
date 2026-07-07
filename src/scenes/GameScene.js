@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { TILE, COLORS, PHYS, DEPTH, SKILL_INFO, WORLD_THEMES, FONT, FS, TEXT } from "../constants.js";
+import { TILE, COLORS, PHYS, DEPTH, SKILL_INFO, WORLD_THEMES, FONT, FS, TEXT, PARTICLES } from "../constants.js";
 import { LEVELS } from "../levels/registry.js";
 import { makeGrid } from "../levels/builder.js";
 import { completeLevel, loadSave } from "../save.js";
@@ -280,23 +280,27 @@ export default class GameScene extends Phaser.Scene {
     // chambers (the tutorial keeps single-press — see update()).
     this.buildConfirm();
 
+    // P11: impact family — white core (world accent is carried by the paired
+    // dust/ring tints). Swept onto the PARTICLES palette map.
     this.boom = this.add.particles(0, 0, "px", {
       speed: { min: 60, max: 260 }, scale: { start: 1, end: 0 }, lifespan: 450,
-      gravityY: 600, emitting: false,
+      gravityY: 600, tint: PARTICLES.impact.core, emitting: false,
     }).setDepth(DEPTH.fx);
 
-    // pooled spark burst: lever flips & checkpoint activations flick sparks
+    // pooled spark burst: lever flips, checkpoint activations & reel-pull flicks
+    // (P11 celebration/mechanical family — gold friction sparks)
     this.sparks = this.add.particles(0, 0, "px", {
       speed: { min: 120, max: 320 }, scale: { start: 0.7, end: 0 },
-      lifespan: 360, gravityY: 420, tint: 0xffd94d,
+      lifespan: 360, gravityY: 420, tint: PARTICLES.celebration.spark,
       blendMode: Phaser.BlendModes.ADD, emitting: false,
     }).setDepth(DEPTH.fx);
 
     // pooled run-dust: soft low puffs kicked up at the feet while running
+    // (P11 steam/air family — desaturated cyan-white)
     this.dust = this.add.particles(0, 0, "px", {
       speed: { min: 20, max: 70 }, angle: { min: 200, max: 340 },
       scale: { start: 0.5, end: 0 }, alpha: { start: 0.5, end: 0 },
-      lifespan: 380, gravityY: -30, tint: 0xb8c2dc, emitting: false,
+      lifespan: 380, gravityY: -30, tint: PARTICLES.steam.dust, emitting: false,
     }).setDepth(DEPTH.fx - 2);
 
     // pooled purple shell-shards flung when a scuttlebug is squished (pre-coloured
@@ -321,7 +325,7 @@ export default class GameScene extends Phaser.Scene {
     this.craneSmoke = this.add.particles(0, 0, "px", {
       speed: { min: 30, max: 90 }, angle: { min: 250, max: 290 },
       scale: { start: 2.4, end: 0 }, alpha: { start: 0.5, end: 0 },
-      lifespan: { min: 700, max: 1300 }, gravityY: -40, tint: 0x9aa0b4,
+      lifespan: { min: 700, max: 1300 }, gravityY: -40, tint: PARTICLES.steam.smoke,
       emitting: false,
     }).setDepth(DEPTH.fx);
 
@@ -386,7 +390,7 @@ export default class GameScene extends Phaser.Scene {
     this.ventPuff = this.add.particles(0, 0, "px", {
       speed: { min: 40, max: 140 }, angle: { min: 200, max: 340 },
       scale: { start: 2.4, end: 0 }, alpha: { start: 0.55, end: 0 },
-      lifespan: { min: 500, max: 950 }, gravityY: -70, tint: 0xcdd8ff,
+      lifespan: { min: 500, max: 950 }, gravityY: -70, tint: PARTICLES.steam.body,
       emitting: false,
     }).setDepth(DEPTH.fx);
 
@@ -407,6 +411,50 @@ export default class GameScene extends Phaser.Scene {
         .setBlendMode(Phaser.BlendModes.ADD).setVisible(false));
     }
     this._rippleHead = 0;
+
+    // --- P11 particle & motion-coherence pools (all built here, never per frame) ---
+    // Shared alive-particle budget guard. Every bursty emit routes its count
+    // through fxBudget(): when the summed alive count nears PARTICLES.budget the
+    // request is clamped (down to 0), so a chaotic moment can't flood the
+    // software-Canvas renderer and tank fps. The list is the set of pooled
+    // emitters that dominate the alive count.
+    this.fxPalette = PARTICLES; // probe hook: assert emitters reference the palette
+    this._budgetEmitters = [
+      this.boom, this.sparks, this.dust, this.shards, this.craneSmoke,
+      this.zipLines, this.starBurst, this.bolts, this.jetDrips, this.ventPuff,
+    ];
+
+    // Thrown-buddy dotted TRAIL (fades 400ms). Distinct from U6's carrying
+    // preview arc: this stamps fading dots along a buddy AFTER it is thrown.
+    // Ring-buffer of pre-coloured dot images (per-player texture swapped on grab).
+    this._trailDots = [];
+    for (let i = 0; i < 14; i++) {
+      this._trailDots.push(this.add.image(0, 0, "fxdot0")
+        .setDepth(DEPTH.fx - 1).setBlendMode(Phaser.BlendModes.ADD).setVisible(false));
+    }
+    this._trailHead = 0;
+    this._trailCd = 0; // ms until the next dot may be stamped (spacing)
+
+    // Zip-line AFTERGLOW: the rope fades over 250ms after release instead of
+    // vanishing instantly. Two fixed slots (one per player), mutated in place.
+    this._zipGlow = this.players.map(() => ({ t: 0, x1: 0, y1: 0, x2: 0, y2: 0, col: 0 }));
+    this._wasZipping = [false, false];
+
+    // Respawn beam GROUND RING — pooled cyan-white floor halos (2 is plenty).
+    this._groundRings = [];
+    for (let i = 0; i < 2; i++) {
+      this._groundRings.push(this.add.image(0, 0, "fxring").setDepth(DEPTH.shadow)
+        .setBlendMode(Phaser.BlendModes.ADD).setVisible(false));
+    }
+    this._groundRingHead = 0;
+
+    // Checkpoint activation VERTICAL light-sweep — pooled gold bars (2 is plenty).
+    this._cpSweeps = [];
+    for (let i = 0; i < 2; i++) {
+      this._cpSweeps.push(this.add.image(0, 0, "cpsweep").setOrigin(0.5, 1)
+        .setDepth(DEPTH.fx).setBlendMode(Phaser.BlendModes.ADD).setVisible(false));
+    }
+    this._cpSweepHead = 0;
 
     // reusable point buffer for the catenary rope (mutated in place, no alloc)
     this._ropePts = [];
@@ -1409,15 +1457,30 @@ export default class GameScene extends Phaser.Scene {
         // a standing Tiny's small body sits below +24, so walking into the fan
         // did nothing; only falling through it (or jumping) caught the draft.
         const zone = new Phaser.Geom.Rectangle(e.x * TILE + 4, topRow * TILE, TILE - 8, (e.y - topRow) * TILE + 48);
+        // P11: fan updraft swept onto the steam/air family (desaturated cyan-white)
         const puffs = this.add.particles(px, py + 16, "px", {
           speedY: { min: -260, max: -160 }, speedX: { min: -20, max: 20 },
           scale: { start: 0.5, end: 0 }, lifespan: { min: 400, max: 900 },
-          quantity: 1, frequency: 90, tint: 0x59ff9c, alpha: 0.5,
+          quantity: 1, frequency: 90, tint: PARTICLES.steam.body, alpha: 0.5,
         }).setDepth(DEPTH.fx);
         // soft updraft column whose alpha gently wobbles (see updateWorld2)
-        const col = this.add.rectangle(zone.centerX, zone.centerY, zone.width, zone.height, 0x59ff9c, 0.09)
+        const col = this.add.rectangle(zone.centerX, zone.centerY, zone.width, zone.height, PARTICLES.steam.body, 0.09)
           .setBlendMode(Phaser.BlendModes.ADD).setDepth(DEPTH.fx - 3);
-        this.fans.push({ zone, puffs, col });
+        // P11: streaming air-lines — thin cyan-white streaks riding the draft.
+        // WebGL-ONLY: the fan lives in the fps-fragile 2-2 route, so the extra
+        // additive emitter is gated off the software-Canvas tier to keep its
+        // cost flat (the puffs + column above carry the effect on Canvas).
+        let airLines = null;
+        if (this.game.renderer.type === Phaser.WEBGL) {
+          airLines = this.add.particles(zone.centerX, zone.bottom - 6, "fanair", {
+            speedY: { min: -300, max: -200 }, speedX: { min: -14, max: 14 },
+            x: { min: -zone.width * 0.4, max: zone.width * 0.4 },
+            scale: { start: 1, end: 0.4 }, alpha: { start: 0.55, end: 0 },
+            lifespan: { min: 420, max: 780 }, quantity: 1, frequency: 150,
+            blendMode: Phaser.BlendModes.ADD,
+          }).setDepth(DEPTH.fx - 1);
+        }
+        this.fans.push({ zone, puffs, col, airLines });
         break;
       }
       case "crane": {
@@ -1653,8 +1716,9 @@ export default class GameScene extends Phaser.Scene {
     }
     q.pickupCd = 450;
     p.pickupCd = 450;
-    this.dust.emitParticleAt(q.x, q.y + 8, 6); // small poof at release
+    this.dust.emitParticleAt(q.x, q.y + 8, this.fxBudget(6)); // small poof at release
     q._landDust = true; // landing dust kicks up when the thrown buddy touches down
+    q._throwTrail = 400; // P11: dotted fading trail follows the thrown buddy for 400ms
     if (highToss) sfx.tossHigh();
     else sfx.throwIt();
   }
@@ -1673,7 +1737,7 @@ export default class GameScene extends Phaser.Scene {
     lev.on = true;
     if (lev.handle) {
       this.tweens.add({ targets: lev.handle, angle: 60, duration: 240, ease: "back.out" });
-      this.sparks.explode(10, lev.handle.x, lev.y - 22); // spark burst at the knob
+      this.sparks.explode(this.fxBudget(10), lev.handle.x, lev.y - 22); // spark burst at the knob
     }
     this.fireConduits("lever", lev.id); // P5: light the wire to its device (cosmetic)
     sfx.lever();
@@ -1728,8 +1792,12 @@ export default class GameScene extends Phaser.Scene {
       this.ropeFlashes.push({ x1: p.x, y1: p.y, x2: tgt.x, y2: tgt.y, t: 200 });
       this.yankCranePlate(tgt.obj);
     } else if (tgt.kind === "partner") {
-      if (p.grounded) tgt.obj.startReeled(p); // pull buddy to me
-      else p.beginZip(tgt.obj.x, tgt.obj.y - 20, false); // buddy is my anchor
+      if (p.grounded) {
+        tgt.obj.startReeled(p); // pull buddy to me
+        this.sparks.explode(this.fxBudget(6), p.x, p.y - 8); // P11: sparks at the winch anchor
+      } else {
+        p.beginZip(tgt.obj.x, tgt.obj.y - 20, false); // buddy is my anchor
+      }
     }
   }
 
@@ -1749,7 +1817,7 @@ export default class GameScene extends Phaser.Scene {
     const fy = p.body.bottom;
     sfx.stomp(fx, fy);
     this.camShake(strong ? 160 : 90, strong ? 0.005 : 0.002);
-    this.boom.explode(strong ? 20 : 10, fx, fy);
+    this.boom.explode(this.fxBudget(strong ? 20 : 10), fx, fy);
     // expanding shockwave ring + floor dust burst + a brief zoom-punch
     const ring = this.stompRing;
     this.tweens.killTweensOf(ring);
@@ -1766,7 +1834,7 @@ export default class GameScene extends Phaser.Scene {
       if (!tile.active) return;
       if (Math.hypot(tile.x - fx, tile.y - fy) < radius + 30) {
         this.grid[tile.gridY][tile.gridX] = ".";
-        this.boom.explode(8, tile.x, tile.y);
+        this.boom.explode(this.fxBudget(8), tile.x, tile.y);
         tile.destroy();
       }
     });
@@ -1779,8 +1847,8 @@ export default class GameScene extends Phaser.Scene {
   }
 
   squishBug(bug) {
-    this.boom.explode(12, bug.x, bug.y); // keep the purple pop
-    this.shards.explode(9, bug.x, bug.y); // + flung shell-shards
+    this.boom.explode(this.fxBudget(12), bug.x, bug.y); // keep the purple pop
+    this.shards.explode(this.fxBudget(9), bug.x, bug.y); // + flung shell-shards
     sfx.squish(bug.x, bug.y);
     this.stampSplat(bug.x, bug.body ? bug.body.bottom - 2 : bug.y + 12);
     if (bug.glow) bug.glow.destroy();
@@ -1893,7 +1961,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   stompPod(pod) {
-    this.boom.explode(18, pod.x, pod.y);
+    this.boom.explode(this.fxBudget(18), pod.x, pod.y);
     sfx.podCrunch(pod.x, pod.y);
     if (pod.ring) pod.ring.destroy();
     pod.destroy();
@@ -1910,8 +1978,8 @@ export default class GameScene extends Phaser.Scene {
       // grey-out via texture swap (setTint no-ops on Canvas) + smoke + sparks
       c.body.setTexture("crane_dead");
       c.plates.forEach((pl) => pl.glow.setVisible(false));
-      this.craneSmoke.explode(22, c.body.x, c.body.y);
-      this.sparks.explode(26, c.body.x, c.body.y);
+      this.craneSmoke.explode(this.fxBudget(22), c.body.x, c.body.y);
+      this.sparks.explode(this.fxBudget(26), c.body.x, c.body.y);
       this.game.events.emit("bb:blip", { text: this.def.blips.craneDown || "KOBI: MY CRANE!", mood: "angry" });
     }
   }
@@ -2017,8 +2085,8 @@ export default class GameScene extends Phaser.Scene {
             targets: this.slamRing, scale: 1.7, alpha: 0, duration: 420, ease: "quad.out",
             onComplete: () => this.slamRing.setVisible(false),
           });
-          this.boom.explode(14, b.x, c.floorY);
-          this.dust.explode(10, b.x, c.floorY);
+          this.boom.explode(this.fxBudget(14), b.x, c.floorY);
+          this.dust.explode(this.fxBudget(10), b.x, c.floorY);
         }
         break;
       }
@@ -2067,8 +2135,8 @@ export default class GameScene extends Phaser.Scene {
     p.body.enable = false;
     p.setVisible(false);
     sfx.die(p.x, p.y);
-    this.boom.explode(16, p.x, p.y);
-    this.bolts.explode(8, p.x, p.y); // + a few bolt/gear shards
+    this.boom.explode(this.fxBudget(16), p.x, p.y);
+    this.bolts.explode(this.fxBudget(8), p.x, p.y); // + a few bolt/gear shards
     this.time.delayedCall(900, () => {
       const cp = this.cpPos[p.idx];
       p.body.reset(cp.x, cp.y - 8); // slight lift so a big body never spawns embedded
@@ -2097,6 +2165,15 @@ export default class GameScene extends Phaser.Scene {
       duration: 380, ease: "cubic.in",
       onComplete: () => beam.setVisible(false),
     });
+    // P11: ground ring — a cyan-white halo expands on the floor as the beam lands
+    const ring = this._groundRings[this._groundRingHead];
+    this._groundRingHead = (this._groundRingHead + 1) % this._groundRings.length;
+    this.tweens.killTweensOf(ring);
+    ring.setVisible(true).setPosition(x, y + 20).setAlpha(0.85).setScale(0.3);
+    this.tweens.add({
+      targets: ring, scale: 1.5, alpha: 0, duration: 430, ease: "cubic.out",
+      onComplete: () => ring.setVisible(false),
+    });
     // U11 FLASH soft: the materialize blink keeps all 4 beats (meaning-bearing —
     // it reads as invulnerable) but with less contrast and a slower ramp.
     const fs = uxFlashScale();
@@ -2115,6 +2192,67 @@ export default class GameScene extends Phaser.Scene {
       targets: r, scale: 1.5, alpha: 0, duration: 420, ease: "cubic.out",
       onComplete: () => r.setVisible(false),
     });
+  }
+
+  // --- P11 FX helpers ----------------------------------------------------------
+  // Shared alive-particle BUDGET GUARD. Returns how many of `want` particles may
+  // be emitted right now without blowing the ~120 shared cap (0 = suppress).
+  // Called at emit time only (never per-frame idle), so summing alive counts is
+  // cheap; the big bursty emitters route their counts through here.
+  fxBudget(want) {
+    let alive = 0;
+    const es = this._budgetEmitters;
+    for (let i = 0; i < es.length; i++) alive += es[i].getAliveParticleCount();
+    const room = PARTICLES.budget - alive;
+    if (room <= 0) return 0;
+    return room < want ? room : want;
+  }
+
+  // Probe/telemetry hook: current summed alive count across the budgeted emitters.
+  fxAlive() {
+    let alive = 0;
+    const es = this._budgetEmitters;
+    for (let i = 0; i < es.length; i++) alive += es[i].getAliveParticleCount();
+    return alive;
+  }
+
+  // Vertical gold light-sweep fired when a checkpoint activates (celebration).
+  checkpointSweep(x, yTop) {
+    const s = this._cpSweeps[this._cpSweepHead];
+    this._cpSweepHead = (this._cpSweepHead + 1) % this._cpSweeps.length;
+    this.tweens.killTweensOf(s);
+    // origin bottom: rises from the lamp base upward as it fades
+    s.setVisible(true).setPosition(x, yTop + 20).setAlpha(0.9).setScale(1, 0.2);
+    this.tweens.add({
+      targets: s, scaleY: 1.15, alpha: 0, y: yTop - 6,
+      duration: 460, ease: "cubic.out",
+      onComplete: () => s.setVisible(false),
+    });
+  }
+
+  // Advance the thrown-buddy dotted trail: stamp a fading dot behind any buddy
+  // still inside its 400ms post-throw window. Pooled ring-buffer, zero alloc.
+  updateThrowTrails(delta) {
+    this._trailCd -= delta;
+    const stamp = this._trailCd <= 0;
+    if (stamp) this._trailCd = 34; // ~1 dot every other frame
+    for (const p of this.players) {
+      if (p._throwTrail > 0) {
+        p._throwTrail -= delta;
+        if (stamp && !p.carriedBy) {
+          const d = this._trailDots[this._trailHead];
+          this._trailHead = (this._trailHead + 1) % this._trailDots.length;
+          this.tweens.killTweensOf(d);
+          d.setTexture(p.idx === 0 ? "fxdot0" : "fxdot1")
+            .setPosition(p.x, p.y).setScale(0.9).setAlpha(0.8).setVisible(true);
+          this.tweens.add({
+            targets: d, alpha: 0, scale: 0.3, duration: 400, ease: "quad.out",
+            onComplete: () => d.setVisible(false),
+          });
+        }
+        if (p._throwTrail <= 0) p._throwTrail = 0;
+      }
+    }
   }
 
   // --- U1 coach system -----------------------------------------------------------
@@ -3035,8 +3173,8 @@ export default class GameScene extends Phaser.Scene {
       this.coreItems.forEach((c) => {
         if (c.active && Math.hypot(c.x - p.x, c.y - p.y) < 42) {
           this.coresGot[c.coreIndex] = true;
-          this.boom.explode(10, c.x, c.y);
-          this.starBurst.explode(9, c.x, c.y); // radial star burst
+          this.boom.explode(this.fxBudget(10), c.x, c.y);
+          this.starBurst.explode(this.fxBudget(9), c.x, c.y); // radial star burst
           sfx.core();
           // bonus fanfare the moment the third core of the level is collected
           if (this.coresGot.every(Boolean)) this.time.delayedCall(220, () => sfx.coresFanfare());
@@ -3082,7 +3220,8 @@ export default class GameScene extends Phaser.Scene {
             targets: ring, scale: { from: 0.3, to: 2.6 }, alpha: { from: 0.85, to: 0 },
             duration: 520, ease: "cubic.out", onComplete: () => ring.destroy(),
           });
-          this.sparks.explode(8, cp.x, cp.y - 31);
+          this.sparks.explode(this.fxBudget(8), cp.x, cp.y - 31);
+          this.checkpointSweep(cp.x, cp.y - 31); // P11: vertical gold light-sweep
           sfx.checkpoint();
           this.cpPos = this.players.map((_, i) => ({ x: cp.x - 14 + i * 28, y: cp.y - 10 }));
         }
@@ -3444,21 +3583,40 @@ export default class GameScene extends Phaser.Scene {
     this.rope.clear();
     this.hooks.forEach((h) => h.setVisible(false));
     for (const p of this.players) {
+      const glow = this._zipGlow[p.idx];
       if (p.zip) {
         const col = p.idx === 0 ? COLORS.beep : COLORS.boop;
         this.drawRope(p.x, p.y - 8, p.zip.x, p.zip.y, col, 0.9, p.zip.arrived ? 1 : 0.35);
         this.placeHook(p.idx, p.zip.x, p.zip.y, p.x, p.y - 8);
         if (!p.zip.arrived && (this._zipTick = (this._zipTick || 0) + 1) % 2 === 0) {
-          this.zipLines.emitParticleAt(p.x, p.y - 6, 1);
+          this.zipLines.emitParticleAt(p.x, p.y - 6, this.fxBudget(1));
         }
+        // P11: keep the live rope endpoints so the afterglow can fade from them
+        glow.x1 = p.x; glow.y1 = p.y - 8; glow.x2 = p.zip.x; glow.y2 = p.zip.y; glow.col = col;
+        this._wasZipping[p.idx] = true;
+      } else if (this._wasZipping[p.idx]) {
+        // zip just released → start the 250ms rope afterglow from the last pose
+        this._wasZipping[p.idx] = false;
+        glow.t = 250;
       }
       if (p.reeled) {
         const col = p.reeled.idx === 0 ? COLORS.beep : COLORS.boop;
         this.drawRope(p.reeled.x, p.reeled.y - 8, p.x, p.y, col, 0.9, 1);
         this.placeHook(p.idx, p.x, p.y, p.reeled.x, p.reeled.y - 8);
         if ((this._reelTick = (this._reelTick || 0) + 1) % 6 === 0) {
-          this.dust.emitParticleAt(p.x, p.body ? p.body.bottom : p.y + 20, 2);
+          this.dust.emitParticleAt(p.x, p.body ? p.body.bottom : p.y + 20, this.fxBudget(2));
+          // P11: friction sparks flick at the winch anchor (the reeler's hand)
+          this.sparks.emitParticleAt(p.x, p.y - 8, this.fxBudget(1));
         }
+      }
+    }
+    // P11: zip-line afterglow — the rope fades over 250ms after release instead
+    // of vanishing instantly (two fixed slots, mutated in place, zero alloc).
+    for (const glow of this._zipGlow) {
+      if (glow.t > 0) {
+        glow.t -= delta;
+        const a = Math.max(glow.t, 0) / 250;
+        this.drawRope(glow.x1, glow.y1, glow.x2, glow.y2, glow.col, a * 0.7, 1);
       }
     }
     this.ropeFlashes = this.ropeFlashes.filter((f) => {
@@ -3471,6 +3629,7 @@ export default class GameScene extends Phaser.Scene {
     });
 
     this.updateHintPreview(delta); // U6 — throw arc + rope tether preview
+    this.updateThrowTrails(delta); // P11 — thrown-buddy dotted fading trail
 
     // exit: both buddies through the open door
     if (this.exitDoor && this.exitDoor.open) {
@@ -3665,7 +3824,7 @@ export default class GameScene extends Phaser.Scene {
           w.defeated = true;
           w.img.setTexture("warden_defeat"); // P7: swap to the cross-eye defeat pose
           if (w.badge) w.badge.setVisible(false);
-          this.boom.explode(16, w.img.x, w.img.y);
+          this.boom.explode(this.fxBudget(16), w.img.x, w.img.y);
           sfx.wardenTopple(w.img.x, w.img.y); // descending slide-whistle topple
           w.img.body.enable = false;
           if (w.sway) w.sway.stop(); // stop idle sway so the topple reads cleanly
@@ -3723,7 +3882,7 @@ export default class GameScene extends Phaser.Scene {
       if (!this._allClearFired) {
         this._allClearFired = true;
         for (const j of this.jets) {
-          if (j.disabledBy === vl.wiredTo) this.ventPuff.explode(12, j.x, j.topY + 6);
+          if (j.disabledBy === vl.wiredTo) this.ventPuff.explode(this.fxBudget(12), j.x, j.topY + 6);
         }
         this.game.events.emit("bb:blip", "KOBI: Steam's off. Probably. It's PROBABLY off.");
       }
