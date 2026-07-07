@@ -9,6 +9,7 @@ import Player from "../objects/Player.js";
 import { uxHints, uxShakeScale, uxFlashScale, saveRecord, fmtTime, markTutorialDone } from "../ux.js";
 import { pads, showPadToast } from "../pad.js";
 import { drawWorldIcon } from "../worldIcons.js";
+import { AnimSystem } from "../anim/index.js";
 
 const J = Phaser.Input.Keyboard.JustDown;
 
@@ -209,6 +210,13 @@ export default class GameScene extends Phaser.Scene {
 
     // Sprint 10: static key-glyph clusters declared in the level def (tutorial).
     (def.glyphs || []).forEach((gz) => this.addGlyphs(gz.x * TILE + 24, gz.y * TILE + 24, gz.caps));
+
+    // ANIM A1: the character animation micro-rig. Binds every player + enemy to a
+    // pose machine + shared fidget scheduler now that the whole cast exists. A1 is
+    // INVISIBLE — it registers ZERO visible parts and plays no fidget, so this
+    // adds no on-screen change and (when idle) ~0 fps; A2+ hang the real art here.
+    this.anim = new AnimSystem(this);
+    this.anim.registerLevel();
 
     // physics wiring
     const rideCb = (pl, mv) => {
@@ -3650,6 +3658,10 @@ export default class GameScene extends Phaser.Scene {
     this.updateLockFeedback(time, delta);
     this.updateHandholdHint(time, delta);
     this.updateLoops();
+    // ANIM A1: drive the character rig LAST — after all game logic — so it is a
+    // pure visual overlay (logic first, motion after; input is never eaten). A1
+    // is invisible: this places no parts and plays no fidget yet.
+    this.anim.update(time, delta);
     this.updateCamera(dt);
   }
 
