@@ -680,6 +680,44 @@ export default class BootScene extends Phaser.Scene {
     };
     make("bug", 44, 28, bug([8, 16, 28, 36]));
     make("bug_step", 44, 28, bug([6, 18, 26, 38]));
+    // P7: World-2 scuttlebug variant — darker carapace with a hex-spot pattern so
+    // it reads as a tougher sub-species. Same silhouette/leg frames as the W1 bug
+    // (selected by world in GameScene); pure baked art, no motion added here.
+    const bugW2 = (legs) => (g) => {
+      g.fillStyle(0x3d2568).fillRoundedRect(2, 4, 40, 20, { tl: 18, tr: 18, bl: 4, br: 4 });
+      g.lineStyle(2, 0x6a48a0).strokeRoundedRect(2, 4, 40, 20, { tl: 18, tr: 18, bl: 4, br: 4 });
+      g.lineStyle(2, 0x6a48a0).lineBetween(22, 4, 22, 22);
+      // hex spots: dark inlays with a lit rim, scattered over the shell
+      const hex = (cx, cy, r) => {
+        const pts = [];
+        for (let i = 0; i < 6; i++) { const a = (Math.PI / 3) * i - Math.PI / 6; pts.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r }); }
+        g.fillStyle(0x281545).fillPoints(pts, true);
+        g.lineStyle(1, 0x8464c4, 0.85).strokePoints(pts, true, true);
+      };
+      hex(12, 12, 3.4); hex(32, 12, 3.4); hex(22, 16, 3.2); hex(13, 20, 2.5); hex(31, 20, 2.5);
+      // cool shell sheen
+      g.fillStyle(0x8f70c8, 0.4).fillEllipse(15, 10, 14, 6);
+      g.fillStyle(0xd8c6f2, 0.75).fillEllipse(13, 9, 5, 2.4);
+      g.fillStyle(0xffe066);
+      g.fillCircle(10, 14, 3); g.fillCircle(34, 14, 3); // eyes
+      g.fillStyle(0x160c2c);
+      legs.forEach((x) => g.fillRect(x, 24, 4, 4)); // legs
+    };
+    make("bug_w2", 44, 28, bugW2([8, 16, 28, 36]));
+    make("bug_w2_step", 44, 28, bugW2([6, 18, 26, 38]));
+    // P7: pooled squish splat decal (purple ichor) — placed on a squish and faded
+    // out over ~2s by a per-decal alpha tween in GameScene (event-driven, not a
+    // per-frame animation). Pre-coloured so it reads under the Canvas renderer.
+    make("bug_splat", 50, 26, (g) => {
+      g.fillStyle(0x4a2870, 0.9).fillEllipse(25, 16, 34, 12);
+      g.fillStyle(0x6d3fa8, 0.85).fillEllipse(25, 14, 28, 11);
+      g.fillStyle(0x6d3fa8, 0.8).fillEllipse(15, 12, 12, 8); g.fillEllipse(35, 13, 12, 8);
+      // flung droplets around the smear
+      g.fillStyle(0x9a6fd4, 0.8);
+      [[6, 9, 2.4], [44, 10, 2.2], [11, 22, 1.8], [40, 21, 2], [25, 5, 1.7], [31, 22, 1.6]].forEach(([x, y, r]) => g.fillCircle(x, y, r));
+      // wet highlight
+      g.fillStyle(0xc9aef0, 0.45).fillEllipse(20, 11, 9, 3);
+    });
     // additive eye-glow overlay: brightens the scuttlebug's eyes when a player
     // is within ~200px (tint no-ops on Canvas, so this is a baked yellow blob).
     make("bug_glow", 48, 24, (g) => {
@@ -711,16 +749,27 @@ export default class BootScene extends Phaser.Scene {
     const craneBody = (dead) => (g) => {
       g.fillStyle(dead ? 0x3a3d49 : 0x39415e).fillRoundedRect(6, 6, 120, 44, 8);
       g.lineStyle(3, dead ? 0x555a6a : 0x6b78a8).strokeRoundedRect(6, 6, 120, 44, 8);
+      // P7: cabin-window housing (bezel + corner bolts) around KOBI's eye
+      g.fillStyle(dead ? 0x2a2d37 : 0x232a42).fillRoundedRect(48, 12, 36, 32, 7);
+      g.lineStyle(2.5, dead ? 0x4a4d5c : 0x8892b8).strokeRoundedRect(48, 12, 36, 32, 7);
+      g.fillStyle(dead ? 0x555a6a : 0x9aa6cc);
+      [[52, 16], [80, 16], [52, 40], [80, 40]].forEach(([x, y]) => g.fillCircle(x, y, 1.6));
       if (dead) {
         // powered-down: dim grey eye with an X (reads without tint under Canvas)
-        g.fillStyle(0x4a4d5c).fillCircle(66, 28, 13);
+        g.fillStyle(0x4a4d5c).fillCircle(66, 28, 12);
         g.lineStyle(3, 0x22242c);
         g.lineBetween(60, 22, 72, 34);
         g.lineBetween(72, 22, 60, 34);
         g.lineStyle(5, 0x3f434f);
       } else {
-        g.fillStyle(COLORS.hazard).fillCircle(66, 28, 13); // eye
-        g.fillStyle(0xffffff).fillCircle(66, 28, 5);
+        // P7: KOBI's eye INSIDE the cabin window — cyan iris, neutral/forward
+        // pupil (static; the iris TRACKING is A8, deliberately not implemented).
+        g.fillStyle(0x0a1420).fillCircle(66, 28, 12);   // socket
+        g.fillStyle(0xf0f8ff).fillCircle(66, 28, 10);   // sclera
+        g.fillStyle(COLORS.neon).fillCircle(66, 28, 6); // KOBI cyan iris
+        g.fillStyle(0x0c1622).fillCircle(66, 28, 3);    // neutral forward pupil
+        g.fillStyle(0xffffff, 0.9).fillCircle(63.5, 25.5, 1.8); // catchlight
+        g.fillStyle(0xffffff, 0.1).fillTriangle(50, 13, 66, 13, 50, 30); // glass glare
         g.lineStyle(5, 0x4a5578);
       }
       // claw
@@ -745,21 +794,52 @@ export default class BootScene extends Phaser.Scene {
         g.fillCircle(28, 28, r);
       }
     });
-    // concentric pulse ring for exposed core pods (orange, expands+fades in-game)
-    make("pod_ring", 48, 48, (g) => {
-      g.lineStyle(3, 0xff8855).strokeCircle(24, 24, 20);
-      g.lineStyle(1.5, 0xffd9a0, 0.7).strokeCircle(24, 24, 16);
-    });
+    // concentric pulse ring for exposed core pods (orange, expands+fades in-game).
+    // P7: three static per-state tints — the ring hue escalates with how many
+    // cores have already been crunched (selected in GameScene at spawn; not
+    // animated between tints). Canvas-safe pre-coloured art (setTint no-ops).
+    const podRing = (c) => (g) => {
+      const outer = c === 0 ? 0xff8855 : c === 1 ? 0xffb347 : 0xff5566;
+      const inner = c === 0 ? 0xffd9a0 : c === 1 ? 0xffe9c0 : 0xffd0d0;
+      g.lineStyle(3, outer).strokeCircle(24, 24, 20);
+      g.lineStyle(1.5, inner, 0.7).strokeCircle(24, 24, 16);
+    };
+    make("pod_ring", 48, 48, podRing(0));
+    make("pod_ring_c1", 48, 48, podRing(1));
+    make("pod_ring_c2", 48, 48, podRing(2));
     // white shockwave ring for the crane slam impact (scale+fade pooled image)
     make("shockring", 72, 72, (g) => {
       g.lineStyle(5, 0xffffff, 0.95).strokeCircle(36, 36, 30);
       g.lineStyle(2, 0xffd9a0, 0.8).strokeCircle(36, 36, 24);
     });
-    make("crane_plate", 40, 40, (g) => {
+    // P7: armour plate ART with corner bolt heads + hairline cracks that DEEPEN
+    // per fight stage. GameScene swaps crane_plate -> _c1 -> _c2 by reading the
+    // crane's podsStomped count (never writes it); the fight state machine and
+    // timings are untouched. `crack` 0/1/2 = pristine / hairline / fracturing.
+    const cranePlate = (crack) => (g) => {
       g.fillStyle(0x8892b8).fillRoundedRect(3, 3, 34, 34, 8);
       g.lineStyle(3, COLORS.magenta).strokeRoundedRect(3, 3, 34, 34, 8);
-      g.fillStyle(COLORS.magenta).fillCircle(20, 20, 5);
-    });
+      // corner bolt heads (seated dark, lit cap)
+      [[9, 9], [31, 9], [9, 31], [31, 31]].forEach(([x, y]) => {
+        g.fillStyle(0x5a6488).fillCircle(x, y, 2.4);
+        g.fillStyle(0x3a4160).fillCircle(x, y, 1);
+      });
+      g.fillStyle(COLORS.magenta).fillCircle(20, 20, 5); // central core node
+      g.fillStyle(0xffd0f4, 0.8).fillCircle(18.5, 18.5, 1.8);
+      if (crack >= 1) {
+        g.lineStyle(1, 0x2a2f45, 0.85);
+        g.lineBetween(20, 20, 8, 6); g.lineBetween(20, 20, 33, 14);
+      }
+      if (crack >= 2) {
+        g.lineStyle(1.7, 0x161a2a, 0.95);
+        g.lineBetween(20, 20, 6, 31); g.lineBetween(20, 20, 31, 34);
+        g.lineStyle(1, 0x2a2f45, 0.8);
+        g.lineBetween(8, 6, 4, 4); g.lineBetween(33, 14, 37, 12); // branching hairlines
+      }
+    };
+    make("crane_plate", 40, 40, cranePlate(0));
+    make("crane_plate_c1", 40, 40, cranePlate(1));
+    make("crane_plate_c2", 40, 40, cranePlate(2));
     make("pod", 36, 40, (g) => {
       g.fillStyle(0x2a3350).fillRect(6, 32, 24, 8);
       g.fillStyle(0xff8855).fillCircle(18, 20, 13);
@@ -844,11 +924,18 @@ export default class BootScene extends Phaser.Scene {
     const roller = (alert) => (g) => {
       g.fillStyle(alert ? 0xa83a2e : 0x8a4a3a).fillRoundedRect(3, 2, 36, 22, 9);
       g.lineStyle(2, alert ? 0xff6a52 : 0xc4705a).strokeRoundedRect(3, 2, 36, 22, 9);
-      if (alert) {
-        g.fillStyle(COLORS.hazard, 0.4).fillCircle(32, 12, 9); // red alarm glow
-        g.fillStyle(0xff5566).fillCircle(32, 12, 6);
-      } else {
-        g.fillStyle(0xffe066).fillCircle(32, 12, 6); // big scanning eye
+      // P7: riveted cab detail — corner rivets so the cab reads as plated metal
+      g.fillStyle(alert ? 0x7c2a20 : 0x6d3a2d);
+      [[7, 6], [7, 20], [35, 6], [35, 20]].forEach(([x, y]) => g.fillCircle(x, y, 1.3));
+      // P7: KOBI single cyclops-eye decal filling the cab. Baked sclera + coloured
+      // rim (KOBI cyan at rest / alert red); the existing sliding `roller_pupil`
+      // overlay rides on this sclera so it reads as KOBI glancing along patrol.
+      g.fillStyle(0xf2eefc).fillEllipse(21, 12, 30, 16);
+      g.lineStyle(2, alert ? 0xff5566 : 0x33c2d4).strokeEllipse(21, 12, 30, 16);
+      g.fillStyle(alert ? 0xffdcdc : 0xd8f6fb, 0.5).fillEllipse(15, 9, 10, 4); // sheen
+      if (alert) { // angry brow when alerted
+        g.lineStyle(2.5, 0x7c2a20).lineBetween(9, 5, 20, 7.5);
+        g.lineStyle(2.5, 0x7c2a20).lineBetween(33, 5, 22, 7.5);
       }
       g.fillStyle(0x1a1420);
       g.fillCircle(12, 28, 5.5); g.fillCircle(30, 28, 5.5); // wheel hubs
@@ -856,16 +943,37 @@ export default class BootScene extends Phaser.Scene {
     make("roller", 42, 34, roller(false));
     make("roller_alert", 42, 34, roller(true));
     make("roller_pupil", 8, 8, (g) => {
-      g.fillStyle(0x2a1810).fillCircle(4, 4, 2.6);
-      g.fillStyle(0x6a4030, 0.7).fillCircle(3.2, 3.2, 1);
+      g.fillStyle(0x141018).fillCircle(4, 4, 3);
+      g.fillStyle(0xffffff, 0.85).fillCircle(3, 3, 1.1);
     });
-    // spoke-dot wheel overlay: off-centre dots so rotation reads as rolling
+    // spoke-dot wheel overlay: off-centre dots so rotation reads as rolling.
+    // P7: fuller wheel ART — rubber tire + tread notches + a bolted hub.
     make("roller_wheel", 14, 14, (g) => {
-      g.fillStyle(0x3a2a24).fillCircle(7, 7, 6);
-      g.fillStyle(0xc4705a);
-      g.fillCircle(7, 2.5, 1.6); g.fillCircle(7, 11.5, 1.6);
-      g.fillCircle(2.5, 7, 1.6); g.fillCircle(11.5, 7, 1.6);
-      g.fillStyle(0x8a4a3a).fillCircle(7, 7, 1.8);
+      g.fillStyle(0x241a15).fillCircle(7, 7, 6.5);   // tire
+      g.lineStyle(1, 0x120c0a).strokeCircle(7, 7, 6.5);
+      g.fillStyle(0x120c0a);                          // tread notches
+      for (let i = 0; i < 8; i++) { const a = (Math.PI / 4) * i; g.fillCircle(7 + Math.cos(a) * 6.4, 7 + Math.sin(a) * 6.4, 0.9); }
+      g.fillStyle(0x8a4a3a).fillCircle(7, 7, 3.6);   // hub
+      g.fillStyle(0xc4705a);                          // hub bolts (spoke read)
+      g.fillCircle(7, 3.6, 1.3); g.fillCircle(7, 10.4, 1.3);
+      g.fillCircle(3.6, 7, 1.3); g.fillCircle(10.4, 7, 1.3);
+      g.fillStyle(0x3a2a24).fillCircle(7, 7, 1.5);   // axle
+    });
+    // P7: warning-lamp ART mounted on the cab roof — lit/unlit texture STATES
+    // (swapped by roller state in GameScene). Static dome, NOT spinning (lamp
+    // spin is A6, deliberately not implemented).
+    make("roller_lamp", 14, 12, (g) => {
+      g.fillStyle(0x2a1a16).fillRect(4, 8, 6, 4);            // mount
+      g.fillStyle(0x6a3b20).fillRoundedRect(2, 1, 10, 8, 4); // unlit amber dome
+      g.fillStyle(0x9a6a3a, 0.9).fillEllipse(6, 4, 5, 2.6);
+      g.lineStyle(1, 0x3a2418).strokeRoundedRect(2, 1, 10, 8, 4);
+    });
+    make("roller_lamp_lit", 14, 12, (g) => {
+      g.fillStyle(0xff5566, 0.4).fillCircle(7, 5, 6.5);      // lit halo (alpha, canvas-safe)
+      g.fillStyle(0x2a1a16).fillRect(4, 8, 6, 4);            // mount
+      g.fillStyle(0xff5566).fillRoundedRect(2, 1, 10, 8, 4); // lit red dome
+      g.fillStyle(0xffd0d0, 0.95).fillEllipse(6, 4, 5, 2.6);
+      g.lineStyle(1, 0xff8a8a).strokeRoundedRect(2, 1, 10, 8, 4);
     });
     // pooled "!" alert popup shown above an alerted roller (not per-frame alloc)
     make("excl", 22, 30, (g) => {
@@ -885,14 +993,41 @@ export default class BootScene extends Phaser.Scene {
       g.fillStyle(0xffe066).fillPoints(pts, true);
       g.fillStyle(0xfff6c2).fillCircle(10, 10, 2);
     });
-    make("warden", 42, 62, (g) => {
+    // P7: warden — riveted face-plate + a baked visor-slit glow, a chest plate
+    // for the badge-number stencil (drawn per-warden in GameScene), and a
+    // defeat-pose variant (cross-eye X pupils) the existing defeat state swaps to.
+    // All static/baked: the topple sway is A7 and is not added here.
+    const wardenBody = (defeat) => (g) => {
       g.fillStyle(0x3a5e46).fillRoundedRect(5, 8, 32, 50, 7);
       g.lineStyle(2, 0x59a06e).strokeRoundedRect(5, 8, 32, 50, 7);
-      g.fillStyle(0x142018).fillRoundedRect(20, 14, 16, 10, 4); // visor faces right
-      g.fillStyle(0xffe066).fillCircle(31, 19, 3);
-      g.fillStyle(0x59a06e).fillRect(9, 34, 24, 3);
-      g.fillStyle(0x1a2a20).fillRect(8, 58, 26, 4);
-    });
+      // riveted face-plate: raised head panel with corner rivets
+      g.fillStyle(0x32523d).fillRoundedRect(8, 11, 26, 18, 5);
+      g.lineStyle(1.5, 0x4a7d5b).strokeRoundedRect(8, 11, 26, 18, 5);
+      g.fillStyle(0x6fbf8a);
+      [[11, 14], [31, 14], [11, 26], [31, 26]].forEach(([x, y]) => g.fillCircle(x, y, 1.2));
+      if (defeat) {
+        // knocked-out pose: dark visor with two cross-eye X pupils
+        g.fillStyle(0x0c1610).fillRoundedRect(10, 15, 22, 11, 4);
+        g.lineStyle(2, 0xffe066);
+        [16, 27].forEach((cx) => {
+          g.lineBetween(cx - 2.6, 18, cx + 2.6, 23);
+          g.lineBetween(cx + 2.6, 18, cx - 2.6, 23);
+        });
+      } else {
+        // visor slit with a baked glow (layered alpha halo + hot core — canvas-safe)
+        g.fillStyle(0x142018).fillRoundedRect(20, 14, 16, 10, 4); // visor faces right
+        g.fillStyle(0xffe066, 0.22).fillRoundedRect(22, 16, 13, 6, 3); // glow halo
+        g.fillStyle(0xffe066, 0.5).fillRect(23, 18, 11, 2);           // slit glow
+        g.fillStyle(0xfff3b0).fillCircle(31, 19, 2.4);                // hot eye
+      }
+      g.fillStyle(0x59a06e).fillRect(9, 34, 24, 3); // belt
+      // chest plate (the badge digit is drawn over this per-warden in GameScene)
+      g.fillStyle(0x2c4a38).fillRoundedRect(12, 38, 18, 14, 3);
+      g.lineStyle(1, 0x4a7d5b).strokeRoundedRect(12, 38, 18, 14, 3);
+      g.fillStyle(0x1a2a20).fillRect(8, 58, 26, 4); // feet
+    };
+    make("warden", 42, 62, wardenBody(false));
+    make("warden_defeat", 42, 62, wardenBody(true));
     make("nozzle", 26, 16, (g) => {
       g.fillStyle(0x4a5578).fillRect(2, 0, 22, 10);
       g.fillStyle(0x8892b8).fillRect(7, 10, 12, 6);

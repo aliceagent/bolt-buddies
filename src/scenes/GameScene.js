@@ -298,6 +298,16 @@ export default class GameScene extends Phaser.Scene {
       lifespan: 520, gravityY: 620, emitting: false,
     }).setDepth(DEPTH.fx);
 
+    // P7: pooled squish-splat decals — a recycled ring of ground decals stamped
+    // where a scuttlebug is squished, fading out over ~2s via a per-decal alpha
+    // tween (event-driven, no per-frame allocation). Sits just over the terrain.
+    this._splatHead = 0;
+    this.splatPool = [];
+    for (let i = 0; i < 6; i++) {
+      this.splatPool.push(this.add.image(0, 0, "bug_splat")
+        .setDepth(DEPTH.entity - 1).setVisible(false));
+    }
+
     // pooled crane smoke puffs on defeat (grey, drifts up)
     this.craneSmoke = this.add.particles(0, 0, "px", {
       speed: { min: 30, max: 90 }, angle: { min: 250, max: 290 },
@@ -392,6 +402,9 @@ export default class GameScene extends Phaser.Scene {
     // reusable point buffer for the catenary rope (mutated in place, no alloc)
     this._ropePts = [];
     for (let i = 0; i <= 10; i++) this._ropePts.push(new Phaser.Geom.Point(0, 0));
+    // P7: separate reusable buffer for the crane's static catenary cable
+    this._cranePts = [];
+    for (let i = 0; i <= 10; i++) this._cranePts.push(new Phaser.Geom.Point(0, 0));
 
     // M mutes from in-game too; the visible corner icon is drawn by the UI
     // overlay (unzoomed), so this scene only wires the key.
@@ -1127,7 +1140,13 @@ export default class GameScene extends Phaser.Scene {
         break;
       }
       case "bug": {
-        const bug = this.bugs.create(px, py + 8, "bug");
+        // P7: World-2 levels use the darker hex-spot shell variant. Base/step
+        // texture keys are stored so the existing leg-wiggle swap stays variant-
+        // aware (pure texture selection — no logic/motion change).
+        const w2bug = this.def.world === 2;
+        const bug = this.bugs.create(px, py + 8, w2bug ? "bug_w2" : "bug");
+        bug._texBase = w2bug ? "bug_w2" : "bug";
+        bug._texStep = w2bug ? "bug_w2_step" : "bug_step";
         bug.setDepth(DEPTH.entity);
         bug.body.setSize(38, 22).setOffset(3, 4);
         bug.setVelocityX(60);
@@ -1211,10 +1230,13 @@ export default class GameScene extends Phaser.Scene {
           this.add.image(0, 0, "roller_wheel").setDepth(DEPTH.entity + 1),
         ];
         const excl = this.add.image(img.x, img.y - 34, "excl").setDepth(DEPTH.fx).setVisible(false);
+        // P7: cab-roof warning lamp (lit/unlit texture states, swapped by state
+        // in updateWorld2 — static, not spinning).
+        const lamp = this.add.image(img.x, img.y - 20, "roller_lamp").setDepth(DEPTH.entity + 1);
         this.rollers.push({
           img, minX: e.min * TILE, maxX: (e.max + 1) * TILE, dir: 1,
           state: "patrol", timer: 0, beamLen: e.beam || 140,
-          pupil, wheels, excl, wheelAngle: 0,
+          pupil, wheels, excl, lamp, wheelAngle: 0,
         });
         break;
       }
@@ -1229,7 +1251,13 @@ export default class GameScene extends Phaser.Scene {
         this.tweens.add({ targets: glow, alpha: { from: 0.28, to: 0.6 }, duration: 1200, yoyo: true, repeat: -1, ease: "sine.inOut" });
         // idle sway ±2°
         const sway = this.tweens.add({ targets: img, angle: { from: -2, to: 2 }, duration: 1600, yoyo: true, repeat: -1, ease: "sine.inOut" });
-        this.wardens.push({ id: e.id, img, facing, defeated: false, x: px, glow, sway });
+        // P7: badge-number stencil on the chest (W1/W2 numbering from the id).
+        // Drawn once over the chest plate — static, no per-frame cost.
+        const badgeNum = (e.id || "w1").replace(/\D/g, "") || "1";
+        const badge = this.add.text(px, img.y + 14, badgeNum, {
+          fontFamily: FONT, fontSize: FS.small, fontStyle: "bold", color: "#dff5e6",
+        }).setOrigin(0.5).setDepth(DEPTH.entity + 1);
+        this.wardens.push({ id: e.id, img, facing, defeated: false, x: px, glow, sway, badge });
         break;
       }
       case "jet": {
@@ -1641,8 +1669,24 @@ export default class GameScene extends Phaser.Scene {
     this.boom.explode(12, bug.x, bug.y); // keep the purple pop
     this.shards.explode(9, bug.x, bug.y); // + flung shell-shards
     sfx.squish(bug.x, bug.y);
+    this.stampSplat(bug.x, bug.body ? bug.body.bottom - 2 : bug.y + 12);
     if (bug.glow) bug.glow.destroy();
     bug.destroy();
+  }
+
+  // P7: stamp a pooled splat decal at (x,y) and fade it over ~2s. Recycles a
+  // fixed ring of images (no per-event allocation); the fade is an event-driven
+  // alpha tween, not a per-frame animation.
+  stampSplat(x, y) {
+    const s = this.splatPool[this._splatHead];
+    this._splatHead = (this._splatHead + 1) % this.splatPool.length;
+    this.tweens.killTweensOf(s);
+    s.setPosition(x, y).setScale(Phaser.Math.FloatBetween(0.85, 1.15))
+      .setAngle(Phaser.Math.Between(-12, 12)).setAlpha(0.8).setVisible(true);
+    this.tweens.add({
+      targets: s, alpha: 0, duration: 2000, ease: "quad.in",
+      onComplete: () => s.setVisible(false),
+    });
   }
 
   // P6 phase afterimage: record the robot's current pose into its ring buffer
@@ -1725,8 +1769,10 @@ export default class GameScene extends Phaser.Scene {
     const podX = Phaser.Math.Clamp(c.body.x + Phaser.Math.Between(-80, 80), c.minX, c.maxX);
     const pod = this.add.image(podX, c.floorY - 20, "pod").setDepth(DEPTH.entity);
     this.tweens.add({ targets: pod, scale: { from: 1, to: 1.12 }, duration: 400, yoyo: true, repeat: -1 });
-    // concentric warning pulse-rings radiating from the exposed pod
-    const ring = this.add.image(pod.x, pod.y, "pod_ring").setDepth(DEPTH.entity - 1).setBlendMode(Phaser.BlendModes.ADD);
+    // concentric warning pulse-rings radiating from the exposed pod. P7: the ring
+    // tint escalates with how many cores are already down (static per-state art).
+    const ringTex = c.podsStomped >= 2 ? "pod_ring_c2" : c.podsStomped >= 1 ? "pod_ring_c1" : "pod_ring";
+    const ring = this.add.image(pod.x, pod.y, ringTex).setDepth(DEPTH.entity - 1).setBlendMode(Phaser.BlendModes.ADD);
     this.tweens.add({ targets: ring, scale: { from: 0.5, to: 1.8 }, alpha: { from: 0.75, to: 0 }, duration: 900, repeat: -1 });
     pod.ring = ring;
     this.pods.push(pod);
@@ -1767,11 +1813,33 @@ export default class GameScene extends Phaser.Scene {
     // trolley clamped to the rail above the body + a 1-segment cable down to it
     const tx = Phaser.Math.Clamp(b.x, c.railMin + 20, c.railMax - 20);
     c.trolley.setPosition(tx, c.railY);
-    g.lineStyle(4, 0x2a3350).lineBetween(tx, c.railY + 7, b.x, b.y - 30);
-    g.lineStyle(1.5, 0x6b78a8, 0.85).lineBetween(tx, c.railY + 7, b.x, b.y - 30);
+    // P7: cable drawn as a STATIC catenary-sag curve (fixed droop, endpoints
+    // follow the trolley/body) + a hook shackle where it meets the crane. The
+    // dynamic sag/swing is A8 and is deliberately not implemented.
+    {
+      const x1 = tx, y1 = c.railY + 7, x2 = b.x, y2 = b.y - 30;
+      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2 + 16; // fixed sag droop
+      const pts = this._cranePts, n = pts.length - 1;
+      for (let i = 0; i <= n; i++) {
+        const t = i / n, u = 1 - t;
+        pts[i].x = u * u * x1 + 2 * u * t * mx + t * t * x2;
+        pts[i].y = u * u * y1 + 2 * u * t * my + t * t * y2;
+      }
+      g.lineStyle(4, 0x2a3350).strokePoints(pts, false, false);
+      g.lineStyle(1.5, 0x6b78a8, 0.85).strokePoints(pts, false, false);
+      // hook shackle at the body attach point
+      g.lineStyle(2.5, 0x8892b8).strokeCircle(x2, y2 + 2, 3);
+      g.lineBetween(x2, y2 + 5, x2, y2 + 9);
+    }
     if (c.state === "dead") { c.plates.forEach((pl) => pl.glow.setVisible(false)); return; }
+    // P7: hairline cracks deepen as cores are crunched — reads c.podsStomped
+    // (0/1/2) only; the fight state machine + timings are untouched.
+    const plateTex = c.podsStomped >= 2 ? "crane_plate_c2" : c.podsStomped >= 1 ? "crane_plate_c1" : "crane_plate";
     c.plates.forEach((pl) => {
-      if (pl.attached) pl.img.setPosition(b.x + pl.off.x, b.y + pl.off.y);
+      if (pl.attached) {
+        pl.img.setPosition(b.x + pl.off.x, b.y + pl.off.y);
+        if (pl._tex !== plateTex) { pl._tex = plateTex; pl.img.setTexture(plateTex); }
+      }
       // magenta pulse behind yankable plates while the crane rests (canvas-safe)
       if (pl.attached && c.state === "rest") {
         const a = 0.35 + 0.35 * Math.sin(this.time.now / 130);
@@ -3148,7 +3216,7 @@ export default class GameScene extends Phaser.Scene {
       bug.setFlipX(bug.body.velocity.x < 0);
       // leg wiggle: alternate the two leg-splay frames every ~130ms while moving
       const legFrame = Math.abs(bug.body.velocity.x) > 5 && (time % 260) < 130;
-      if (bug._lf !== legFrame) { bug._lf = legFrame; bug.setTexture(legFrame ? "bug_step" : "bug"); }
+      if (bug._lf !== legFrame) { bug._lf = legFrame; bug.setTexture(legFrame ? bug._texStep : bug._texBase); }
       // eyes glow brighter as the nearest player closes to ~200px
       const near = this.players.reduce((m, p) => p.dead ? m : Math.min(m, Math.hypot(p.x - bug.x, p.y - bug.y)), Infinity);
       const glowA = near < 200 ? Phaser.Math.Clamp((200 - near) / 150, 0, 1) : 0;
@@ -3361,6 +3429,10 @@ export default class GameScene extends Phaser.Scene {
       if (r.state === "patrol") r.wheelAngle += r.dir * 320 * dt;
       r.wheels[0].setPosition(img.x - 9, img.y + 11).setAngle(r.wheelAngle);
       r.wheels[1].setPosition(img.x + 9, img.y + 11).setAngle(r.wheelAngle);
+      // P7: warning lamp lit while alerted (static texture-state swap; no spin)
+      const lampTex = r.state === "alert" ? "roller_lamp_lit" : "roller_lamp";
+      if (r._lampTex !== lampTex) { r._lampTex = lampTex; r.lamp.setTexture(lampTex); }
+      r.lamp.setPosition(img.x, img.y - 20);
       // alert = red flash (texture swap; setTint no-ops on Canvas) + "!" popup
       // U11 FLASH soft: the alert strobe stays red (meaning-bearing) but slows
       // from a 200ms to a 400ms period.
@@ -3394,6 +3466,8 @@ export default class GameScene extends Phaser.Scene {
           this.tweens.add({ targets: w.img, x: w.x + w.facing * 4, duration: 70, yoyo: true });
         } else {
           w.defeated = true;
+          w.img.setTexture("warden_defeat"); // P7: swap to the cross-eye defeat pose
+          if (w.badge) w.badge.setVisible(false);
           this.boom.explode(16, w.img.x, w.img.y);
           sfx.wardenTopple(w.img.x, w.img.y); // descending slide-whistle topple
           w.img.body.enable = false;
