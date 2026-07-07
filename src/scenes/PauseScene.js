@@ -2,6 +2,8 @@ import Phaser from "phaser";
 import { COLORS, FONT, FS, TEXT } from "../constants.js";
 import { sfx, installMute, pauseDuck } from "../audio.js";
 import { pads, showPadToast } from "../pad.js";
+import { addMotes } from "../backdrop.js";
+import { neonPanel, drawRowSelect, chipRow, addSkyline, hexStr } from "../ui/kit.js";
 
 
 // In-game pause overlay (Sound Sprint S4). Launched ON TOP of the still-active
@@ -26,28 +28,44 @@ export default class PauseScene extends Phaser.Scene {
     const W = this.scale.width;
     const H = this.scale.height;
 
-    this.add.rectangle(W / 2, H / 2, W, H, 0x02040a, 0.72).setDepth(0);
-    const pw = 460, ph = 320;
+    // GFX P10: rebuilt to the title-screen standard (shared ui-kit) — a strong
+    // dim over the frozen level, drifting motes + a low silhouette strip, and a
+    // panel with an accent header bar + soft glow. RESUME/SETTINGS/EXIT logic and
+    // the pause contract are untouched; only the LOOK is rebuilt.
+    this.add.rectangle(W / 2, H / 2, W, H, 0x02040a, 0.82).setDepth(0);
+    // motes + skyline sit ABOVE the dim (depth 0, inserted before the panel) so
+    // they read over the darkened level, matching the title-screen backdrop.
+    addMotes(this, COLORS.neon).setDepth(0);
+    addSkyline(this, { y: H - 34, alpha: 0.3, depth: 0 });
+
+    const pw = 460, ph = 344;
     const px = W / 2 - pw / 2, py = H / 2 - ph / 2;
     const panel = this.add.graphics();
-    panel.fillStyle(COLORS.panel, 0.97).fillRoundedRect(px, py, pw, ph, 16);
-    panel.lineStyle(3, COLORS.neon).strokeRoundedRect(px, py, pw, ph, 16);
+    neonPanel(panel, px, py, pw, ph, { accent: COLORS.neon, radius: 16 });
+    this._rowW = pw - 56;
 
-    this.add.text(W / 2, py + 48, "PAUSED", {
+    this.add.text(W / 2, py + 46, "PAUSED", {
       fontFamily: FONT, fontSize: FS.h2, fontStyle: "bold", color: TEXT.neon,
     }).setOrigin(0.5);
 
     this.sel = 0;
     const labels = ["RESUME", "SETTINGS", "EXIT TO MAP"];
-    const startY = py + 130;
-    this.items = labels.map((t, i) => this.add.text(W / 2, startY + i * 52, t, {
-      fontFamily: FONT, fontSize: FS.title, fontStyle: "bold", color: TEXT.body,
-    }).setOrigin(0.5));
+    const startY = py + 140;
+    this._itemY = [];
+    this.itemBg = [];
+    this.items = labels.map((t, i) => {
+      const cy = startY + i * 54;
+      this._itemY.push(cy);
+      this.itemBg.push(this.add.graphics());
+      return this.add.text(W / 2, cy, t, {
+        fontFamily: FONT, fontSize: FS.title, fontStyle: "bold", color: TEXT.body,
+      }).setOrigin(0.5);
+    });
 
-    this.add.text(W / 2, py + ph - 28,
-      "W/S select · SPACE/ENTER choose · P or ESC resume", {
-      fontFamily: FONT, fontSize: FS.mini, color: TEXT.faint,
-    }).setOrigin(0.5);
+    // key-cap hint row
+    chipRow(this, W / 2, py + ph - 26, [
+      { k: "W" }, { k: "S" }, { t: "select" }, { k: "SPACE" }, { t: "choose" }, { k: "ESC" }, { t: "resume" },
+    ], COLORS.neon, hexStr(COLORS.neon));
 
     this.render();
     installMute(this, { icon: false }); // M still works while paused; no 2nd icon
@@ -87,10 +105,11 @@ export default class PauseScene extends Phaser.Scene {
   }
 
   render() {
+    const cx = this.scale.width / 2;
     this.items.forEach((it, i) => {
       const on = i === this.sel;
-      it.setColor(on ? TEXT.good : TEXT.body);
-      it.setText((on ? "> " : "  ") + it.text.replace(/^[>\s]+/, ""));
+      drawRowSelect(this.itemBg[i], cx, this._itemY[i], this._rowW, 44, COLORS.neon, on);
+      it.setColor(on ? TEXT.bright : TEXT.body);
     });
   }
 

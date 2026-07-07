@@ -6,6 +6,7 @@ import { loadSave, storeSave, totalCores } from "../save.js";
 import { initAudio, sfx, playTrack, installMute } from "../audio.js";
 import { pads, showPadToast } from "../pad.js";
 import { tutorialDone, uxFlashScale } from "../ux.js";
+import { keyCap as kitKeyCap, chipRow as kitChipRow, neonPanel, addSkyline } from "../ui/kit.js";
 
 const ACCENT = WORLD_THEMES[1].accent; // world-1 amber accent for buttons
 const hexStr = (n) => "#" + (n & 0xffffff).toString(16).padStart(6, "0");
@@ -84,8 +85,9 @@ export default class TitleScene extends Phaser.Scene {
   // --- distant lab skyline + a scrolling conveyor line ------------------------
   buildSkyline(W) {
     // silhouette strip sits behind the cast; buildings/cranes bleed down behind
-    // the menu so the mid-screen band is no longer an empty gradient.
-    this.add.image(W / 2, 470, "labskyline").setOrigin(0.5, 1).setDepth(-5).setAlpha(0.55);
+    // the menu so the mid-screen band is no longer an empty gradient. (Shared
+    // skyline helper — Settings/Pause wear the same strip.)
+    addSkyline(this, { y: 470, alpha: 0.55 });
 
     // antenna-tip blink lights (texture coords [x, ty]; skyline baseline y=280,
     // placed with its bottom at 470 => worldY = 470 - (300 - ty)).
@@ -490,62 +492,22 @@ export default class TitleScene extends Phaser.Scene {
     this.toastTween = this.tweens.add({ targets: this.toast, alpha: 0, delay: 2600, duration: 600 });
   }
 
-  // A rounded key-cap chip: reuses the `keycap` texture for single glyphs, and a
-  // matching drawn wide cap for word keys. Coloured border + letter per player.
+  // Key-cap chip + centred chip row now live in the shared ui-kit (Settings/Pause
+  // hint rows use the exact same chips); these thin wrappers keep the call sites.
   keyCap(x, y, label, colNum, colStr) {
-    const cont = this.add.container(x, y);
-    if (label.length <= 1) {
-      const cap = this.add.image(0, 0, "keycap");
-      const bdr = this.add.graphics();
-      bdr.lineStyle(2.5, colNum, 1).strokeRoundedRect(-17, -17, 34, 34, 8);
-      const t = this.add.text(0, -1, label, {
-        fontFamily: FONT, fontSize: FS.head, fontStyle: "bold", color: colStr,
-      }).setOrigin(0.5);
-      cont.add([cap, bdr, t]);
-      cont.capW = 34;
-    } else {
-      const w = 18 + label.length * 9;
-      const g = this.add.graphics();
-      g.fillStyle(0x0a0f1e, 0.96).fillRoundedRect(-w / 2, -17, w, 34, 8);
-      g.fillStyle(0x1a2338, 0.95).fillRoundedRect(-w / 2 + 2, -16, w - 4, 26, 7);
-      g.fillStyle(0xffffff, 0.08).fillRoundedRect(-w / 2 + 4, -14, w - 8, 8, 4);
-      g.lineStyle(2.5, colNum, 1).strokeRoundedRect(-w / 2, -17, w, 34, 8);
-      const t = this.add.text(0, -1, label, {
-        fontFamily: FONT, fontSize: FS.small, fontStyle: "bold", color: colStr,
-      }).setOrigin(0.5);
-      cont.add([g, t]);
-      cont.capW = w;
-    }
-    return cont;
+    return kitKeyCap(this, x, y, label, colNum, colStr);
   }
 
-  // Lay out a centred row mixing key-cap chips ({k}) and small labels ({t}).
   chipRow(cx, y, items, colNum, colStr) {
-    const GAP = 6;
-    const parts = items.map((it) => ({
-      ...it, w: it.t ? it.t.length * 7 + 6 : (it.k.length > 1 ? 18 + it.k.length * 9 : 34),
-    }));
-    const total = parts.reduce((s, p) => s + p.w, 0) + GAP * (parts.length - 1);
-    let x = cx - total / 2;
-    for (const p of parts) {
-      const mid = x + p.w / 2;
-      if (p.t) {
-        this.add.text(mid, y, p.t, { fontFamily: FONT, fontSize: FS.mini, color: TEXT.dim }).setOrigin(0.5);
-      } else {
-        this.keyCap(mid, y, p.k, colNum, colStr);
-      }
-      x += p.w + GAP;
-    }
+    return kitChipRow(this, cx, y, items, colNum, colStr);
   }
 
   // --- controls footer: key-cap chips + top accent bar ------------------------
   buildFooter(W, H) {
     const pw = 724, ph = 132, px = W / 2 - pw / 2, py = 540;
     const panel = this.add.graphics();
-    panel.fillStyle(COLORS.panel, 0.82).fillRoundedRect(px, py, pw, ph, 12);
-    panel.lineStyle(2, COLORS.panelEdge).strokeRoundedRect(px, py, pw, ph, 12);
-    // subtle top accent bar
-    panel.fillStyle(ACCENT, 0.85).fillRoundedRect(px, py, pw, 5, { tl: 12, tr: 12, bl: 0, br: 0 });
+    // shared menu-panel look (accent header bar + soft glow ring)
+    neonPanel(panel, px, py, pw, ph, { accent: ACCENT, radius: 12, fillAlpha: 0.82, headerH: 5 });
     // centre divider between the two player columns
     panel.lineStyle(2, COLORS.panelEdge, 0.7).lineBetween(W / 2, py + 20, W / 2, py + 60);
 

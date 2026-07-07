@@ -1,12 +1,14 @@
 import Phaser from "phaser";
-import { COLORS, WORLD_THEMES, FONT, FS, TEXT } from "../constants.js";
-import { addGradient, addMotes } from "../backdrop.js";
+import { WORLD_THEMES, FONT, FS, TEXT } from "../constants.js";
 import {
   initAudio, sfx, installMute,
   getAudioSettings, setMusicVolume, setSfxVolume, toggleMute,
 } from "../audio.js";
 import { pads, showPadToast } from "../pad.js";
 import { getUxOptions, setUxOption } from "../ux.js";
+import { menuBackdrop, neonPanel, drawRowSelect, chipRow, hexStr } from "../ui/kit.js";
+
+const ACCENT = WORLD_THEMES[1].accent; // amber — matches the title-screen standard
 
 // U11 comfort rows: 3-way / 2-way value cycles (defaults = current behavior).
 const SHAKE_VALS = ["full", "soft", "off"];
@@ -37,40 +39,42 @@ export default class SettingsScene extends Phaser.Scene {
     const H = this.scale.height;
     initAudio(); // ensure the ctx is live (also starts any pending track)
 
-    addGradient(this, 1);
-    this.add.tileSprite(0, 0, W, H, "bggrid").setOrigin(0).setAlpha(0.22).setDepth(-8);
-    addMotes(this, WORLD_THEMES[1].accent2);
+    // GFX P10: rebuilt to the title-screen standard (shared ui-kit) — layered
+    // gradient + motes + silhouette strip, a panel with an accent header bar and
+    // soft glow, selected-row chevron + glow, and key-cap value hints. The ROWS
+    // themselves (data + behaviour, incl. U11's four comfort rows) are untouched.
+    menuBackdrop(this, 1);
 
+    // panel + accent header bar (drawn once)
+    const px = W / 2 - 340, py = 138, pw = 680, ph = 470;
+    const panel = this.add.graphics();
+    neonPanel(panel, px, py, pw, ph, { accent: ACCENT, radius: 16 });
+    // header caption riding the accent bar
     this.add.text(W / 2, 96, "SETTINGS", {
       fontFamily: FONT, fontSize: FS.h1, fontStyle: "bold", color: TEXT.neon,
       stroke: "#0b3a44", strokeThickness: 8,
     }).setOrigin(0.5);
-
-    // panel (U11 stretched it for the comfort rows — same tokens, same shape,
-    // deliberately structurally simple so GFX P10 can restyle it wholesale)
-    const px = W / 2 - 340, py = 150, pw = 680, ph = 456;
-    const panel = this.add.graphics();
-    panel.fillStyle(COLORS.panel, 0.92).fillRoundedRect(px, py, pw, ph, 14);
-    panel.lineStyle(2, COLORS.panelEdge).strokeRoundedRect(px, py, pw, ph, 14);
+    this.add.text(px + 22, py + 22, "AUDIO & COMFORT", {
+      fontFamily: FONT, fontSize: FS.mini, fontStyle: "bold", color: hexStr(ACCENT),
+    }).setOrigin(0, 0.5).setAlpha(0.9);
 
     // rows: 0 music, 1 sfx, 2 mute, then U11 comfort rows (3 shake, 4 flash,
     // 5 hints, 6 text speed), 7 back
     this.sel = 0;
-    const rowY = [192, 246, 300, 354, 408, 462, 516, 570];
-    const labelX = W / 2 - 300;
-    const valueX = W / 2 + 40;
+    const rowY = [196, 248, 300, 352, 404, 456, 508, 566];
+    const labelX = W / 2 - 296;
+    const valueX = W / 2 + 44;
+    this._rowW = pw - 44;
 
     this.rows = rowY.map((y, i) => {
-      const cursor = this.add.text(labelX - 34, y, "", {
-        fontFamily: FONT, fontSize: FS.head, fontStyle: "bold", color: TEXT.good,
-      }).setOrigin(0.5, 0.5);
+      const bg = this.add.graphics(); // selected-row chevron + glow (drawn in render)
       const label = this.add.text(labelX, y, "", {
         fontFamily: FONT, fontSize: FS.head, fontStyle: "bold", color: TEXT.body,
       }).setOrigin(0, 0.5);
       const value = this.add.text(valueX, y, "", {
         fontFamily: FONT, fontSize: FS.head, color: TEXT.bright,
       }).setOrigin(0, 0.5);
-      return { y, cursor, label, value };
+      return { y, bg, label, value };
     });
     this.rows[0].label.setText("MUSIC VOLUME");
     this.rows[1].label.setText("SFX VOLUME");
@@ -81,11 +85,11 @@ export default class SettingsScene extends Phaser.Scene {
     this.rows[6].label.setText("TEXT SPEED");
     this.rows[7].label.setText("BACK");
 
-    // hint line sits BELOW the panel (was overlapping the BACK row + bottom edge)
-    this.add.text(W / 2, py + ph + 26,
-      "W/S or up/down: select   ·   A/D or left/right: adjust   ·   SPACE/ENTER: toggle   ·   ESC: back", {
-      fontFamily: FONT, fontSize: FS.mini, color: TEXT.faint,
-    }).setOrigin(0.5);
+    // key-cap value hints below the panel (shared chip row)
+    chipRow(this, W / 2, py + ph + 28, [
+      { k: "W" }, { k: "S" }, { t: "move" }, { k: "A" }, { k: "D" }, { t: "adjust" },
+      { k: "SPACE" }, { t: "toggle" }, { k: "ESC" }, { t: "back" },
+    ], ACCENT, hexStr(ACCENT));
 
     this.render();
     installMute(this);
@@ -193,10 +197,11 @@ export default class SettingsScene extends Phaser.Scene {
   render() {
     const s = getAudioSettings();
     const o = getUxOptions();
+    const cx = this.scale.width / 2;
     this.rows.forEach((r, i) => {
       const on = i === this.sel;
-      r.cursor.setText(on ? ">" : "");
-      r.label.setColor(on ? TEXT.good : TEXT.body);
+      drawRowSelect(r.bg, cx, r.y, this._rowW, 42, ACCENT, on);
+      r.label.setColor(on ? TEXT.bright : TEXT.body);
     });
     this.rows[0].value.setText(this.bar(s.music));
     this.rows[1].value.setText(this.bar(s.sfx));

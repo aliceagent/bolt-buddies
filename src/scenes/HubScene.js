@@ -7,6 +7,7 @@ import { addGradient, addMotes } from "../backdrop.js";
 import { initAudio, sfx, installMute, playTrack, playJingle } from "../audio.js";
 import { pads, showPadToast } from "../pad.js";
 import { drawWorldIcon } from "../worldIcons.js";
+import { drawIris, irisMaxR } from "../ui/kit.js";
 
 
 // Facility map: 4 wings x 3 chambers. Navigate with either player's keys.
@@ -18,6 +19,7 @@ export default class HubScene extends Phaser.Scene {
   init(data) {
     this.sel = data && typeof data.sel === "number" ? data.sel : null;
     this.justUnlocked = !!(data && data.unlock);
+    this.fromClear = !!(data && data.iris); // arrived via the game->hub clear iris
     this.entering = false;
   }
 
@@ -35,7 +37,12 @@ export default class HubScene extends Phaser.Scene {
     addGradient(this, 1);
     this.add.tileSprite(0, 0, W, H, "bggrid").setOrigin(0).setAlpha(0.22).setDepth(-8);
     addMotes(this, WORLD_THEMES[1].accent2);
-    this.cameras.main.fadeIn(250, 4, 6, 20); // 250ms fade-in on entry
+    // P10: a KOBI iris OPENS on the destination node when we arrive from a level
+    // clear (WebGL only; the suites run Canvas and take the plain fade-in so their
+    // transition timing is unchanged). The iris-open is triggered at the end of
+    // create() once node positions exist.
+    this._webglIris = this.fromClear && this.game.renderer.type === Phaser.WEBGL;
+    if (!this._webglIris) this.cameras.main.fadeIn(250, 4, 6, 20); // 250ms fade-in on entry
     this.add.text(W / 2, 46, "DYNACORE LABS — SECTOR MAP", {
       fontFamily: FONT, fontSize: FS.h3, fontStyle: "bold", color: TEXT.neon,
     }).setOrigin(0.5);
@@ -150,6 +157,8 @@ export default class HubScene extends Phaser.Scene {
 
     installMute(this);
 
+    if (this._webglIris) this.irisOpenFromNode();
+
     // map-room music (crossfades from a level track); if we arrived here having
     // just unlocked a new chamber, ring the unlock fanfare over the hub track.
     playTrack("hub");
@@ -223,8 +232,22 @@ export default class HubScene extends Phaser.Scene {
     });
   }
 
+  // P10: a KOBI iris opens on the destination node (mirrors the game-side close).
+  irisOpenFromNode() {
+    const n = this.nodes[this.sel] || { x: this.scale.width / 2, y: this.scale.height / 2 };
+    const g = this.add.graphics().setDepth(999).setScrollFactor(0);
+    const st = { r: 0 };
+    drawIris(g, n.x, n.y, 0);
+    this.tweens.add({
+      targets: st, r: irisMaxR(this, n.x, n.y), duration: 300, ease: "sine.out",
+      onUpdate: () => drawIris(g, n.x, n.y, st.r),
+      onComplete: () => g.destroy(),
+    });
+  }
+
   // Freshly unlocked node: a padlock fades up-and-out while two accent rings
-  // burst outward. Purely cosmetic — the node was already drawn unlocked.
+  // burst outward, plus a P8 light-pool flash. Purely cosmetic — the node was
+  // already drawn unlocked.
   playUnlockAnim(n) {
     // a temporary padlock (matches the locked-node glyph) that pops off
     const lock = this.add.graphics({ x: n.x, y: n.y }).setDepth(7);
@@ -233,6 +256,13 @@ export default class HubScene extends Phaser.Scene {
     this.tweens.add({
       targets: lock, alpha: 0, y: n.y - 22, duration: 460, delay: 240, ease: "cubic.in",
       onComplete: () => lock.destroy(),
+    });
+    // P10: light-pool flash (reuse P8's pooled radial). Additive glow WebGL-only.
+    const flash = this.add.image(n.x, n.y, "lightpool").setDepth(6).setAlpha(0).setScale(0.4);
+    if (this.game.renderer.type === Phaser.WEBGL) flash.setTint(n.accent).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({
+      targets: flash, alpha: { from: 0.55, to: 0 }, scale: 1.9, duration: 580, ease: "cubic.out",
+      onComplete: () => flash.destroy(),
     });
     sfx.menuSelect();
     [0, 130].forEach((delay, i) => {

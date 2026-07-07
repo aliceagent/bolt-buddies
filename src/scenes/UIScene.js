@@ -4,6 +4,7 @@ import { LEVELS } from "../levels/registry.js";
 import { sfx, installMute, duckMusic } from "../audio.js";
 import { uxTextSpeed } from "../ux.js";
 import { pads } from "../pad.js";
+import { drawIris, irisMaxR } from "../ui/kit.js";
 
 
 const SKILL_ICON = { grapple: "icon_grapple", heavy: "icon_heavy", phase: "icon_phase", tiny: "icon_tiny" };
@@ -171,7 +172,12 @@ export default class UIScene extends Phaser.Scene {
     this.recordBurst.add([rbg, rlabel]);
     this.recordBurst.rbg = rbg;
     this.winPanel = this.add.container(W / 2, H / 2, [pg, winTopLight, this.winTitle, this.winSub, slots, ...this.winCoreQ, ...this.winCores, this.savedTag, this.statsText, this.gradeText, this.recordBurst, this.winPrompt]);
-    this.overlay.add([this.winDim, this.winPanel]);
+    // P10: bolt-and-gear confetti burst BEHIND the panel. ONE pooled emitter,
+    // manual bursts only. The additive glow is WebGL-only (gated per the renderer
+    // note); Canvas gets a cheaper, smaller, non-additive burst.
+    this._webgl = this.game.renderer.type === Phaser.WEBGL;
+    this.buildConfetti();
+    this.overlay.add([this.winDim, this.confetti, this.winPanel]);
     this.completed = null;
 
     // --- bottom hint keycap chips (corner, subtle) -----------------------------
@@ -283,6 +289,8 @@ export default class UIScene extends Phaser.Scene {
         this.tweens.add({ targets: this.winDim, alpha: 0.85, duration: 220 });
         this.tweens.add({ targets: this.winPanel, scale: 1, alpha: 1, duration: 260, ease: "back.out" });
         this.tweens.add({ targets: this.winTitle, scale: 1, duration: 340, ease: "back.out", delay: 120 });
+        // P10: celebratory bolt/gear confetti fanning up from behind the panel
+        this.time.delayedCall(150, () => this.burstConfetti());
         if (!tut) {
           // cores reveal one-by-one: collected pop + chime, uncollected stay dim "?"
           info.cores.forEach((got, i) => {
@@ -328,18 +336,105 @@ export default class UIScene extends Phaser.Scene {
     const next = this.completed.index + 1;
     const unlock = this.completed.newlyUnlocked;
     duckMusic(false); // drop any lingering blip duck on the way out
-    // the UI camera fade paints fullscreen black over both scenes (UI renders
-    // above Game), so this reads as a clean 250ms fade to the next screen.
-    this.cameras.main.fadeOut(250, 4, 6, 20);
-    this.cameras.main.once("camerafadeoutcomplete", () => {
+    const swap = () => {
       this.scene.stop("Game");
       // U10 (F6): a tutorial launched from the first-run interstitial returns to
       // the HUB, not Title (returnToHub set on the Game scene). Menu-launched
       // tutorials keep returning to Title (this.completed.returnToHub is false).
       if (tut && this.completed.returnToHub) this.scene.start("Hub");
       else if (tut) this.scene.start("Title");
-      else this.scene.start("Hub", { sel: next, unlock });
+      else this.scene.start("Hub", { sel: next, unlock, iris: true });
       this.scene.stop();
+    };
+    // P10: KOBI iris-wipe for the normal game->hub clear — a black iris closing on
+    // the exit door (Hub opens it on the destination node). WebGL only; the
+    // suites run Canvas and take the byte-identical 250ms fade below, so the
+    // transition timing / scene-key sequence they observe is unchanged. Tutorial
+    // (->Title/Hub) also keeps the plain fade.
+    if (this._webgl && !tut) {
+      this.irisCloseToDoor(swap);
+    } else {
+      // the UI camera fade paints fullscreen black over both scenes (UI renders
+      // above Game), so this reads as a clean 250ms fade to the next screen.
+      this.cameras.main.fadeOut(250, 4, 6, 20);
+      this.cameras.main.once("camerafadeoutcomplete", swap);
+    }
+  }
+
+  // P10: build the pooled bolt-and-gear confetti emitter (ONE emitter, manual
+  // bursts). The two-frame texture is baked once. Gold on Canvas; WebGL adds
+  // per-particle tint variety + an additive glow.
+  buildConfetti() {
+    if (!this.textures.exists("bbConfetti")) {
+      const cg = this.make.graphics({ x: 0, y: 0, add: false });
+      // frame 0 — hex bolt head (0..16)
+      const bx = 8, by = 8, br = 6;
+      cg.fillStyle(0xffd24d, 1).beginPath();
+      for (let k = 0; k < 6; k++) {
+        const a = Math.PI / 6 + k * Math.PI / 3;
+        const x = bx + Math.cos(a) * br, y = by + Math.sin(a) * br;
+        if (k === 0) cg.moveTo(x, y); else cg.lineTo(x, y);
+      }
+      cg.closePath(); cg.fillPath();
+      cg.fillStyle(0x241704, 1).fillCircle(bx, by, 2);
+      // frame 1 — little gear (16..32)
+      const gx = 24, gy = 8;
+      cg.fillStyle(0xffb347, 1);
+      for (let k = 0; k < 8; k++) {
+        const a = k * Math.PI / 4;
+        cg.fillRect(gx + Math.cos(a) * 5 - 1.4, gy + Math.sin(a) * 5 - 1.4, 2.8, 2.8);
+      }
+      cg.fillCircle(gx, gy, 4.6);
+      cg.fillStyle(0x241704, 1).fillCircle(gx, gy, 1.8);
+      cg.generateTexture("bbConfetti", 32, 16);
+      cg.destroy();
+      const tex = this.textures.get("bbConfetti");
+      tex.add(0, 0, 0, 0, 16, 16);
+      tex.add(1, 0, 16, 0, 16, 16);
+    }
+    this.confetti = this.add.particles(0, 0, "bbConfetti", {
+      frame: [0, 1],
+      lifespan: 1300,
+      speed: { min: 150, max: 430 },
+      angle: { min: 202, max: 338 }, // up-and-out fan
+      gravityY: 640,
+      rotate: { start: 0, end: 360 },
+      scale: { min: 0.7, max: 1.25 },
+      alpha: { start: 1, end: 0 },
+      tint: this._webgl ? [0xffd24d, 0xffb347, 0x35f0ff, 0xff4dd2, 0xffffff] : undefined,
+      frequency: -1, // manual emitParticleAt only
+      maxAliveParticles: this._webgl ? 60 : 32,
+      emitting: false,
+    });
+    if (this._webgl) this.confetti.setBlendMode(Phaser.BlendModes.ADD);
+  }
+
+  burstConfetti() {
+    if (!this.confetti) return;
+    const W = this.scale.width, H = this.scale.height;
+    // erupt from the panel's top edge so the fan clears the panel and rains down
+    // its sides (the burst reads "behind the panel" while staying visible).
+    this.confetti.emitParticleAt(W / 2, H / 2 - 150, this._webgl ? 54 : 32);
+  }
+
+  // P10: iris close on the exit-door screen position (game->hub clear, WebGL).
+  // Maskless single thick ring (see ui-kit drawIris) — cheap, ≤300ms.
+  irisCloseToDoor(done) {
+    const W = this.scale.width, H = this.scale.height;
+    let cx = W / 2, cy = H / 2;
+    const G = this.scene.get("Game");
+    if (G && G.exitDoor && G.exitDoor.zone && G.cameras && G.cameras.main) {
+      const cam = G.cameras.main;
+      cx = Phaser.Math.Clamp((G.exitDoor.zone.centerX - cam.worldView.x) * cam.zoom, 0, W);
+      cy = Phaser.Math.Clamp((G.exitDoor.baseY - cam.worldView.y) * cam.zoom, 0, H);
+    }
+    const g = this.add.graphics().setDepth(999).setScrollFactor(0);
+    const st = { r: irisMaxR(this, cx, cy) };
+    drawIris(g, cx, cy, st.r);
+    this.tweens.add({
+      targets: st, r: 0, duration: 300, ease: "sine.in",
+      onUpdate: () => drawIris(g, cx, cy, st.r),
+      onComplete: done,
     });
   }
 
