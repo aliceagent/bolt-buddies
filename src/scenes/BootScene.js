@@ -16,7 +16,23 @@ export default class BootScene extends Phaser.Scene {
     };
 
     // --- terrain -----------------------------------------------------------
-    make("tile", 48, 48, (g) => {
+    // P4: per-world tile TRIM so worlds differ up close (geometry/collision are
+    // untouched — this is a texture swap only; GameScene picks `tile<world>`).
+    // Shared quiet two-tone bevel base + a per-world corner-fastener + seam pass.
+    // A tiny hex-bolt helper (flat-top hexagon, dark seat + lit cap) for W2+.
+    const hexBolt = (g, x, y, r) => {
+      const ring = [];
+      const cap = [];
+      for (let i = 0; i < 6; i++) {
+        const a = (Math.PI / 3) * i - Math.PI / 6; // flat-top
+        ring.push({ x: x + Math.cos(a) * r, y: y + Math.sin(a) * r });
+        cap.push({ x: x + Math.cos(a) * (r - 1.1), y: y + Math.sin(a) * (r - 1.1) });
+      }
+      g.fillStyle(COLORS.steelLo).fillPoints(ring, true); // dark seat
+      g.fillStyle(COLORS.steelEdge).fillPoints(cap, true); // lit cap
+      g.fillStyle(COLORS.steelHi, 0.7).fillCircle(x - r * 0.3, y - r * 0.3, 0.9); // spec dot
+    };
+    const tileTex = (world) => (g) => {
       // Quiet two-tone bevel: lighter top-left edge, darker bottom-right edge.
       g.fillStyle(COLORS.steel).fillRect(0, 0, 48, 48);
       g.fillStyle(COLORS.steelHi);
@@ -27,9 +43,90 @@ export default class BootScene extends Phaser.Scene {
       g.fillRect(46, 0, 2, 48); // right shade
       // faint inner panel line
       g.lineStyle(1, COLORS.steelEdge, 0.5).strokeRect(7, 7, 34, 34);
-      // corner rivets
-      g.fillStyle(COLORS.steelEdge);
-      [7, 41].forEach((x) => [7, 41].forEach((y) => g.fillCircle(x, y, 1.6)));
+      if (world === 2) {
+        // W2 "maintenance" plate: faint vertical pipe-seam lines + hex-bolt corners
+        g.lineStyle(1, COLORS.steelEdge, 0.32);
+        g.lineBetween(16, 3, 16, 45);
+        g.lineBetween(32, 3, 32, 45);
+        g.lineStyle(1, COLORS.steelLo, 0.5); // seam shadow on the right of each line
+        g.lineBetween(17, 3, 17, 45);
+        g.lineBetween(33, 3, 33, 45);
+        [8, 40].forEach((x) => [8, 40].forEach((y) => hexBolt(g, x, y, 3.2)));
+      } else if (world === 3) {
+        // W3 "magnet works": diagonal hazard hatch corner ticks + hex bolts
+        g.lineStyle(1, COLORS.steelEdge, 0.28);
+        for (let i = 6; i < 42; i += 8) g.lineBetween(i, 7, i + 6, 13);
+        [8, 40].forEach((x) => [8, 40].forEach((y) => hexBolt(g, x, y, 3)));
+      } else if (world === 4) {
+        // W4 "dark core": stark, minimal — just recessed hex corners
+        [9, 39].forEach((x) => [9, 39].forEach((y) => hexBolt(g, x, y, 2.6)));
+      } else {
+        // W1 keeps its round rivets
+        g.fillStyle(COLORS.steelEdge);
+        [7, 41].forEach((x) => [7, 41].forEach((y) => g.fillCircle(x, y, 1.6)));
+      }
+    };
+    for (let w = 1; w <= 4; w++) make(`tile${w}`, 48, 48, tileTex(w));
+    make("tile", 48, 48, tileTex(1)); // back-compat alias (== W1)
+    // W2 underside drip-stain decal: a faint rust streak hanging from a ceiling
+    // face (added deterministically under W2 platform undersides in GameScene).
+    make("dripstain", 8, 18, (g) => {
+      g.fillStyle(0x0a1410, 0.9).fillEllipse(4, 3, 7, 4); // pooled seep at the lip
+      g.fillStyle(0x1a3a2c, 0.7).fillRect(3, 2, 2, 14); // streak
+      g.fillStyle(0x0a1410, 0.6).fillRect(3, 12, 2, 4); // darker tail
+    });
+    // P4: grime/wear decal stamp set — scattered DETERMINISTICALLY on wall runs
+    // by GameScene (seeded by level id). Baked opaque-ish; alpha (<=0.5) applied
+    // at placement. All read as painted-on wear, never as interactive tiles.
+    make("decal_oil", 44, 28, (g) => {
+      g.fillStyle(0x05070c, 1).fillEllipse(22, 17, 36, 16);
+      g.fillStyle(0x05070c, 1).fillEllipse(11, 12, 14, 10).fillEllipse(34, 20, 13, 9);
+      g.fillStyle(0x0b1120, 1).fillEllipse(24, 15, 20, 9); // inner sheen
+      g.fillStyle(0x24365c, 0.5).fillEllipse(19, 12, 8, 3); // faint reflection
+      g.fillStyle(0x05070c, 1).fillRect(20, 22, 3, 6); // drip tail
+    });
+    make("decal_scuff", 40, 24, (g) => {
+      g.lineStyle(2, 0x090d16, 0.9);
+      g.lineBetween(4, 16, 20, 6); g.lineBetween(8, 19, 27, 9); g.lineBetween(13, 21, 34, 12);
+      g.lineStyle(1, 0x30436e, 0.45);
+      g.lineBetween(5, 15, 19, 6); g.lineBetween(15, 20, 33, 12);
+    });
+    make("decal_chevron", 46, 22, (g) => {
+      g.fillStyle(0x18130a, 0.85).fillRect(0, 0, 46, 22);
+      g.fillStyle(COLORS.amber, 0.9);
+      for (let x = -12; x < 46; x += 15) {
+        g.beginPath();
+        g.moveTo(x, 20); g.lineTo(x + 8, 2); g.lineTo(x + 13, 2); g.lineTo(x + 5, 20);
+        g.closePath(); g.fillPath();
+      }
+      g.lineStyle(1, 0x0a0804, 0.6).strokeRect(0, 0, 46, 22);
+    });
+    make("decal_vent", 40, 40, (g) => {
+      g.fillStyle(0x0c1220, 1).fillRoundedRect(2, 2, 36, 36, 4);
+      g.lineStyle(2, 0x2a3550, 1).strokeRoundedRect(2, 2, 36, 36, 4);
+      g.fillStyle(0x05080f, 1);
+      for (let ly = 8; ly < 34; ly += 6) g.fillRect(7, ly, 26, 3);
+      g.fillStyle(0x1a2740, 1);
+      [8, 32].forEach((sx) => [8, 32].forEach((sy) => g.fillCircle(sx, sy, 1.6))); // corner screws
+    });
+    // KOBI "NO PETS" poster — a taped-up paper sign: red header band, a barred
+    // dog silhouette, and KOBI's single cyan eye watching from the bottom.
+    make("decal_poster", 34, 46, (g) => {
+      g.fillStyle(0xe8e2d0, 1).fillRect(1, 1, 32, 44); // paper
+      g.lineStyle(1, 0x8a8470, 1).strokeRect(1, 1, 32, 44);
+      g.fillStyle(0xc23a2e, 1).fillRect(1, 1, 32, 9); // red header band
+      g.fillStyle(0xe8e2d0, 1);
+      for (let lx = 4; lx < 30; lx += 4) g.fillRect(lx, 4, 2, 4); // "NO PETS" block letters
+      // dog silhouette
+      g.fillStyle(0x2a2a2a, 1).fillEllipse(16, 28, 15, 8);
+      g.fillCircle(23, 24, 4);
+      g.fillRect(9, 30, 3, 6); g.fillRect(21, 30, 3, 6);
+      // red prohibition ring + slash
+      g.lineStyle(3, 0xc23a2e, 1).strokeCircle(16, 28, 14);
+      g.lineStyle(3, 0xc23a2e, 1).lineBetween(7, 19, 25, 37);
+      // KOBI eye
+      g.fillStyle(0x0b101f, 1).fillCircle(17, 41, 3);
+      g.fillStyle(COLORS.neon, 1).fillCircle(17, 41, 1.5);
     });
     make("crack", 48, 48, (g) => {
       g.fillStyle(0x2a2436).fillRect(0, 0, 48, 48);
@@ -74,6 +171,12 @@ export default class BootScene extends Phaser.Scene {
       for (let x = 0; x <= 48; x += 8) g.lineTo(x, x % 16 === 0 ? 30 : 44);
       g.strokePath();
       g.fillStyle(COLORS.hazard, 0.5).fillRect(0, 24, 48, 4);
+    });
+    // P4: hazard arc-spark (WebGL-only pooled emitter) — a hot pink-white ember
+    // that ballistically jumps off a hazard strip. Additive at add time.
+    make("hazspark", 8, 8, (g) => {
+      g.fillStyle(0xff5566, 0.55).fillCircle(4, 4, 3.5);
+      g.fillStyle(0xffe0e6, 0.95).fillCircle(4, 4, 1.6);
     });
     make("bridgetile", 48, 48, (g) => {
       g.fillStyle(0x123a44).fillRect(0, 4, 48, 40);
@@ -581,17 +684,44 @@ export default class BootScene extends Phaser.Scene {
     });
 
     // --- world 2 -------------------------------------------------------------
+    // P4: shimmer "~" walls redrawn as a vertical ENERGY CURTAIN (violet — the
+    // phase-skill hue) so they read as "a wall you can phase through", visually
+    // DISTINCT from the red jagged hazard strips. The base is soft vertical bands
+    // with a bright central seam; the drifting `phaseflow` overlay adds rising
+    // sine-banded energy. Bands are constant along Y so a stacked column tiles
+    // seamlessly. Everything DRAWN (no tint) so it reads under the Canvas renderer.
     make("phasewall", 48, 48, (g) => {
-      g.fillStyle(0x3a2a5e, 0.75).fillRect(0, 0, 48, 48);
-      g.lineStyle(2, 0xc39dff, 0.8).strokeRect(2, 2, 44, 44);
-      g.lineStyle(1, 0xc39dff, 0.45);
-      for (let y = 8; y < 48; y += 10) g.lineBetween(4, y, 44, y - 4);
+      // translucent violet field so the wall region reads as filled
+      g.fillStyle(0x2c1e4e, 0.62).fillRect(0, 0, 48, 48);
+      // vertical energy bands: soft violet columns, brighter toward the centre seam
+      for (let x = 0; x < 48; x++) {
+        const d = 1 - Math.abs(x - 24) / 24; // 0 edges -> 1 centre
+        const band = 0.5 + 0.5 * Math.sin((x / 48) * Math.PI * 6); // ripples across
+        const a = 0.10 + 0.30 * d * (0.5 + 0.5 * band);
+        g.fillStyle(0xc39dff, a).fillRect(x, 0, 1, 48);
+      }
+      // bright central seam (the "phase-through" spine)
+      g.fillStyle(0xe8d8ff, 0.55).fillRect(23, 0, 2, 48);
+      g.fillStyle(0xffffff, 0.3).fillRect(23.5, 0, 1, 48);
+      // soft violet frame edges (top/bottom kept faint so vertical stacks blend)
+      g.fillStyle(0xc39dff, 0.5).fillRect(1, 0, 2, 48).fillRect(45, 0, 2, 48);
     });
-    // Drifting inner pattern for phase-walls: diagonal energy stripes that tile
-    // vertically. Scrolled via tilePositionY in GameScene so the shimmer flows.
+    // Drifting rising energy for phase-walls: horizontal sine-banded glow that
+    // tiles vertically (whole cycles over 48px) and is scrolled via tilePositionY
+    // in GameScene so the curtain flows UPWARD. Additive at add time.
     make("phaseflow", 48, 48, (g) => {
-      g.lineStyle(3, 0xd7bbff, 0.5);
-      for (let i = -48; i < 96; i += 16) g.lineBetween(i, 48, i + 48, 0);
+      for (let y = 0; y < 48; y++) {
+        const b = 0.5 + 0.5 * Math.sin((y / 48) * Math.PI * 2); // one full cycle
+        g.fillStyle(0xd7bbff, 0.06 + 0.16 * b * b).fillRect(0, y, 48, 1);
+      }
+      // a couple of brighter drifting filaments
+      g.fillStyle(0xece0ff, 0.28);
+      g.fillRect(14, 0, 2, 48); g.fillRect(33, 0, 2, 48);
+    });
+    // Rising shimmer sparkle (WebGL-only pooled emitter) — soft violet mote.
+    make("shimspark", 10, 10, (g) => {
+      g.fillStyle(0xd7bbff, 0.5).fillCircle(5, 5, 4);
+      g.fillStyle(0xf2e8ff, 0.9).fillCircle(5, 5, 1.8);
     });
     make("duct", 48, 20, (g) => {
       g.fillStyle(0x232c48).fillRect(0, 0, 48, 20);
@@ -601,6 +731,18 @@ export default class BootScene extends Phaser.Scene {
       // tiny fan-slit lines across the slot
       g.lineStyle(1, 0x2f4066, 0.85);
       for (let x = 7; x < 46; x += 7) g.lineBetween(x, 10, x, 17);
+    });
+    // P4: "squeeze through here" affordance for duct slots — a downward double
+    // chevron (into the crawl gap) over short inward air-lines. Green (Tiny's
+    // hue). Bobbed + alpha-pulsed by a shared per-duct tween in GameScene.
+    make("duct_hint", 28, 28, (g) => {
+      const c = 0x9dffc4;
+      g.lineStyle(3, c, 0.95);
+      g.beginPath(); g.moveTo(8, 3); g.lineTo(14, 11); g.lineTo(20, 3); g.strokePath();
+      g.beginPath(); g.moveTo(8, 9); g.lineTo(14, 17); g.lineTo(20, 9); g.strokePath();
+      // inward air-lines (short horizontal dashes converging under the arrow)
+      g.lineStyle(2, c, 0.55);
+      g.lineBetween(3, 23, 11, 23); g.lineBetween(17, 23, 25, 23);
     });
     make("fan", 48, 22, (g) => {
       g.fillStyle(0x2a3350).fillRect(0, 10, 48, 12);

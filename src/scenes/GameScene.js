@@ -49,6 +49,25 @@ function u9Pick(pool) {
   return line;
 }
 
+// P4: deterministic wear placement. A seeded PRNG (mulberry32) keyed off the
+// level-id STRING via an FNV-1a hash — so every load lays out grime decals and
+// drip stains identically, and NO Math.random is called at module/boot load.
+// (Runtime-only ambient FX — shimmer sparkles, hazard arcs — may use Math.random;
+// they carry no gameplay meaning and never affect layout.)
+function hashStr(s) {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 export default class GameScene extends Phaser.Scene {
   constructor() {
     super("Game");
@@ -136,8 +155,21 @@ export default class GameScene extends Phaser.Scene {
     this._allClearFired = false; // one-shot guard for the 2-2 all-clear puff + blip
     this.phaseFlows = []; // drifting inner-pattern overlays for phase-walls
     this.phaseFlow = 0; // single shared scroll counter (no per-frame alloc)
+    // P4: shimmer-curtain sparkle + hazard arc-spark sources (filled in
+    // buildTerrain). Their pooled emitters are WebGL-only (additive full-viewport
+    // work is disproportionately costly on the software Canvas renderer the beat
+    // harness runs; the drawn curtain/hazard textures carry the meaning on Canvas).
+    this.shimmerPts = []; // world-centres of every phase-wall tile
+    this.hazardStrips = []; // {x1,x2,y} top edge of each contiguous hazard run
+    // NULL every restart: Phaser reuses the scene instance, so a stale emitter ref
+    // from a prior level would keep the update hook firing against empty sources.
+    this.shimmerSparks = null;
+    this.hazardSparks = null;
+    this._shimCd = 0;
+    this._hazCd = 0;
 
     this.buildTerrain();
+    this.scatterDecals();
 
     // players + input
     this.players = def.spawns.map(([tx, ty], i) => {
@@ -521,6 +553,12 @@ export default class GameScene extends Phaser.Scene {
   buildTerrain() {
     const g = this.grid;
     const accent = (this.theme && this.theme.accent) || WORLD_THEMES[1].accent;
+    const world = WORLD_THEMES[this.def.world] ? this.def.world : 1;
+    const tileKey = `tile${world}`;
+    this.tileKey = tileKey; // exposed for the P4 probe (TileSprite hides its source key)
+    // P4 drip-stain layout (W2 undersides) shares the level-seeded PRNG so the
+    // rust streaks are deterministic and never realloc at runtime.
+    const stainRnd = mulberry32(hashStr((this.def.id || "lvl") + ":stain"));
     for (let y = 0; y < this.def.rows; y++) {
       let runStart = -1;
       let hazStart = -1;
@@ -528,13 +566,37 @@ export default class GameScene extends Phaser.Scene {
         if (runStart < 0) return;
         const w = (endX - runStart) * TILE;
         const cx = runStart * TILE + w / 2;
-        const ts = this.add.tileSprite(cx, y * TILE + 24, w, TILE, "tile").setDepth(DEPTH.terrain);
+        const ts = this.add.tileSprite(cx, y * TILE + 24, w, TILE, tileKey).setDepth(DEPTH.terrain);
         this.physics.add.existing(ts, true);
         this.solidObjs.push(ts);
         // walkable-edge highlight: thin accent strip along the run's top edge,
         // dark drop-shadow strip just below its bottom edge.
         this.add.rectangle(cx, y * TILE + 1.5, w, 3, accent, 0.5).setDepth(DEPTH.terrain + 1);
         this.add.rectangle(cx, (y + 1) * TILE + 2, w, 4, COLORS.dark, 0.45).setDepth(DEPTH.terrain);
+        // P4 underside ambient-occlusion: where OPEN space sits directly below the
+        // run it reads as a ceiling/platform underside — darken its bottom face
+        // (4px) as an orientation cue distinct from a floor top. W2 undersides
+        // additionally get a few deterministic rust drip-stains.
+        let openBelow = false;
+        if (y + 1 < this.def.rows) {
+          for (let x = runStart; x < endX; x++) { if (g[y + 1][x] !== "#") { openBelow = true; break; } }
+        }
+        if (openBelow) {
+          this.add.rectangle(cx, (y + 1) * TILE - 2, w, 4, 0x000000, 0.5).setDepth(DEPTH.terrain + 1);
+          if (world === 2) {
+            const cols = endX - runStart;
+            const n = Math.min(3, Math.max(1, Math.round(cols / 4)));
+            for (let k = 0; k < n; k++) {
+              if (stainRnd() < 0.45) continue; // sparse — not every candidate stains
+              const sx = (runStart + Math.floor(stainRnd() * cols) + 0.5) * TILE;
+              // only stain over an actually-open cell so it hangs into air
+              const cellX = Math.floor(sx / TILE);
+              if (cellX < this.def.cols && g[y + 1][cellX] === "#") continue;
+              this.add.image(sx, (y + 1) * TILE, "dripstain").setOrigin(0.5, 0)
+                .setDepth(DEPTH.terrain + 1).setAlpha(0.5);
+            }
+          }
+        }
         runStart = -1;
       };
       // one soft pulsing glow per contiguous hazard run (not per tile)
@@ -544,6 +606,9 @@ export default class GameScene extends Phaser.Scene {
         const cx = hazStart * TILE + w / 2;
         const glow = this.add.rectangle(cx, y * TILE + 30, w, 26, COLORS.hazard, 0.3).setDepth(DEPTH.terrain + 1);
         this.tweens.add({ targets: glow, alpha: { from: 0.15, to: 0.45 }, duration: 640, yoyo: true, repeat: -1, ease: "sine.inOut" });
+        // P4: record the strip's top edge as an arc-spark source (emitter is
+        // WebGL-only; on Canvas the pulse glow above still reads as danger).
+        this.hazardStrips.push({ x1: hazStart * TILE + 2, x2: endX * TILE - 2, y: y * TILE + 25 });
         hazStart = -1;
       };
       for (let x = 0; x < this.def.cols; x++) {
@@ -573,7 +638,7 @@ export default class GameScene extends Phaser.Scene {
         } else if (c === "~") {
           const img = this.phaseWalls.create(x * TILE + 24, y * TILE + 24, "phasewall");
           img.setDepth(DEPTH.terrain);
-          this.tweens.add({ targets: img, alpha: { from: 0.55, to: 0.95 }, duration: 900, yoyo: true, repeat: -1 });
+          this.tweens.add({ targets: img, alpha: { from: 0.62, to: 1 }, duration: 900, yoyo: true, repeat: -1 });
           // second drifting inner pattern; tilePositionY scrolled by shared counter
           const flow = this.add
             .tileSprite(x * TILE + 24, y * TILE + 24, TILE, TILE, "phaseflow")
@@ -581,15 +646,102 @@ export default class GameScene extends Phaser.Scene {
             .setBlendMode(Phaser.BlendModes.ADD)
             .setAlpha(0.45);
           this.phaseFlows.push(flow);
+          // P4: sparkle source at the tile's lower edge (curtain reads as rising)
+          this.shimmerPts.push({ x: x * TILE + 24, y: y * TILE + 22 });
         } else if (c === "d") {
           // vent lip: blocks the top of the tile, leaving a crawl gap only Tiny fits
           const img = this.ducts.create(x * TILE + 24, y * TILE + 10, "duct");
           img.setDepth(DEPTH.terrain);
+          // P4: "squeeze through here" affordance — a bobbing down-chevron + air-
+          // lines in the crawl gap (visual reinforcement of U12's ONLY-TINY bubble).
+          const hint = this.add.image(x * TILE + 24, y * TILE + 32, "duct_hint")
+            .setDepth(DEPTH.terrain + 1).setAlpha(0.75);
+          this.tweens.add({
+            targets: hint, y: hint.y + 4, alpha: { from: 0.55, to: 0.95 },
+            duration: 640, yoyo: true, repeat: -1, ease: "sine.inOut",
+          });
         }
       }
       flush(this.def.cols);
       flushHaz(this.def.cols);
     }
+
+    // P4 pooled ambient emitters — WebGL tier ONLY (additive; the Canvas beat
+    // harness keeps the drawn curtain + hazard pulse, so fps is untouched there).
+    const webgl = this.game.renderer.type === Phaser.WEBGL;
+    if (webgl && this.shimmerPts.length) {
+      this.shimmerSparks = this.add.particles(0, 0, "shimspark", {
+        speedY: { min: -42, max: -16 }, speedX: { min: -7, max: 7 },
+        scale: { start: 0.5, end: 0 }, alpha: { start: 0.5, end: 0 },
+        lifespan: 1150, quantity: 1, frequency: -1, maxAliveParticles: 14,
+        blendMode: Phaser.BlendModes.ADD,
+      }).setDepth(DEPTH.terrain + 1);
+    }
+    if (webgl && this.hazardStrips.length) {
+      this.hazardSparks = this.add.particles(0, 0, "hazspark", {
+        speedX: { min: -70, max: 70 }, speedY: { min: -165, max: -95 }, gravityY: 540,
+        scale: { start: 0.7, end: 0.1 }, alpha: { start: 0.9, end: 0 }, lifespan: 600,
+        quantity: 1, frequency: -1, maxAliveParticles: Math.min(2 * this.hazardStrips.length, 12),
+        blendMode: Phaser.BlendModes.ADD,
+      }).setDepth(DEPTH.terrain + 2);
+    }
+  }
+
+  // P4: scatter the grime/wear decal set on large wall runs, DETERMINISTICALLY
+  // seeded by the level id. 6-10 per level, alpha <=0.5, behind gameplay
+  // (DEPTH.terrain+0.5 < entities). Candidates are interior/wall cells whose TOP
+  // is covered (never a walkable top face) with no special tile adjacent (so a
+  // decal never sits on an interactive/hazard/duct/shimmer face), spaced apart.
+  scatterDecals() {
+    const g = this.grid;
+    const rows = this.def.rows, cols = this.def.cols;
+    const rnd = mulberry32(hashStr((this.def.id || "lvl") + ":decals"));
+    const cand = [];
+    for (let y = 1; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        if (g[y][x] !== "#") continue;
+        if (g[y - 1][x] !== "#") continue; // not a walkable top face
+        let solid = 0, special = false;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = x + dx, ny = y + dy;
+          const cc = (ny < 0 || ny >= rows || nx < 0 || nx >= cols) ? "#" : g[ny][nx];
+          if (cc === "#") solid++;
+          if ("^~d<>%".includes(cc)) special = true;
+        }
+        if (special || solid < 2) continue; // interior of a sizeable run only
+        cand.push({ x, y });
+      }
+    }
+    // deterministic Fisher-Yates shuffle
+    for (let i = cand.length - 1; i > 0; i--) {
+      const j = Math.floor(rnd() * (i + 1));
+      const t = cand[i]; cand[i] = cand[j]; cand[j] = t;
+    }
+    const want = 6 + Math.floor(rnd() * 5); // 6-10
+    const kinds = ["decal_oil", "decal_scuff", "decal_chevron", "decal_vent"];
+    const chosen = [];
+    let posterUsed = false;
+    for (const c of cand) {
+      if (chosen.length >= want) break;
+      if (chosen.some((o) => Math.abs(o.x - c.x) + Math.abs(o.y - c.y) < 3)) continue; // spacing
+      chosen.push(c);
+      let key;
+      if (!posterUsed && rnd() < 0.18) { key = "decal_poster"; posterUsed = true; }
+      else key = kinds[Math.floor(rnd() * kinds.length)];
+      this.add.image(c.x * TILE + 24, c.y * TILE + 24, key)
+        .setDepth(DEPTH.terrain + 0.5)
+        .setAlpha(0.28 + rnd() * 0.2) // <= 0.5
+        .setAngle((rnd() - 0.5) * 9);
+    }
+  }
+
+  // Emit from a pooled emitter only while it is still live. A scene restart (R,
+  // or the acceptance probe switching levels) tears an emitter down mid-step; a
+  // stray emit into the destroyed emitter would throw (its `anims` is nulled).
+  // Guarding here keeps ambient FX (drips/shimmer/hazard sparks) crash-safe with
+  // zero gameplay effect.
+  emitSafe(em, x, y, n) {
+    if (em && em.anims) em.emitParticleAt(x, y, n);
   }
 
   tileAt(px, py) {
@@ -2344,6 +2496,26 @@ export default class GameScene extends Phaser.Scene {
       this.phaseFlow += dt * 22;
       for (const pf of this.phaseFlows) pf.tilePositionY = this.phaseFlow;
     }
+    // P4 rising shimmer sparkles (WebGL-only pooled emitter): sparse emission from
+    // a random phase-wall's lower edge — the curtain reads as flowing energy.
+    if (this.shimmerSparks) {
+      this._shimCd -= delta;
+      if (this._shimCd <= 0) {
+        const p = this.shimmerPts[(Math.random() * this.shimmerPts.length) | 0];
+        if (p) this.emitSafe(this.shimmerSparks, p.x + (Math.random() - 0.5) * 30, p.y, 1);
+        this._shimCd = 130;
+      }
+    }
+    // P4 hazard arc-sparks (WebGL-only pooled emitter): 1-2 concurrent per strip.
+    // Ballistic (gravity) so each ember jumps and arcs off the strip surface.
+    if (this.hazardSparks) {
+      this._hazCd -= delta;
+      if (this._hazCd <= 0) {
+        const s = this.hazardStrips[(Math.random() * this.hazardStrips.length) | 0];
+        if (s) this.emitSafe(this.hazardSparks, s.x1 + Math.random() * (s.x2 - s.x1), s.y, 1);
+        this._hazCd = 300 + Math.random() * 260;
+      }
+    }
 
     // fade the pooled phase afterimages
     for (const g of this.ghosts) {
@@ -2913,7 +3085,7 @@ export default class GameScene extends Phaser.Scene {
       this._dripCd -= delta;
       if (this._dripCd <= 0) {
         const p = this.dripPoints[(Math.floor(time / 620) % this.dripPoints.length)];
-        this.drips.emitParticleAt(p.x, p.y, 1);
+        this.emitSafe(this.drips, p.x, p.y, 1);
         this._dripCd = 620;
       }
     }
