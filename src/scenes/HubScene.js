@@ -6,6 +6,7 @@ import { getRecord, fmtClock } from "../ux.js";
 import { addGradient, addMotes } from "../backdrop.js";
 import { initAudio, sfx, installMute, playTrack, playJingle } from "../audio.js";
 import { pads, showPadToast } from "../pad.js";
+import { drawWorldIcon } from "../worldIcons.js";
 
 
 // Facility map: 4 wings x 3 chambers. Navigate with either player's keys.
@@ -38,28 +39,38 @@ export default class HubScene extends Phaser.Scene {
     this.add.text(W / 2, 46, "DYNACORE LABS — SECTOR MAP", {
       fontFamily: FONT, fontSize: FS.h3, fontStyle: "bold", color: TEXT.neon,
     }).setOrigin(0.5);
-    this.add.text(W / 2, 82, `data-cores recovered: ${totalCores(this.save)} / 36`, {
-      fontFamily: FONT, fontSize: FS.body, color: TEXT.dim,
-    }).setOrigin(0.5);
+    // cores counter — chip with a mini core icon + a pooled count-up on entry
+    this.buildCoresChip(W / 2, 82, totalCores(this.save), 36);
 
     // wing panels in a 2x2 grid
     this.nodes = [];
+    this._u8ChipCount = 0; // probe introspection: # of U8 clock chips drawn
     const panelW = 560, panelH = 235;
     WORLD_INFO.forEach((info, wi) => {
       const theme = WORLD_THEMES[wi + 1] || WORLD_THEMES[1];
       const accent = theme.accent;
       const px = W / 2 + (wi % 2 === 0 ? -panelW - 12 : 12);
       const py = 120 + Math.floor(wi / 2) * (panelH + 18);
+      // a wing reads "online" once any of its chambers is unlocked; otherwise it
+      // gets the deliberate static / no-signal treatment.
+      const worldUnlocked = (wi * 3) < this.save.unlocked;
       const g = this.add.graphics();
       g.fillStyle(COLORS.panel, 0.85).fillRoundedRect(px, py, panelW, panelH, 12);
       g.lineStyle(2, COLORS.panelEdge).strokeRoundedRect(px, py, panelW, panelH, 12);
-      // accent header bar
-      g.fillStyle(accent, 0.9).fillRoundedRect(px, py, panelW, 34, { tl: 12, tr: 12, bl: 0, br: 0 });
-      g.fillStyle(accent, 0.12).fillRect(px, py + 34, panelW, panelH - 34);
-      // big emoji badge
-      this.add.text(px + 30, py + 17, info.emoji, { fontFamily: FONT, fontSize: FS.title }).setOrigin(0.5);
+      if (worldUnlocked) {
+        // accent header bar + faint accent wash
+        g.fillStyle(accent, 0.9).fillRoundedRect(px, py, panelW, 34, { tl: 12, tr: 12, bl: 0, br: 0 });
+        g.fillStyle(accent, 0.12).fillRect(px, py + 34, panelW, panelH - 34);
+      } else {
+        this.drawLockedPanel(g, px, py, panelW, panelH, accent);
+      }
+      // world emblem: dark lens disc + drawn per-accent world icon (no emoji)
+      const badge = this.add.graphics();
+      badge.fillStyle(COLORS.dark, worldUnlocked ? 0.85 : 0.55).fillCircle(px + 30, py + 17, 15);
+      drawWorldIcon(badge, wi + 1, px + 30, py + 17, 24, accent);
       this.add.text(px + 52, py + 17, `WORLD ${wi + 1} — ${info.name.toUpperCase()}`, {
-        fontFamily: FONT, fontSize: FS.large, fontStyle: "bold", color: "#0a0e1a",
+        fontFamily: FONT, fontSize: FS.large, fontStyle: "bold",
+        color: worldUnlocked ? "#0a0e1a" : "#6b7aa8",
       }).setOrigin(0, 0.5);
       this.add.text(px + 20, py + 52, info.skills, { fontFamily: FONT, fontSize: FS.small, color: "#7f8fc0" });
 
@@ -80,23 +91,37 @@ export default class HubScene extends Phaser.Scene {
           if (segLit) { corridor.lineStyle(2, 0xeaf2ff, 0.4).lineBetween(ax, ny, bx, ny); }
         }
         const circle = this.add.graphics({ x: nx, y: ny });
-        this.drawNode(circle, lvl, unlocked, false, completed);
+        if (worldUnlocked) this.drawNode(circle, lvl, unlocked, false, completed);
+        else this.drawSealedNode(circle); // small sealed port over the static art
         const label = this.add.text(nx, ny - 2, unlocked ? lvl.id : "", {
           fontFamily: FONT, fontSize: FS.lead, fontStyle: "bold", color: TEXT.bright,
         }).setOrigin(0.5);
-        // core pips
-        const cores = this.save.cores[lvl.id] || [false, false, false];
-        cores.forEach((got, ci) => {
-          this.add.image(nx - 18 + ci * 18, ny + 46, "core").setScale(0.6).setAlpha(got ? 1 : 0.16);
-        });
+        // core pips (unlocked wings only — a static wing shows no data)
+        if (worldUnlocked) {
+          const cores = this.save.cores[lvl.id] || [false, false, false];
+          cores.forEach((got, ci) => {
+            this.add.image(nx - 18 + ci * 18, ny + 46, "core").setScale(0.6).setAlpha(got ? 1 : 0.16);
+          });
+        }
         // U8 (F15): tiny best-time clock chip above unlocked nodes that have a
         // stored record. Token-based (hudBg fill + world-accent border), with a
-        // small drawn clock glyph — clean + procedural so GFX P2 can build on it.
+        // small drawn clock glyph. PRESERVED as-is (data source: getRecord).
         const rec = unlocked ? getRecord(lvl.id) : null;
         if (rec && typeof rec.bestTime === "number") {
           this.drawClockChip(nx, ny - 52, fmtClock(rec.bestTime), accent);
         }
-        this.nodes.push({ idx, lvl, unlocked, completed, circle, label, accent, x: nx, y: ny });
+        this.nodes.push({ idx, lvl, unlocked, completed, sealed: !worldUnlocked, circle, label, accent, x: nx, y: ny });
+      }
+
+      // SIGNAL LOST flicker line — deliberate "static" caption on a locked wing
+      if (!worldUnlocked) {
+        const sig = this.add.text(px + panelW / 2, py + panelH - 24, "· · SIGNAL LOST · ·", {
+          fontFamily: FONT, fontSize: FS.small, fontStyle: "bold", color: "#5f6f9e",
+        }).setOrigin(0.5).setAlpha(0.7);
+        this.tweens.add({
+          targets: sig, alpha: 0.16, duration: 130, yoyo: true,
+          repeat: -1, repeatDelay: 950, ease: "steps(2)",
+        });
       }
     });
 
@@ -109,10 +134,10 @@ export default class HubScene extends Phaser.Scene {
 
     this.nameText = this.add.text(W / 2, H - 92, "", {
       fontFamily: FONT, fontSize: FS.head, fontStyle: "bold", color: TEXT.good,
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(5);
     this.toastText = this.add.text(W / 2, H - 64, "", {
       fontFamily: FONT, fontSize: FS.body, color: TEXT.warn,
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(5);
 
     // KOBI marquee → scrolling ticker with a small eye prefix
     this.buildTicker(W, H);
@@ -169,6 +194,8 @@ export default class HubScene extends Phaser.Scene {
   }
 
   buildTicker(W, H) {
+    // low silhouette skyline sits behind the whole bottom band
+    this.buildSkyline(W, H);
     const y = H - 24;
     // fixed KOBI eye prefix at the left
     const eye = this.add.graphics().setDepth(6);
@@ -176,6 +203,15 @@ export default class HubScene extends Phaser.Scene {
     eye.fillStyle(0xffffff, 0.9).fillCircle(18, y, 9);
     eye.fillStyle(COLORS.magenta, 1).fillCircle(20, y, 5);
     eye.fillStyle(0x2a0a1e, 1).fillCircle(21, y, 2.5);
+    // occasional pooled blink — an eyelid (matches the dark backing) drops over
+    // the eye and lifts. Single repeating tween, no per-frame allocation.
+    const lid = this.add.graphics({ x: 18, y: y - 12 }).setDepth(6);
+    lid.fillStyle(COLORS.dark, 1).fillRect(-11, 0, 22, 24);
+    lid.scaleY = 0;
+    this.tweens.add({
+      targets: lid, scaleY: 1, duration: 85, yoyo: true, hold: 45,
+      repeat: -1, repeatDelay: 2600, ease: "sine.inOut",
+    });
     const line = KOBI_HUB_LINES[Math.floor(Math.random() * KOBI_HUB_LINES.length)];
     const t = this.add.text(W, y, line, {
       fontFamily: FONT, fontSize: FS.small, fontStyle: "italic", color: "#ff4dd2",
@@ -214,6 +250,7 @@ export default class HubScene extends Phaser.Scene {
   // drawn clock glyph, and the "m:ss" time. Purely presentational (no body, no
   // interaction); laid out in the established HUD chip language.
   drawClockChip(cx, cy, timeStr, accent) {
+    this._u8ChipCount = (this._u8ChipCount || 0) + 1; // probe introspection only
     const accentHex = "#" + accent.toString(16).padStart(6, "0");
     const t = this.add.text(0, 0, timeStr, { fontFamily: FONT, fontSize: FS.mini, fontStyle: "bold", color: accentHex }).setOrigin(0, 0.5).setVisible(false);
     const cw = 26 + t.width; // clock glyph zone + label
@@ -232,13 +269,19 @@ export default class HubScene extends Phaser.Scene {
   drawNode(g, lvl, unlocked, selected, completed) {
     g.clear();
     const fill = unlocked ? (selected ? 0x1e4a3a : 0x1c2a52) : 0x121830;
+    const hi = unlocked ? (selected ? 0x2c6b52 : 0x27407a) : 0x1b2540;
     const edge = unlocked ? (selected ? 0x59ff9c : 0x44548c) : 0x2a3350;
     g.fillStyle(fill).fillCircle(0, 0, 34);
+    // subtle radial shade: an inner top highlight + a lower ambient-occlusion
+    // shadow (stacked discs — canvas-safe fake gradient, drawn once per select).
+    g.fillStyle(hi, 0.55).fillCircle(0, -7, 22);
+    g.fillStyle(0x000000, 0.18).fillCircle(0, 11, 25);
     g.lineStyle(3, edge).strokeCircle(0, 0, 34);
     if (completed) {
-      // lit ring + small checkmark badge (bottom-right)
+      // lit ring + tiny GREEN CHIP badge (bottom-right) with a checkmark
       g.lineStyle(2, 0x59ff9c, 0.7).strokeCircle(0, 0, 39);
-      g.fillStyle(0x0e2a1c, 1).fillCircle(24, 24, 11);
+      g.fillStyle(0x123a26, 1).fillCircle(24, 24, 11);
+      g.lineStyle(2, 0x59ff9c, 0.9).strokeCircle(24, 24, 11);
       g.lineStyle(3, 0x59ff9c, 1);
       g.beginPath();
       g.moveTo(19, 24); g.lineTo(23, 28); g.lineTo(30, 20);
@@ -248,6 +291,89 @@ export default class HubScene extends Phaser.Scene {
       g.fillStyle(0x48547a).fillRect(-8, -6, 16, 12);
       g.lineStyle(3, 0x48547a).strokeCircle(0, -10, 6);
     }
+  }
+
+  // A small sealed port used in place of a full node on a static (locked) wing —
+  // reads as a capped chamber and gives the selection ring a target to sit on.
+  drawSealedNode(g) {
+    g.clear();
+    g.fillStyle(0x141c34, 1).fillCircle(0, 0, 11);
+    g.lineStyle(1.5, 0x2a3350, 1).strokeCircle(0, 0, 11);
+    g.fillStyle(0x0c1226, 1).fillCircle(0, 0, 4);
+  }
+
+  // Locked-wing body: dim blueprint grid + a big watermark padlock. Drawn into
+  // the panel Graphics (behind the sealed nodes). The SIGNAL LOST caption + its
+  // flicker tween are added by the caller.
+  drawLockedPanel(g, px, py, panelW, panelH, accent) {
+    g.fillStyle(0x1a2340, 0.95).fillRoundedRect(px, py, panelW, 34, { tl: 12, tr: 12, bl: 0, br: 0 });
+    g.fillStyle(0x0c1226, 0.5).fillRect(px, py + 34, panelW, panelH - 34);
+    // blueprint grid
+    g.lineStyle(1, 0x22305a, 0.5);
+    for (let gx = px + 24; gx < px + panelW - 4; gx += 32) g.lineBetween(gx, py + 36, gx, py + panelH - 4);
+    for (let gy = py + 60; gy < py + panelH - 4; gy += 30) g.lineBetween(px + 3, gy, px + panelW - 3, gy);
+    // big drawn padlock motif behind the sealed nodes (the "sealed wing" hero)
+    const cx = px + panelW / 2, cy = py + 116;
+    // shackle
+    g.lineStyle(9, accent, 0.42);
+    g.beginPath();
+    g.arc(cx, cy - 14, 22, Math.PI, Math.PI * 2, false);
+    g.strokePath();
+    // body
+    g.fillStyle(accent, 0.24).fillRoundedRect(cx - 32, cy - 2, 64, 50, 8);
+    g.lineStyle(3, accent, 0.5).strokeRoundedRect(cx - 32, cy - 2, 64, 50, 8);
+    // keyhole
+    g.fillStyle(0x0a0e1a, 0.55).fillCircle(cx, cy + 30, 6);
+    g.fillRect(cx - 2.5, cy + 30, 5, 12);
+  }
+
+  // Cores counter chip: hudBg plate + mini core icon + a pooled 0→total count-up
+  // on scene entry. The tween runs once (not a per-frame update path).
+  buildCoresChip(cx, cy, total, max) {
+    const prefix = "DATA-CORES ";
+    const finalStr = `${prefix}${total} / ${max}`;
+    const measure = this.add.text(0, 0, finalStr, {
+      fontFamily: FONT, fontSize: FS.small, fontStyle: "bold",
+    }).setVisible(false);
+    const iconW = 22, padX = 12;
+    const cw = iconW + measure.width + padX * 2;
+    measure.destroy();
+    const x0 = cx - cw / 2;
+    const g = this.add.graphics();
+    g.fillStyle(COLORS.hudBg, 0.85).fillRoundedRect(x0, cy - 15, cw, 30, 9);
+    g.lineStyle(1.5, COLORS.neon, 0.6).strokeRoundedRect(x0, cy - 15, cw, 30, 9);
+    this.add.image(x0 + padX + 8, cy, "core").setScale(0.55);
+    const label = this.add.text(x0 + padX + iconW, cy, `${prefix}0 / ${max}`, {
+      fontFamily: FONT, fontSize: FS.small, fontStyle: "bold", color: TEXT.neon,
+    }).setOrigin(0, 0.5);
+    if (total > 0) {
+      const proxy = { n: 0 };
+      this.tweens.add({
+        targets: proxy, n: total, duration: 600, ease: "cubic.out",
+        onUpdate: () => label.setText(`${prefix}${Math.round(proxy.n)} / ${max}`),
+        onComplete: () => label.setText(finalStr),
+      });
+    }
+  }
+
+  // Low silhouette skyline behind the bottom ticker band — a fixed, built-once
+  // row of dark buildings (deterministic pseudo-random, no per-frame alloc).
+  buildSkyline(W, H) {
+    const g = this.add.graphics().setDepth(3);
+    const baseY = H - 38;
+    let seed = 1337;
+    const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+    let x = 0;
+    while (x < W) {
+      const bw = 30 + Math.floor(rnd() * 46);
+      const bh = 18 + Math.floor(rnd() * 46);
+      g.fillStyle(0x0a1024, 0.9).fillRect(x, baseY - bh, bw, bh);
+      if (rnd() > 0.5) g.fillStyle(0x35f0ff, 0.22).fillRect(x + 6, baseY - bh + 6, 3, 4);
+      if (rnd() > 0.7) g.fillStyle(0xff4dd2, 0.22).fillRect(x + bw - 9, baseY - bh + 10, 3, 4);
+      x += bw + 4 + Math.floor(rnd() * 10);
+    }
+    g.fillStyle(0x05070f, 1).fillRect(0, baseY, W, H - baseY);
+    g.lineStyle(1, WORLD_THEMES[1].accent2, 0.15).lineBetween(0, baseY, W, baseY);
   }
 
   move(d) {
@@ -261,7 +387,8 @@ export default class HubScene extends Phaser.Scene {
 
   updateSelection() {
     this.nodes.forEach((n) => {
-      this.drawNode(n.circle, n.lvl, n.unlocked, n.idx === this.sel, n.completed);
+      if (n.sealed) this.drawSealedNode(n.circle);
+      else this.drawNode(n.circle, n.lvl, n.unlocked, n.idx === this.sel, n.completed);
       n.circle.setScale(1); n.label.setScale(1);
     });
     const n = this.nodes[this.sel];
