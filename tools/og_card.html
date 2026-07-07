@@ -1,0 +1,199 @@
+<!doctype html>
+<!-- Social share card generator for Bolt Buddies (1200x630 Open Graph size).
+     Self-contained vanilla-canvas redraw of the title aesthetic — dark neon lab,
+     two-tone BOLT BUDDIES wordmark, Beep + Boop + Bolt + KOBI's eye, hook line.
+     Rendered headlessly to public/og-card.png by tools/gen_og_card.mjs. No game
+     coupling; palette mirrors src/constants.js. -->
+<html>
+<head><meta charset="utf-8"><style>
+  html,body{margin:0;background:#04060e}
+  #card{display:block}
+</style></head>
+<body>
+<canvas id="card" width="1200" height="630"></canvas>
+<script>
+const W = 1200, H = 630;
+const c = document.getElementById('card');
+const g = c.getContext('2d');
+const FONT = "'Courier New', monospace";
+// palette (src/constants.js)
+const CYAN = '#35f0ff', MAG = '#ff4dd2', BEEP = '#4dc9ff', BOOP = '#ffa14d', GREEN = '#59ff9c';
+
+function rr(x, y, w, h, r) { // rounded-rect path
+  g.beginPath();
+  g.moveTo(x + r, y);
+  g.arcTo(x + w, y, x + w, y + h, r);
+  g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r);
+  g.arcTo(x, y, x + w, y, r);
+  g.closePath();
+}
+
+// ---- background: deep lab gradient + grid + skyline + motes ----------------
+function background() {
+  const grad = g.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#123258');
+  grad.addColorStop(0.55, '#0a1a34');
+  grad.addColorStop(1, '#05070f');
+  g.fillStyle = grad; g.fillRect(0, 0, W, H);
+  // faint blueprint grid
+  g.strokeStyle = 'rgba(120,170,240,0.06)'; g.lineWidth = 1;
+  for (let x = 0; x <= W; x += 48) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke(); }
+  for (let y = 0; y <= H; y += 48) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
+  // low skyline silhouette
+  g.fillStyle = 'rgba(6,12,26,0.85)';
+  let sx = 0;
+  const seed = [70, 40, 110, 55, 90, 35, 130, 60, 100, 45, 120, 50, 80, 65, 105, 38, 95];
+  let i = 0;
+  while (sx < W) {
+    const bw = 46 + (seed[i % seed.length] % 30);
+    const bh = seed[i % seed.length];
+    g.fillRect(sx, H - bh, bw, bh);
+    // tiny lit windows
+    g.fillStyle = 'rgba(90,255,176,0.10)';
+    for (let wy = H - bh + 12; wy < H - 8; wy += 18)
+      for (let wx = sx + 8; wx < sx + bw - 8; wx += 16)
+        if ((wx + wy) % 3 === 0) g.fillRect(wx, wy, 3, 5);
+    g.fillStyle = 'rgba(6,12,26,0.85)';
+    sx += bw + 10; i++;
+  }
+  // conveyor line
+  g.strokeStyle = 'rgba(255,179,71,0.25)'; g.lineWidth = 3;
+  g.beginPath(); g.moveTo(0, H - 150); g.lineTo(W, H - 150); g.stroke();
+  // floating motes
+  const motes = [[180, 150], [1040, 120], [980, 300], [250, 330], [1120, 420], [90, 250]];
+  for (const [mx, my] of motes) {
+    g.save(); g.globalAlpha = 0.5; g.shadowColor = CYAN; g.shadowBlur = 12;
+    g.fillStyle = CYAN; g.beginPath(); g.arc(mx, my, 3, 0, 7); g.fill(); g.restore();
+  }
+}
+
+// ---- neon wordmark ---------------------------------------------------------
+function neonText(txt, cx, cy, size, spacing) {
+  g.font = `bold ${size}px ${FONT}`;
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  // measure total width with letter spacing
+  const widths = [...txt].map(ch => g.measureText(ch).width);
+  const total = widths.reduce((a, b) => a + b, 0) + spacing * (txt.length - 1);
+  let x = cx - total / 2;
+  for (let i = 0; i < txt.length; i++) {
+    const ch = txt[i]; const w = widths[i]; const lx = x + w / 2;
+    if (ch !== ' ') {
+      // magenta outer glow
+      g.save(); g.shadowColor = MAG; g.shadowBlur = 34;
+      g.fillStyle = 'rgba(255,77,210,0.55)'; g.fillText(ch, lx, cy); g.restore();
+      // cyan tube
+      g.save(); g.shadowColor = CYAN; g.shadowBlur = 18;
+      g.fillStyle = CYAN; g.fillText(ch, lx, cy);
+      g.lineWidth = 2; g.strokeStyle = '#0b7c8c'; g.strokeText(ch, lx, cy); g.restore();
+      // white filament core
+      g.save(); g.font = `bold ${size * 0.98}px ${FONT}`;
+      g.fillStyle = '#eafeff'; g.globalAlpha = 0.9; g.fillText(ch, lx, cy - size * 0.02); g.restore();
+      g.font = `bold ${size}px ${FONT}`;
+    }
+    x += w + spacing;
+  }
+}
+
+// ---- characters ------------------------------------------------------------
+function robot(cx, cy, s, body, up) {
+  g.save(); g.translate(cx, cy);
+  // shadow
+  g.fillStyle = 'rgba(0,0,0,0.32)'; g.beginPath(); g.ellipse(0, 46 * s, 34 * s, 9 * s, 0, 0, 7); g.fill();
+  // antenna + carried-badge stalk
+  g.strokeStyle = '#9fb2d8'; g.lineWidth = 3 * s;
+  g.beginPath(); g.moveTo(0, -34 * s); g.lineTo(0, -52 * s); g.stroke();
+  g.save(); g.shadowColor = CYAN; g.shadowBlur = 10 * s;
+  g.fillStyle = CYAN; g.beginPath(); g.arc(0, -55 * s, 4.5 * s, 0, 7); g.fill(); g.restore();
+  // body
+  g.save(); g.shadowColor = body; g.shadowBlur = 26 * s;
+  g.fillStyle = body; rr(-34 * s, -34 * s, 68 * s, 70 * s, 14 * s); g.fill(); g.restore();
+  g.lineWidth = 3 * s; g.strokeStyle = 'rgba(255,255,255,0.35)'; rr(-34 * s, -34 * s, 68 * s, 70 * s, 14 * s); g.stroke();
+  // visor
+  g.fillStyle = '#0c1730'; rr(-26 * s, -22 * s, 52 * s, 30 * s, 9 * s); g.fill();
+  // eyes
+  g.save(); g.shadowColor = '#bfefff'; g.shadowBlur = 8 * s; g.fillStyle = '#eafcff';
+  const ey = up ? -12 * s : -7 * s;
+  g.beginPath(); g.arc(-11 * s, ey, 5.5 * s, 0, 7); g.fill();
+  g.beginPath(); g.arc(11 * s, ey, 5.5 * s, 0, 7); g.fill(); g.restore();
+  // mouth grille
+  g.strokeStyle = 'rgba(150,180,220,0.5)'; g.lineWidth = 2 * s;
+  g.beginPath(); g.moveTo(-8 * s, 16 * s); g.lineTo(8 * s, 16 * s); g.stroke();
+  // legs
+  g.fillStyle = body;
+  rr(-22 * s, 34 * s, 12 * s, 14 * s, 4 * s); g.fill();
+  rr(10 * s, 34 * s, 12 * s, 14 * s, 4 * s); g.fill();
+  g.restore();
+}
+
+function bolt(cx, cy, s) { // robo-puppy
+  g.save(); g.translate(cx, cy);
+  g.fillStyle = 'rgba(0,0,0,0.30)'; g.beginPath(); g.ellipse(0, 34 * s, 40 * s, 8 * s, 0, 0, 7); g.fill();
+  const white = '#e8eef7';
+  // tail
+  g.strokeStyle = white; g.lineWidth = 7 * s; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(34 * s, 8 * s); g.lineTo(50 * s, -8 * s); g.stroke();
+  // body
+  g.save(); g.shadowColor = 'rgba(180,220,255,0.5)'; g.shadowBlur = 16 * s;
+  g.fillStyle = white; rr(-38 * s, -6 * s, 74 * s, 40 * s, 16 * s); g.fill(); g.restore();
+  // legs
+  rr(-30 * s, 26 * s, 10 * s, 14 * s, 4 * s); g.fillStyle = white; g.fill();
+  rr(20 * s, 26 * s, 10 * s, 14 * s, 4 * s); g.fill();
+  // head
+  g.fillStyle = white; rr(-52 * s, -30 * s, 40 * s, 40 * s, 14 * s); g.fill();
+  // ear
+  g.fillStyle = '#c7d3e6'; rr(-50 * s, -44 * s, 14 * s, 22 * s, 6 * s); g.fill();
+  // cyan eye + collar
+  g.save(); g.shadowColor = CYAN; g.shadowBlur = 10 * s; g.fillStyle = CYAN;
+  g.beginPath(); g.arc(-34 * s, -12 * s, 5 * s, 0, 7); g.fill(); g.restore();
+  // snout
+  g.fillStyle = '#c7d3e6'; rr(-56 * s, -8 * s, 12 * s, 12 * s, 4 * s); g.fill();
+  // collar accent
+  g.strokeStyle = BOOP; g.lineWidth = 4 * s; g.beginPath(); g.moveTo(-16 * s, -2 * s); g.lineTo(-16 * s, 22 * s); g.stroke();
+  g.restore();
+}
+
+function kobiEye(cx, cy, s) {
+  g.save(); g.translate(cx, cy);
+  g.save(); g.shadowColor = MAG; g.shadowBlur = 26 * s;
+  g.fillStyle = '#1a0f1c'; g.beginPath(); g.arc(0, 0, 30 * s, 0, 7); g.fill(); g.restore();
+  g.lineWidth = 4 * s; g.strokeStyle = MAG; g.beginPath(); g.arc(0, 0, 30 * s, 0, 7); g.stroke();
+  g.fillStyle = '#f4e9f6'; g.beginPath(); g.arc(0, 0, 20 * s, 0, 7); g.fill();
+  g.fillStyle = '#ff4147'; g.beginPath(); g.arc(3 * s, 0, 9 * s, 0, 7); g.fill();
+  g.fillStyle = '#1a0f1c'; g.beginPath(); g.arc(3 * s, 0, 4 * s, 0, 7); g.fill();
+  g.fillStyle = 'rgba(255,255,255,0.8)'; g.beginPath(); g.arc(-2 * s, -4 * s, 2.5 * s, 0, 7); g.fill();
+  g.restore();
+}
+
+// ---- compose ---------------------------------------------------------------
+background();
+neonText('BOLT  BUDDIES', W / 2, 130, 92, 6);
+// tagline
+g.font = `bold 30px ${FONT}`; g.fillStyle = CYAN; g.textAlign = 'center';
+g.save(); g.shadowColor = CYAN; g.shadowBlur = 10;
+g.fillText('A  2 - P L A Y E R   R E S C U E   M I S S I O N', W / 2, 196); g.restore();
+
+// character lineup
+robot(410, 360, 1.35, BEEP, false);
+bolt(600, 372, 1.25);
+robot(790, 360, 1.35, BOOP, true);
+kobiEye(1080, 250, 1.25);
+
+// hook line
+g.font = `20px ${FONT}`; g.fillStyle = 'rgba(226,236,247,0.92)'; g.textAlign = 'center';
+g.fillText('K.O.B.I. grabbed your robo-puppy BOLT. "NO PETS ALLOWED."', W / 2, 500);
+g.fillStyle = 'rgba(226,236,247,0.72)';
+g.fillText('Chase him through the lab — neither of you can do it alone.', W / 2, 528);
+
+// url chip
+g.font = `bold 18px ${FONT}`;
+const url = 'bolt-buddies.vercel.app';
+const uw = g.measureText(url).width + 28;
+g.fillStyle = 'rgba(53,240,255,0.12)'; rr(W / 2 - uw / 2, 560, uw, 34, 8); g.fill();
+g.lineWidth = 1.5; g.strokeStyle = 'rgba(53,240,255,0.5)'; rr(W / 2 - uw / 2, 560, uw, 34, 8); g.stroke();
+g.fillStyle = CYAN; g.fillText(url, W / 2, 578);
+
+window.__cardReady = true;
+</script>
+</body>
+</html>
