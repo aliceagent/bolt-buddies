@@ -4,7 +4,7 @@ import { LEVELS } from "../levels/registry.js";
 import { makeGrid } from "../levels/builder.js";
 import { completeLevel, loadSave } from "../save.js";
 import { initAudio, sfx, installMute, playTrack, setMusicLayer, playJingle, trackForLevel, setListener, clearListener, proximity, setLoop, stopLoops, pauseDuck } from "../audio.js";
-import { addGradient, addMotes } from "../backdrop.js";
+import { addGradient, addMotes, addPropStrip, addFogBand, addDrips, addDustShafts, addVignette } from "../backdrop.js";
 import Player from "../objects/Player.js";
 import { uxHints, uxShakeScale, uxFlashScale, saveRecord, fmtTime, markTutorialDone } from "../ux.js";
 import { pads, showPadToast } from "../pad.js";
@@ -484,6 +484,25 @@ export default class GameScene extends Phaser.Scene {
 
     // (5) ambient dust motes
     addMotes(this, theme.accent2);
+
+    // (6) P3 world-backdrop identity. All layers sit at DEPTH.bg-5..bg-1, strictly
+    // below DEPTH.terrain — behind gameplay, never occluding sprites/HUD/bubbles.
+    // `?noprops=1` skips the whole identity set — used for the fps A/B baseline
+    // capture and to isolate the layers during headless perf debugging.
+    const propsOff = typeof location !== "undefined" && /(?:\?|&)noprops=1(?:&|$)/.test(location.search);
+    if (!propsOff) {
+      this.propStrip = addPropStrip(this, world); // per-world silhouette parallax strip
+      addDustShafts(this, world); // 2 slow dust-shaft beams for the tall rooms
+      if (world === 2) {
+        this.fogStrips = addFogBand(this); // two drifting additive fog strips
+        this.drips = addDrips(this); // pooled ceiling-joint drips (<=8 alive)
+        // fixed world-x drip sources near the ceiling pipe band (deterministic)
+        this.dripPoints = [];
+        for (let i = 1; i <= 5; i++) this.dripPoints.push({ x: (i / 6) * this.worldW, y: 120 + (i % 2) * 60 });
+        this._dripCd = 0;
+      }
+      addVignette(this); // soft edge darkening, alpha 0.22, below terrain
+    }
   }
 
   // --- terrain -------------------------------------------------------------
@@ -2865,6 +2884,25 @@ export default class GameScene extends Phaser.Scene {
   // --- world 2: rollers, wardens, steam jets, fans -----------------------------
   updateWorld2(time, delta, dt) {
     const bodyRect = (p) => new Phaser.Geom.Rectangle(p.body.x, p.body.y, p.body.width, p.body.height);
+
+    // P3 ambient (W2 only): drift the two fog strips at different speeds and drip
+    // from ceiling pipe joints. Fog drifts by translating x (wrapped by the tile
+    // width) — never tilePositionX, which would re-rasterise the fill each frame.
+    // Pooled — no per-frame allocation; drip cap is 8.
+    if (this.fogStrips) {
+      for (const f of this.fogStrips) {
+        f._fogOff += f._fogSpeed * dt;
+        let o = f._fogOff % f._fogWrap;
+        if (o < 0) o += f._fogWrap;
+        f.x = -o;
+      }
+      this._dripCd -= delta;
+      if (this._dripCd <= 0) {
+        const p = this.dripPoints[(Math.floor(time / 620) % this.dripPoints.length)];
+        this.drips.emitParticleAt(p.x, p.y, 1);
+        this._dripCd = 620;
+      }
+    }
 
     this.beamGfx.clear();
     for (const r of this.rollers) {

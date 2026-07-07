@@ -138,6 +138,151 @@ export default class BootScene extends Phaser.Scene {
       const cl = (v) => Math.max(0, Math.min(255, Math.round(v)));
       return Phaser.Display.Color.GetColor(cl(c.red * f), cl(c.green * f), cl(c.blue * f));
     };
+
+    // --- P3: world-backdrop identity textures ------------------------------
+    // All generated ONCE here (cached in the texture manager) so GameScene only
+    // ever adds cached images/tileSprites — no per-frame Graphics redraw. Layouts
+    // are deterministic: a fixed-seed mulberry32 PRNG, never Math.random, so every
+    // load draws the identical silhouette strip. Silhouettes are baked opaque in an
+    // accent-darkened tone; the strip tileSprite dials the whole layer to alpha
+    // ~0.35 at add time. Strip height 864 == every level's world height (18 rows),
+    // so the tileSprite tiles horizontally only (no vertical repeat of props).
+    const seeded = (s) => () => {
+      s |= 0; s = (s + 0x6d2b79f5) | 0;
+      let t = Math.imul(s ^ (s >>> 15), 1 | s);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const STRIP_W = 512;
+    const STRIP_H = 864;
+
+    // W1 "Assembly Wing": ceiling hooks + jointed arms up top, vats + conveyor
+    // gantries along the floor. Warm accent darkened to a silhouette brown.
+    make("propStrip1", STRIP_W, STRIP_H, (g) => {
+      const tone = shade(WORLD_THEMES[1].accent, 0.34);
+      const edge = shade(WORLD_THEMES[1].accent, 0.52);
+      const rnd = seeded(101);
+      // an overhead gantry rail spanning the width, up in the open ceiling area,
+      // so the assembly identity reads even where the floor props are occluded.
+      const railY = 150;
+      g.fillStyle(tone, 1).fillRect(0, railY, STRIP_W, 14);
+      g.fillStyle(edge, 1).fillRect(0, railY, STRIP_W, 3);
+      // ceiling: hanging hook rigs dropping from the rail into the mid-air
+      [70, 200, 330, 452].forEach((x, i) => {
+        const len = railY + 120 + Math.floor(rnd() * 120);
+        g.fillStyle(tone, 1).fillRect(x - 3, railY, 6, len - railY); // drop rod
+        g.fillStyle(edge, 1).fillCircle(x, railY, 8); // trolley on the rail
+        g.fillStyle(edge, 1).fillCircle(x, len, 9); // pulley
+        g.lineStyle(6, tone, 1).beginPath(); // hook curl
+        g.arc(x, len + 17, 11, Math.PI * 0.15, Math.PI * 0.95, false).strokePath();
+      });
+      // jointed assembly arm reaching in from the top-left, elbowed
+      g.lineStyle(12, tone, 1).beginPath();
+      g.moveTo(120, 0); g.lineTo(175, 110); g.lineTo(300, 84); g.strokePath();
+      g.fillStyle(edge, 1).fillCircle(175, 110, 11).fillCircle(300, 84, 9);
+      g.fillStyle(tone, 1).fillRect(292, 84, 22, 30); // gripper claw block
+      // floor: vats (rounded-top cylinders) — lower body hides behind terrain
+      [60, 360].forEach((x, i) => {
+        const w = 70 + i * 10;
+        const topY = 560 + i * 8;
+        g.fillStyle(tone, 1).fillRect(x, topY + 12, w, STRIP_H - topY);
+        g.fillStyle(tone, 1).fillRoundedRect(x, topY, w, 44, 16); // domed top
+        g.fillStyle(edge, 1).fillRect(x, topY + 36, w, 4); // rim band
+        g.fillStyle(edge, 1).fillRect(x + w / 2 - 3, topY + 48, 6, STRIP_H - topY - 48);
+      });
+      // conveyor gantry: horizontal beam on two legs, with hanging tines
+      const beamY = 610;
+      g.fillStyle(tone, 1).fillRect(170, beamY, 300, 16);
+      g.fillStyle(tone, 1).fillRect(180, beamY, 12, STRIP_H - beamY);
+      g.fillStyle(tone, 1).fillRect(448, beamY, 12, STRIP_H - beamY);
+      g.fillStyle(edge, 1);
+      for (let x = 190; x < 460; x += 34) g.fillRect(x, beamY + 16, 8, 18 + Math.floor(rnd() * 14)); // tines
+    });
+
+    // W2 "Maintenance Tunnels": horizontal pipe runs with elbows + valve wheels,
+    // sagging cables from the ceiling, and wall vents. Violet accent darkened.
+    make("propStrip2", STRIP_W, STRIP_H, (g) => {
+      const tone = shade(WORLD_THEMES[2].accent, 0.30);
+      const edge = shade(WORLD_THEMES[2].accent, 0.46);
+      const rnd = seeded(202);
+      const pipe = (y, h) => {
+        g.fillStyle(tone, 1).fillRect(0, y, STRIP_W, h);
+        g.fillStyle(edge, 1).fillRect(0, y, STRIP_W, 3); // top seam highlight
+      };
+      // two pipe runs with a stepped elbow between them at mid-strip
+      pipe(150, 16);
+      g.fillStyle(tone, 1).fillRect(248, 150, 16, 120); // vertical elbow drop
+      pipe(258, 16);
+      pipe(470, 18);
+      // flange bands along the pipes
+      g.fillStyle(edge, 1);
+      for (let x = 40; x < STRIP_W; x += 96) { g.fillRect(x, 148, 7, 20); g.fillRect(x + 20, 468, 7, 22); }
+      // valve wheels at joints
+      [120, 380].forEach((x) => {
+        g.lineStyle(6, tone, 1).strokeCircle(x, 158, 20);
+        g.lineStyle(5, edge, 1).beginPath();
+        for (let a = 0; a < 6; a++) { g.moveTo(x, 158); g.lineTo(x + Math.cos((a / 6) * Math.PI * 2) * 20, 158 + Math.sin((a / 6) * Math.PI * 2) * 20); }
+        g.strokePath();
+        g.fillStyle(edge, 1).fillCircle(x, 158, 5);
+      });
+      // sagging cables from the ceiling
+      g.lineStyle(3, tone, 1);
+      [60, 200, 330, 470].forEach((x, i) => {
+        const sag = 70 + Math.floor(rnd() * 50);
+        g.beginPath(); g.moveTo(x, 0);
+        for (let t = 0; t <= 1.001; t += 0.1) g.lineTo(x + t * 26, Math.sin(t * Math.PI) * sag + t * 150);
+        g.strokePath();
+      });
+      // wall vents (louvered)
+      [[36, 520], [430, 560]].forEach(([x, y]) => {
+        g.fillStyle(tone, 1).fillRect(x, y, 52, 74);
+        g.fillStyle(shade(WORLD_THEMES[2].bgBottom, 1), 1);
+        for (let ly = y + 8; ly < y + 70; ly += 12) g.fillRect(x + 6, ly, 40, 6);
+      });
+    });
+
+    // Low-lying fog: a soft additive band with a sine-billowed top edge that
+    // completes whole cycles across the width, so it tiles seamlessly AND its
+    // horizontal drift is visible. Two of these are layered at different speeds.
+    make("fogBand", STRIP_W, 220, (g) => {
+      const bands = [
+        { k: 2, amp: 26, base: 70, a: 0.16 },
+        { k: 3, amp: 18, base: 110, a: 0.13 },
+      ];
+      for (const b of bands) {
+        g.fillStyle(0xdfe8ff, b.a);
+        for (let x = 0; x < STRIP_W; x += 4) {
+          const topY = b.base + b.amp * Math.sin((b.k * x / STRIP_W) * Math.PI * 2);
+          g.fillRect(x, topY, 5, 220 - topY);
+        }
+      }
+    });
+
+    // Dust shaft: a tall vertical soft-edged light beam (bright core fading to
+    // transparent sides). Placed rotated + additive at very low alpha; drifts via
+    // a slow tween, no per-frame work.
+    make("dustShaft", 140, 660, (g) => {
+      const half = 70;
+      for (let dx = -half; dx <= half; dx++) {
+        const f = 1 - Math.abs(dx) / half;
+        g.fillStyle(0xeaf2ff, 0.5 * f * f);
+        g.fillRect(half + dx, 0, 1, 660);
+      }
+    });
+
+    // Soft vignette edge: a 1-D gradient (opaque black at the outer edge -> clear
+    // inward). Placed as four thin border bands (top/bottom/left/right) rather than
+    // one full-screen image, so the vignette composites only the darkened border
+    // region — a big Canvas fill-rate saving vs. a mostly-transparent full quad,
+    // while looking identical (corners double up naturally). Capped to alpha <=0.22
+    // at add time so it frames the backdrop without dimming players.
+    make("vignEdge", 8, 128, (g) => {
+      for (let y = 0; y < 128; y++) {
+        g.fillStyle(0x000000, Math.pow(1 - y / 128, 1.7));
+        g.fillRect(0, y, 8, 1);
+      }
+    });
+
     // color: body base, dark: visor/stripe, rim: rim-light on one side.
     // blink=true draws the visor with eyes closed for the _blink texture.
     const robot = (color, dark, rim, blink) => (g) => {
