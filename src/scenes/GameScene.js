@@ -2028,12 +2028,14 @@ export default class GameScene extends Phaser.Scene {
     // trolley clamped to the rail above the body + a 1-segment cable down to it
     const tx = Phaser.Math.Clamp(b.x, c.railMin + 20, c.railMax - 20);
     c.trolley.setPosition(tx, c.railY);
-    // P7: cable drawn as a STATIC catenary-sag curve (fixed droop, endpoints
-    // follow the trolley/body) + a hook shackle where it meets the crane. The
-    // dynamic sag/swing is A8 and is deliberately not implemented.
+    // Cable drawn as a catenary-sag curve (endpoints follow the trolley/body) + a hook
+    // shackle where it meets the crane. P7 shipped a STATIC droop; A8 (crane_anim.js)
+    // writes c._cableSwingX / c._cableSagY — a pendulum offset on the control point so
+    // the cable visually LAGS + sways behind the trolley motion. Both default to 0 when
+    // the rig is off (?animoff=1), so the P7 static cable renders byte-identically.
     {
       const x1 = tx, y1 = c.railY + 7, x2 = b.x, y2 = b.y - 30;
-      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2 + 16; // fixed sag droop
+      const mx = (x1 + x2) / 2 + (c._cableSwingX || 0), my = (y1 + y2) / 2 + 16 + (c._cableSagY || 0); // sag droop + A8 swing-lag
       const pts = this._cranePts, n = pts.length - 1;
       for (let i = 0; i <= n; i++) {
         const t = i / n, u = 1 - t;

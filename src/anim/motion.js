@@ -92,6 +92,23 @@ export const MOTION = Object.freeze({
   WARDEN_LUNGE: Object.freeze({ dur: 360, ease: "back.out", amp: 0.22 }), // shove lunge-into-contact + recoil rock
   WARDEN_TOPPLE: tok(600, "bounce.out"), // defeat topple gains a bounce as it settles
   WARDEN_TWITCH: tok(90, "quad.out"),   // settled body twitches once ~2s later (comedy beat)
+
+  // --- boss: crane (A8) ----------------------------------------------------
+  // Every one is a VISUAL overlay on the SACRED crane fight state machine + timings
+  // (never touches c.state / c.timer / c.podsStomped, the trolley path, the slam
+  // positions/hitbox [reads b.x/b.y], or the plate yank hitbox [reads pl.img.x/y] —
+  // the shudder/flinch are host-ROTATION-only, the squash/defiant-shudder are body-
+  // invariant SCALE, the cable sag/swing is a drawn-catenary control-point offset,
+  // and the eye pupil/lid/glow are pooled overlays that only READ robot positions).
+  // `amp` (radians for rotation tokens) rides beside dur/ease where a beat needs it.
+  CRANE_CABLE: Object.freeze({ stiff: 62, damp: 8.5, swingMax: 22, sagK: 0.28, sagMax: 14 }), // pendulum sag+swing-lag spring
+  CRANE_EYE: Object.freeze({ range: 3.2, ease: 9 }), // KOBI pupil track range (px) + follow-ease rate
+  CRANE_BLINK: tok(150, "linear"), // occasional KOBI blink (fired by the shared scheduler)
+  CRANE_WOBBLE: Object.freeze({ dur: 900, ease: "sine.inOut", amp: 0.055 }), // rest-state plate invite-wobble (rotation)
+  CRANE_SHUDDER: Object.freeze({ freq: 42, amp: 0.03 }), // telegraph building shudder (rotation, ramps to slam)
+  CRANE_SQUASH: Object.freeze({ dur: 420, ease: "quad.out", sx: 0.16, sy: 0.20 }), // slam impact squash + rebound (scale)
+  CRANE_FLINCH: Object.freeze({ dur: 360, ease: "back.out", amp: 0.09 }), // per-plate-yank flinch (rotation kick)
+  CRANE_DEFEAT: Object.freeze({ lampDur: 520, defiantAt: 640, defiantDur: 300, defiantAmp: 0.05 }), // staged power-down beats (ms + scale)
 });
 
 // Idle-tier + fidget-scheduler timing (ms). Kept beside the motion tokens so the

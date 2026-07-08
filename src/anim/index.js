@@ -19,6 +19,7 @@ import { installPlayerAnim } from "./player_anim.js";
 import { installBugAnim } from "./bug_anim.js";
 import { installRollerAnim } from "./roller_anim.js";
 import { installWardenAnim } from "./warden_anim.js";
+import { installCraneAnim } from "./crane_anim.js";
 import { TIMING } from "./motion.js";
 import { DEPTH } from "../constants.js";
 import { sfx } from "../audio.js";
@@ -137,7 +138,7 @@ export class AnimSystem {
   }
 
   registerCrane(c) {
-    return this._add(c.body, {
+    const rig = this._add(c.body, {
       kind: "crane", depth: DEPTH.entity + 2,
       probe: (h, out) => {
         out.dead = !!this.scene.craneDefeated;
@@ -145,6 +146,11 @@ export class AnimSystem {
         out.vx = 0; out.vy = 0; out.face = 1; out.input = false;
       },
     });
+    // A8: hang the visible crane boss set (cable sag+swing-lag / KOBI eye track+blink /
+    // plate invite-wobble / telegraph shudder / slam squash / plate-yank flinch / staged
+    // defeat power-down) as a pure overlay on the SACRED fight state machine + timings.
+    installCraneAnim(rig, this.scene, c);
+    return rig;
   }
 
   // Register the whole cast once the level is built (called from create()).
