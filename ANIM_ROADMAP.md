@@ -166,3 +166,100 @@ continues, plus the tutorial from the menu), asserting save/unlock
 progression and zero page errors. Failures triage per the beat-failure
 protocol; fix; rerun; loop until two consecutive fully-clean campaigns, and
 re-run after any subsequent change.
+
+## A12 audit findings
+
+The final sprint hardened the motion system: a token sweep, a scripted
+cancelability audit, an fps A/B under max motion, and full contact sheets. It
+added NO gameplay and changed NO value — a pure, byte-identical refactor
+(`tools/snap_p2_a12.mjs` is the probe). Diff: `src/anim/*.js` (7 files,
++86/−75) + the probe (445 lines) + 26 `tools/shots/p2/a12-*.png`.
+
+### 1. Token sweep — what was audited & found
+
+Audited every `src/anim/*.js` module for stray animation durations / eases /
+amplitudes not sourced from `MOTION`/`TIMING`. Finding: the discipline
+**tightened across the sprint series**. The A8–A11 modules (crane, device,
+social, cameo) were already the gold standard — every beat parameter already
+lived in a `MOTION` token; the only strays there were three inline tween
+literals. The A2–A7 modules (player, bug, roller, warden) sourced their
+*tempo/ease* from tokens but kept beat-specific **amplitudes / rates / ranges**
+as module-local `const`s. The sweep hoisted those into their tokens, bringing
+the older modules up to the A8–A11 standard. Per that same standard, per-frame
+**curve-shape math** (phase multipliers `Math.PI*N`, decay `(1-p)`, `Math.sin`
+envelopes, smoothstep breakpoints) stays inline in the beat — it is the hand-
+authored shape of a pose, not a tunable token (this is exactly how crane/device
+were already written).
+
+What was fixed (all byte-identical — 36 hoisted values verified `=== ` the
+pre-A12 literal by the probe):
+
+| Module | Was (module-local / inline) | Now (MOTION token field) |
+|---|---|---|
+| `social_anim` | `ease: "sine.inOut"`, `ease: "cubic.out"` inline in the high-five tweens | `HIFIVE.ease`, `HIFIVE.flashEase` |
+| `death` | `delay: 240` inline in the orphan-fade tween | `DEATH_FADE.delay` |
+| `player_anim` | `SCROLL_K = 0.0007`; `FIDGET_DUR` literal table (8 spans) | `TREAD_GAIN.k`; `FIDGET_ENV.{look,twitch,shuffle,twirl,tap,flicker,hop,partner}` |
+| `bug_anim` | `LEG_STRIDE`, `REAR_RANGE`, `REAR_TILT`, rear-ease `6`, feeler-flare `0.5`, stumble `0.16`, twitch `0.5` | `BUG_SCUTTLE.stride`, `BUG_REARUP.{range,tilt,rate,flare}`, `BUG_STUMBLE.amp`, `BUG_FEELER.amp` |
+| `roller_anim` | `ROLL_DEG_PER_PX`, `PUPIL_SLIDE/TRACK/AIM_X/AIM_Y`, `DILATE_ALERT/EASE`, `KLAXON_SPIN`, squint `0.45` | `ROLLER_WHEEL.degPerPx`, `ROLLER_PUPIL.{slide,track,aimX,aimY,dilate,dilateEase}`, `ROLLER_KLAXON.spin`, `ROLLER_HMM.squint` |
+| `warden_anim` | `STANCE_RANGE/DY/SX/SY/EASE`, `GLINT_X0/X1/Y` | `WARDEN_STANCE.{range,dy,sx,sy,rate}`, `WARDEN_GLINT.{x0,x1,y}` |
+
+Already clean (no change): `crane_anim`, `device_anim`, `cameo_anim`, `pose.js`,
+`rig.js`, `fidget.js`, `index.js` — all beat parameters already tokenized.
+(`DEG = Math.PI/180` is a pre-existing unused unit const in roller/warden, left
+as-is; art-geometry anchors like `EYE_LX/LY`, `EYES/ANT/TREAD` and drawn-part
+coordinates are static texture geometry, not motion tokens.)
+
+### 2. Cancelability audit (scripted) — animation never eats/delays input
+
+- **Player input latency** (the headline): frames from a real key press to the
+  body responding, rig-OFF baseline vs rig-ON with a deep tier-2 *wait* fidget
+  actively playing → **1 frame in both**. Anim never delays input.
+- **Same-frame cancel**: every wait/fidget beat (twirl, tap, flicker, hop, look,
+  twitch, shuffle) is dropped + the idle clock zeroed the frame an input is
+  seen — 7/7.
+- **Body-invariance** (the structural proof that anim *can't* eat control): for
+  every enemy/crane rig, a reaction anim plays (visible rotation/scale) yet an
+  isolated `rig.update()` moves the arcade BODY world-box + velocity by exactly
+  **zero** (roller, bug, crane — all rigs). The device controller likewise moves
+  no device logic position. Players: over real frames, the collision body
+  POSITION (x,y) + WIDTH are byte-identical rig-ON vs rig-OFF, height within
+  0.008px (a pre-existing sub-pixel wobble from Arcade's deferred scale→body
+  sync vs the A3 breathe multiplier — present since A2, tolerated by the matrix,
+  not introduced here).
+- **Fixes**: none required — no place was found where an anim tween held a value
+  that should yield to input. The A1 architecture (logic first in preUpdate, the
+  rig as a pure post-logic overlay that never writes a body) already guarantees
+  it; the probe proves it empirically.
+
+### 3. fps A/B under MAX concurrent motion (Canvas, headless SwiftShader ~26fps)
+
+All enemies forced to their busiest continuous reaction + cameo dashing + death-
+scatter pool loaded + both players driven right, rig-ON vs rig-OFF:
+
+| Level | rig-ON | rig-OFF | delta |
+|---|---|---|---|
+| 1-3 | ~26 fps | ~27 fps | −0.6 … −2.3 fps |
+| 2-2 | ~25–26 fps | ~26–27 fps | −0.8 … −1.3 fps |
+
+Within the ~2.5 fps bar (deltas are noisy on this thermally hot box; the rig
+does real per-frame work so a small negative delta is expected).
+
+### 4. Contact sheets
+
+26 `tools/shots/p2/a12-*.png`: player idle/run/jump/fall/land/carry/hurt/death/
+respawn; bug patrol/react/defeated; roller patrol/react/zap; warden patrol/
+react/defeated; crane rest/telegraph/slam/defeated; device crusher/lift; social
+high-five; cameo.
+
+### 5. Full-stack verification
+
+- Token values byte-identical: 36/36 `=== ` the pre-A12 literals (probe §1).
+- `?animoff=1` byte-identical preserved (the whole rig-A/B contract holds; the
+  refactor changed no value).
+- **12-run beat matrix, run twice** (anim-ON, Canvas): pass 1 = **11/12**
+  (only `2-2 [A:P1=G]` fan-lift flake); pass 2 = **12/12** (same run passed with
+  zero code change). The 2-2 failure proven ENVIRONMENTAL by interleaved
+  anim-ON/OFF ×3: with `?animoff=1` the rig (and every A12 change) is fully
+  disabled, yet 2-2 flakes with **identical** failure signatures run-for-run
+  (fan-lift + "T down in the yard" deck-timing) — the documented thermal flake,
+  not the refactor.

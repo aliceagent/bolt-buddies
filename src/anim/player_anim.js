@@ -40,8 +40,8 @@ const sign = Math.sign;
 
 // tread scroll gain: px of belt travel per (px/s * ms). Tuned so the belt rolls
 // at roughly ground speed (a frame swaps every ~2.5px -> ~1 phase/frame at full
-// run speed), direction-matched to vx.
-const SCROLL_K = 0.0007;
+// run speed), direction-matched to vx. A12 sweep: hoisted to MOTION.TREAD_GAIN.k.
+const SCROLL_K = MOTION.TREAD_GAIN.k;
 
 // Local-texture-px anchors on the 44x48 robot texture (origin = centre 22,24):
 //   eyes baked at (17,23)/(28,23) -> midpoint local (+0.5,-1)
@@ -68,17 +68,9 @@ const smooth = (x) => x * x * (3 - 2 * x);
 
 // A3 fidget/wait durations (ms). Every beat's ease/tempo is drawn from the MOTION
 // tokens; these are the whole-beat envelopes (out-and-back / two-beat spans) that
-// wrap the token tempo. Table is read by reference, never rebuilt.
-const FIDGET_DUR = Object.freeze({
-  look: 900, // glance out, hold, return
-  twitch: 340, // two quick antenna flicks
-  shuffle: 620, // little tread shuffle in place
-  twirl: 980, // grapple twirls the hook glyph twice
-  tap: 720, // heavy's two cosmetic knuckle-crack taps
-  flicker: 780, // phase flickers + a startle in the middle
-  hop: 760, // tiny's two little hops
-  partner: 1200, // the partner turn-and-look one-shot
-});
+// wrap the token tempo. A12 sweep: hoisted to MOTION.FIDGET_ENV (single source of
+// truth); this alias keeps the local lookups terse. Read by reference, never rebuilt.
+const FIDGET_DUR = MOTION.FIDGET_ENV;
 // tier-1 fidgets cycle through this set (staggered by the shared scheduler).
 const TIER1 = ["look", "twitch", "shuffle"];
 

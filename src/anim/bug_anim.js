@@ -25,12 +25,9 @@
 import { MOTION } from "./motion.js";
 import { DEPTH } from "../constants.js";
 
-// leg-cycle: advance one of the 3 leg frames every LEG_STRIDE px of |vx| travel.
-// At the patrol speed of 60px/s that is a lively ~8 frames/s — and it clearly scales
-// with |vx| (a slowed/edge-turning bug scuttles slower; a stopped bug freezes).
-const LEG_STRIDE = 7;
-const REAR_RANGE = 160;   // ~160px alarm radius (reads the existing proximity state)
-const REAR_TILT = 0.20;   // rear-up nose-up tilt (radians ~11°), rotation-only
+// leg-cycle / alarm params come from MOTION (A12 sweep): BUG_SCUTTLE.stride px of |vx|
+// travel per leg-frame; BUG_REARUP.range (~160px alarm radius) + .tilt (~11° nose-up,
+// rotation-only). At the 60px/s patrol speed the scuttle reads as a lively ~8 frames/s.
 const mod3 = (n) => ((n % 3) + 3) % 3;
 
 // One antenna feeler, baked ONCE into a Graphics (canvas-safe): a near-vertical
@@ -109,13 +106,14 @@ export function installBugAnim(rig, scene) {
         const d = Math.sqrt(dx * dx + dy * dy);
         if (d < nd) nd = d;
       }
-      const rearTarget = nd < REAR_RANGE ? 1 : 0;
-      rig._rear += (rearTarget - rig._rear) * Math.min(1, (dt / 1000) * 6); // smooth ease
+      const R = MOTION.BUG_REARUP;
+      const rearTarget = nd < R.range ? 1 : 0;
+      rig._rear += (rearTarget - rig._rear) * Math.min(1, (dt / 1000) * R.rate); // smooth ease
       const reared = rig._rear > 0.5;
 
       // --- 3-FRAME LEG SCUTTLE CYCLE ∝ |vx| (visually PAUSED while reared) -----
       if (!reared) rig._legTravel += avx * dt / 1000;
-      const idx = mod3(Math.floor(rig._legTravel / LEG_STRIDE));
+      const idx = mod3(Math.floor(rig._legTravel / MOTION.BUG_SCUTTLE.stride));
       if (idx !== rig._lf) {
         rig._lf = idx;
         const key = idx === 0 ? h._texBase : idx === 1 ? h._texStep : h._texStep2;
@@ -130,7 +128,7 @@ export function installBugAnim(rig, scene) {
       if (rig._stumbleT > 0) {
         rig._stumbleT -= dt;
         const sp = 1 - rig._stumbleT / MOTION.BUG_STUMBLE.dur;
-        stumble = Math.sin(sp * Math.PI * 3) * (1 - sp) * 0.16; // damped rock
+        stumble = Math.sin(sp * Math.PI * 3) * (1 - sp) * MOTION.BUG_STUMBLE.amp; // damped rock
       }
 
       // --- FEELER TWITCH (fired by the shared scheduler) -----------------------
@@ -139,15 +137,15 @@ export function installBugAnim(rig, scene) {
         rig._twitchT += dt;
         const tp = rig._twitchT / rig._twitchDur;
         if (tp >= 1) { rig._twitchDur = 0; rig.activeFidget = null; } // free for the next
-        else twitch = Math.sin(tp * Math.PI * 5) * (1 - tp) * 0.5; // decaying flick
+        else twitch = Math.sin(tp * Math.PI * 5) * (1 - tp) * MOTION.BUG_FEELER.amp; // decaying flick
       }
 
       // --- COMPOSE (no body writes) --------------------------------------------
       // rear-up tilts the FRONT (travel direction) up; stumble adds a wobble. Both
       // ride host.rotation, which the Arcade AABB ignores — hitbox stays byte-exact.
-      h.rotation = -face * rig._rear * REAR_TILT + stumble;
+      h.rotation = -face * rig._rear * R.tilt + stumble;
       // feelers: base V-splay + shared bend (twitch scissor + alarm flare-apart).
-      pose.feelerBend = twitch + rig._rear * 0.5;
+      pose.feelerBend = twitch + rig._rear * R.flare;
     },
   };
 }

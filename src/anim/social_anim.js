@@ -148,7 +148,7 @@ class SocialAnim {
     // angle — so the lean wins the frame. Rotation is purely visual (physics paused;
     // _syncBody, which reads scale not rotation, is not running post-complete).
     s.tweens.addCounter({
-      from: 0, to: 1, duration: H.dur, ease: "sine.inOut",
+      from: 0, to: 1, duration: H.dur, ease: H.ease,
       onUpdate: (tw) => {
         const p = tw.getValue();
         const env = Math.sin(Math.min(1, Math.max(0, p)) * Math.PI); // 0 -> 1 -> 0 lean
@@ -162,7 +162,7 @@ class SocialAnim {
             s.tweens.killTweensOf(fl);
             fl.setVisible(true).setPosition(mx, my).setScale(0.4).setAlpha(0.95);
             s.tweens.add({
-              targets: fl, scale: 1.5, alpha: 0, duration: H.flashDur, ease: "cubic.out",
+              targets: fl, scale: 1.5, alpha: 0, duration: H.flashDur, ease: H.flashEase,
               onComplete: () => fl.setVisible(false),
             });
           }

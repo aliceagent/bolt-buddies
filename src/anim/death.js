@@ -69,7 +69,7 @@ export class DeathScatter {
         // the death window) it fades out on its own so nothing lingers on screen.
         onComplete: () => {
           this.scene.tweens.add({
-            targets: img, alpha: 0, delay: 240, duration: MOTION.DEATH_FADE.dur,
+            targets: img, alpha: 0, delay: MOTION.DEATH_FADE.delay, duration: MOTION.DEATH_FADE.dur,
             onComplete: () => { slot.active = false; img.setVisible(false); },
           });
         },

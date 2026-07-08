@@ -58,26 +58,48 @@ export const MOTION = Object.freeze({
   EQUIP_FLASH: tok(360, "cubic.out"), // head flash ring on equip
   // death/respawn: pure visual overlay on the SACRED death->respawn timing.
   DEATH_SCATTER: tok(520, "cubic.out"), // drawn parts fly out with the boom
-  DEATH_FADE: tok(600, "linear"), // orphaned parts fade if no respawn follows
+  DEATH_FADE: Object.freeze({ dur: 600, ease: "linear", delay: 240 }), // orphaned parts fade (after a hold) if no respawn follows
   DEATH_REASSEMBLE: tok(360, "back.in"), // respawn beam pulls the parts back + snaps
+
+  // --- player locomotion + idle envelope spans (A2/A3, hoisted in A12) ------
+  // A12 sweep: these were module-local named consts in player_anim.js; hoisted here
+  // so the single MOTION table is the source of truth (byte-identical values).
+  TREAD_GAIN: Object.freeze({ k: 0.0007 }), // px belt travel per (px/s * ms), vx-matched (was SCROLL_K)
+  // whole-beat fidget/wait ENVELOPE spans (ms) — the out-and-back / two-beat windows
+  // that wrap each beat's MOTION tempo/ease (was the local FIDGET_DUR table).
+  FIDGET_ENV: Object.freeze({
+    look: 900,     // glance out, hold, return
+    twitch: 340,   // two quick antenna flicks
+    shuffle: 620,  // little tread shuffle in place
+    twirl: 980,    // grapple twirls the hook glyph twice
+    tap: 720,      // heavy's two cosmetic knuckle-crack taps
+    flicker: 780,  // phase flickers + a startle in the middle
+    hop: 760,      // tiny's two little hops
+    partner: 1200, // the partner turn-and-look one-shot
+  }),
 
   // --- enemy: scuttlebug (A5) ----------------------------------------------
   // Every one is a VISUAL overlay on the SACRED patrol/squish logic (never touches
   // the bug body/velocity/hitbox — rear-up/stumble are rotation-only, AABB-safe).
-  BUG_SCUTTLE: tok(120, "linear"), // reference cadence; the 3-leg cycle is |vx|-driven
-  BUG_FEELER: tok(360, "sine.inOut"), // antenna-feeler twitch (fired by the shared scheduler)
-  BUG_REARUP: tok(240, "quad.out"), // alarm rear-up ease when a player enters range
-  BUG_STUMBLE: tok(260, "back.out"), // bonk-turn stumble wobble at a patrol reversal
+  // `stride`(px |vx|/leg-frame), `range`(alarm px), `tilt`(rear-up rad), `ease`(rear
+  // smoothing rate/s), `flare`(feeler alarm splay), `amp`(twitch/stumble rock) hoisted
+  // in A12 from module-local consts (byte-identical) so the whole beat lives in one place.
+  BUG_SCUTTLE: Object.freeze({ dur: 120, ease: "linear", stride: 7 }), // reference cadence; 3-leg cycle is |vx|-driven (LEG_STRIDE px/frame)
+  BUG_FEELER: Object.freeze({ dur: 360, ease: "sine.inOut", amp: 0.5 }), // antenna-feeler twitch (fired by the shared scheduler)
+  BUG_REARUP: Object.freeze({ dur: 240, ease: "quad.out", range: 160, tilt: 0.20, rate: 6, flare: 0.5 }), // alarm rear-up (~160px radius, ~11° nose-up)
+  BUG_STUMBLE: Object.freeze({ dur: 260, ease: "back.out", amp: 0.16 }), // bonk-turn stumble wobble at a patrol reversal
 
   // --- enemy: patrol roller (A6) -------------------------------------------
   // Every one is a VISUAL overlay on the SACRED patrol/beam/alert/zap logic (never
   // touches the roller body/velocity or the beam geometry — head-tilt + recoil are
   // host-rotation-only, which the Arcade AABB ignores and the beam origin never reads).
   // `amp` is the rotation amplitude in radians (added beside dur/ease).
-  ROLLER_WHEEL: tok(120, "linear"), // reference cadence; the wheel roll is |vx|-driven
-  ROLLER_PUPIL: tok(180, "sine.out"), // pupil track ease (snap on alert is immediate)
-  ROLLER_KLAXON: tok(475, "linear"), // klaxon beacon sweep period while alerted
-  ROLLER_HMM: Object.freeze({ dur: 1000, ease: "sine.inOut", amp: 0.20 }), // LOS-break head-tilt + squint
+  // A12 sweep: `degPerPx`(wheel roll), the pupil `slide/track/aimX/aimY/dilate/dilateEase`
+  // and klaxon `spin`(deg/s) hoisted from module-local consts (byte-identical).
+  ROLLER_WHEEL: Object.freeze({ dur: 120, ease: "linear", degPerPx: 8 }), // reference cadence; wheel roll is |vx|-driven (~8°/px)
+  ROLLER_PUPIL: Object.freeze({ dur: 180, ease: "sine.out", slide: 14, track: 9, aimX: 13, aimY: 5, dilate: 1.55, dilateEase: 12 }), // pupil track/snap/dilate (px + ease rates/s)
+  ROLLER_KLAXON: Object.freeze({ dur: 475, ease: "linear", spin: 760 }), // klaxon beacon sweep period while alerted (spin deg/s)
+  ROLLER_HMM: Object.freeze({ dur: 1000, ease: "sine.inOut", amp: 0.20, squint: 0.45 }), // LOS-break head-tilt + question-squint depth
   ROLLER_RECOIL: Object.freeze({ dur: 340, ease: "back.out", amp: 0.24 }), // zap kickback rock
 
   // --- enemy: wall-warden (A7) ---------------------------------------------
@@ -87,8 +109,10 @@ export const MOTION = Object.freeze({
   // AABB ignores and the shove/defeat detection [reads img.x/img.y] never sees; the
   // stance-widen is a body-invariant sprite scale [the static body never follows it]).
   WARDEN_SWAY: Object.freeze({ dur: 3200, ease: "sine.inOut", amp: 0.0349 }), // ±2° idle sway (full period)
-  WARDEN_GLINT: tok(650, "sine.inOut"), // visor scan-sweep glint (fired by the shared scheduler ~every 5s)
-  WARDEN_STANCE: tok(160, "quad.out"),  // alert stance-widen ease reference (feet spread + slight grow)
+  // A12 sweep: glint slit-sweep geometry (`x0/x1/y` host-local px) + stance `range/dy/sx/
+  // sy/ease` hoisted from module-local consts (byte-identical).
+  WARDEN_GLINT: Object.freeze({ dur: 650, ease: "sine.inOut", x0: -1, x1: 15, y: -12 }), // visor scan-sweep glint (~every 5s)
+  WARDEN_STANCE: Object.freeze({ dur: 160, ease: "quad.out", range: 3 * 48, dy: 72, sx: 1.12, sy: 1.06, rate: 8 }),  // alert stance-widen (feet spread + slight grow); range=144px, rate=ease/s
   WARDEN_LUNGE: Object.freeze({ dur: 360, ease: "back.out", amp: 0.22 }), // shove lunge-into-contact + recoil rock
   WARDEN_TOPPLE: tok(600, "bounce.out"), // defeat topple gains a bounce as it settles
   WARDEN_TWITCH: tok(90, "quad.out"),   // settled body twitches once ~2s later (comedy beat)
@@ -136,7 +160,7 @@ export const MOTION = Object.freeze({
   // carry-wave and respawn-notice are cosmetic host-ROTATION + pooled-PUPIL/ANTENNA
   // offsets written AFTER the rig each frame (never a body/velocity/threshold); the
   // escort spark is a POOLED, budgeted particle drifting between escorting buddies.
-  HIFIVE: Object.freeze({ dur: 820, lean: 15, sparks: 14, slapAt: 0.5, flashDur: 300 }), // exit high-five (<=900ms): turn + lean + spark-slap in the finish gap
+  HIFIVE: Object.freeze({ dur: 820, ease: "sine.inOut", lean: 15, sparks: 14, slapAt: 0.5, flashDur: 300, flashEase: "cubic.out" }), // exit high-five (<=900ms): turn + lean + spark-slap in the finish gap
   REEL_CATCH: Object.freeze({ dur: 380, lean: 9, look: 3.0, sparks: 6, ease: 12 }), // reeler "caught you" brace + catch pose on buddy arrival
   ESCORT_SPARK: Object.freeze({ range: 78, gap: 85, count: 2, life: 620, maxAlive: 10 }), // hand-hold spark drifting between escorting buddies inside shimmer
   CARRY_WAVE: Object.freeze({ after: 2000, period: 640, antAmp: 5, lookAmp: 2.0, ease: 10 }), // carried buddy waves at the camera after 2s

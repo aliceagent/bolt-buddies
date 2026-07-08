@@ -32,16 +32,13 @@ import { MOTION } from "./motion.js";
 import { DEPTH } from "../constants.js";
 
 const DEG = Math.PI / 180;
-// wheel roll: degrees turned per px of body travel. ~8°/px reads as a true roll at
-// the 58px/s patrol speed (a lively ~460°/s) and clearly scales with |vx|.
-const ROLL_DEG_PER_PX = 8;
-const PUPIL_SLIDE = 14;     // patrol pupil x-offset the eye eases toward (matches P7)
-const PUPIL_TRACK = 9;      // pupil ease rate (per second) toward the patrol target
-const PUPIL_AIM_X = 13;     // max pupil x reach when snapping to a spotted player
-const PUPIL_AIM_Y = 5;      // max pupil y reach (sclera is short — clamp tight)
-const DILATE_ALERT = 1.55;  // iris dilation (pupil scale) on alert
-const DILATE_EASE = 12;     // dilation ease rate (per second)
-const KLAXON_SPIN = 760;    // klaxon beacon sweep speed (deg/s) while alerted
+// A12 sweep: wheel roll / pupil / klaxon params now come from MOTION (byte-identical):
+//   ROLLER_WHEEL.degPerPx  — degrees turned per px of body travel (~8°/px reads as a true
+//     roll at the 58px/s patrol speed, a lively ~460°/s, scaling with |vx|).
+//   ROLLER_PUPIL.slide/track/aimX/aimY/dilate/dilateEase — the patrol rest x-offset the eye
+//     eases toward (matches P7), the track ease rate/s, the snap-aim x/y reach when a player
+//     is spotted, the alert iris dilation (pupil scale) + its ease rate/s.
+//   ROLLER_KLAXON.spin     — klaxon beacon sweep speed (deg/s) while alerted.
 
 // One klaxon beacon sweep, baked ONCE (canvas-safe): a bright twin light-bar that
 // reads as a rotating warning beacon when spun. Pivots at its centre (0,0).
@@ -68,7 +65,7 @@ export function installRollerAnim(rig, scene, roller) {
 
   // --- preallocated per-roller scratch (ZERO per-frame allocation) -----------
   rig._wheelDeg = 0;    // wheel roll accumulator (deg), ∝ body travel
-  rig._pupilX = roller.dir * PUPIL_SLIDE; // smoothed pupil offset (start at rest slide)
+  rig._pupilX = roller.dir * MOTION.ROLLER_PUPIL.slide; // smoothed pupil offset (start at rest slide)
   rig._pupilY = 0;
   rig._dilate = 1;      // smoothed iris dilation
   rig._klaxDeg = 0;     // klaxon sweep angle (deg) while alerted
@@ -92,7 +89,7 @@ export function installRollerAnim(rig, scene, roller) {
       rig._prevState = r.state;
 
       // --- WHEEL SPIN ∝ velocity (direction + speed) -------------------------
-      rig._wheelDeg += vx * ROLL_DEG_PER_PX * dts;
+      rig._wheelDeg += vx * MOTION.ROLLER_WHEEL.degPerPx * dts;
       if (rig._wheelDeg >= 360 || rig._wheelDeg <= -360) rig._wheelDeg %= 360;
       r.wheels[0].setAngle(rig._wheelDeg);
       r.wheels[1].setAngle(rig._wheelDeg);
@@ -105,7 +102,7 @@ export function installRollerAnim(rig, scene, roller) {
         // ease in, hold cocked, ease out; a curious cock toward the lost bearing.
         const env = Math.sin(Math.min(1, p * 1.35) * Math.PI); // rise-hold-fall
         tilt += -r.dir * MOTION.ROLLER_HMM.amp * env;
-        squint = 1 - 0.45 * env; // question-squint (pupil vertical pinch)
+        squint = 1 - MOTION.ROLLER_HMM.squint * env; // question-squint (pupil vertical pinch)
       }
       if (rig._recoilT > 0) {
         rig._recoilT -= dt;
@@ -116,20 +113,21 @@ export function installRollerAnim(rig, scene, roller) {
       h.rotation = tilt; // host rotation only — Arcade AABB ignores it; beam uses x/y
 
       // --- PUPIL TRACK / SNAP / DILATE (pupil overlay only) ------------------
+      const P = MOTION.ROLLER_PUPIL;
       if (alert && r._seen) {
         // SNAP: aim the pupil straight at the spotted player (immediate, not eased).
         const dx = r._seen.x - h.x, dy = r._seen.y - (h.y - 5);
         const inv = 1 / Math.max(1, Math.sqrt(dx * dx + dy * dy));
-        rig._pupilX = dx * inv * PUPIL_AIM_X;
-        rig._pupilY = dy * inv * PUPIL_AIM_Y;
+        rig._pupilX = dx * inv * P.aimX;
+        rig._pupilY = dy * inv * P.aimY;
       } else {
         // TRACK: smoothly ease toward the patrol-direction rest offset.
-        const k = Math.min(1, dts * PUPIL_TRACK);
-        rig._pupilX += (r.dir * PUPIL_SLIDE - rig._pupilX) * k;
+        const k = Math.min(1, dts * P.track);
+        rig._pupilX += (r.dir * P.slide - rig._pupilX) * k;
         rig._pupilY += (0 - rig._pupilY) * k;
       }
-      const dilTarget = alert ? DILATE_ALERT : 1;
-      rig._dilate += (dilTarget - rig._dilate) * Math.min(1, dts * DILATE_EASE);
+      const dilTarget = alert ? P.dilate : 1;
+      rig._dilate += (dilTarget - rig._dilate) * Math.min(1, dts * P.dilateEase);
       // place the pupil at the eye centre + its offset, rotated by the head-tilt so
       // it stays glued to the tilting KOBI sclera (baked into the host texture).
       const c = Math.cos(h.rotation), s = Math.sin(h.rotation);
@@ -140,7 +138,7 @@ export function installRollerAnim(rig, scene, roller) {
 
       // --- KLAXON SWEEP — spins over the cab lamp while alerted ---------------
       if (alert) {
-        rig._klaxDeg += KLAXON_SPIN * dts;
+        rig._klaxDeg += MOTION.ROLLER_KLAXON.spin * dts;
         if (rig._klaxDeg >= 360) rig._klaxDeg %= 360;
         klax.setPosition(h.x, h.y - 21).setAngle(rig._klaxDeg);
         if (!klax.visible) klax.setVisible(true);

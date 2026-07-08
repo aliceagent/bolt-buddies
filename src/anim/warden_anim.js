@@ -37,14 +37,11 @@ import { MOTION } from "./motion.js";
 import { DEPTH } from "../constants.js";
 
 const DEG = Math.PI / 180;
-const STANCE_RANGE = 3 * 48; // alert stance-widen: player in FRONT within 3 tiles (144px)
-const STANCE_DY = 72;        // vertical band for the stance trigger
-const STANCE_SX = 1.12;      // widened scaleX (feet spread — wider than the grow)
-const STANCE_SY = 1.06;      // widened scaleY (slight grow)
-const STANCE_EASE = 8;       // stance ease rate (per second)
-const GLINT_X0 = -1;         // visor-slit sweep start (host-local x, facing-mirrored)
-const GLINT_X1 = 15;         // visor-slit sweep end
-const GLINT_Y = -12;         // visor-slit vertical centre (host-local y)
+// A12 sweep: stance-widen + visor-glint params now come from MOTION (byte-identical):
+//   WARDEN_STANCE.range/dy — alert trigger (player in FRONT within 3 tiles = 144px; 72px band).
+//   WARDEN_STANCE.sx/sy    — widened scaleX (feet spread) + scaleY (slight grow).
+//   WARDEN_STANCE.rate     — stance ease rate (per second).
+//   WARDEN_GLINT.x0/x1/y   — visor-slit sweep start/end (host-local x, facing-mirrored) + vertical centre.
 
 // One visor glint streak, baked ONCE (canvas-safe): a soft bright vertical bar with a
 // hot core that reads as a highlight sweeping across the slit. Pivots at (0,0).
@@ -139,17 +136,18 @@ export function installWardenAnim(rig, scene, warden) {
       // Bare loop over the two players (no allocation). Body-invariant SCALE.
       let widen = 0;
       const ps = scene.players;
+      const ST = MOTION.WARDEN_STANCE;
       for (let i = 0; i < ps.length; i++) {
         const p = ps[i];
         if (!p || p.dead || p.carriedBy) continue;
         const dx = p.x - h.x, dy = p.y - h.y;
-        if (Math.sign(dx) === w.facing && (dx < 0 ? -dx : dx) <= STANCE_RANGE && (dy < 0 ? -dy : dy) <= STANCE_DY) {
+        if (Math.sign(dx) === w.facing && (dx < 0 ? -dx : dx) <= ST.range && (dy < 0 ? -dy : dy) <= ST.dy) {
           widen = 1; break;
         }
       }
-      rig._stance += (widen - rig._stance) * Math.min(1, dts * STANCE_EASE);
-      const sx = rig._baseSX * (1 + (STANCE_SX - 1) * rig._stance);
-      const sy = rig._baseSY * (1 + (STANCE_SY - 1) * rig._stance);
+      rig._stance += (widen - rig._stance) * Math.min(1, dts * ST.rate);
+      const sx = rig._baseSX * (1 + (ST.sx - 1) * rig._stance);
+      const sy = rig._baseSY * (1 + (ST.sy - 1) * rig._stance);
       if (sx !== rig._lastSc) { h.setScale(sx, sy); rig._lastSc = sx; } // skip redundant writes
       const sc = sx < 0 ? -sx : sx; // live scale magnitude for the glint offsets
 
@@ -160,9 +158,10 @@ export function installWardenAnim(rig, scene, warden) {
         if (gp >= 1) { rig._glintDur = 0; rig.activeFidget = null; glint.setVisible(false); }
         else {
           const face = w.facing || 1;
+          const G = MOTION.WARDEN_GLINT;
           const env = Math.sin(gp * Math.PI); // fade in across the slit, fade out
-          const lx = (GLINT_X0 + (GLINT_X1 - GLINT_X0) * gp) * face * sc;
-          const ly = GLINT_Y * sc;
+          const lx = (G.x0 + (G.x1 - G.x0) * gp) * face * sc;
+          const ly = G.y * sc;
           const rot = h.rotation;
           const c = Math.cos(rot), s = Math.sin(rot);
           glint.x = h.x + lx * c - ly * s;
