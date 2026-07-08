@@ -217,5 +217,7 @@ check("check6: P resumes (isPaused false, panel gone)", resumedState === false &
 
 const fails = results.filter((r) => !r.ok);
 console.log(`\n${results.length - fails.length}/${results.length} checks passed`);
+const wdPeak = await page.evaluate(() => (typeof window.__bbWatchdogPeakTier === "number" ? window.__bbWatchdogPeakTier : 0)).catch(() => 0);
+console.log(`SL2 watchdog peak tier during audio playtest: ${wdPeak} (0 = never raised)`);
 await browser.close();
 process.exit(fails.length ? 1 : 0);

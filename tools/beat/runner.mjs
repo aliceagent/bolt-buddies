@@ -74,6 +74,9 @@ async function runOne(page, id, assignment, full) {
   bb.setRoles(assignment.roles);
   const label = `${id}_${assignment.name}`;
   await startLevel(page, LEVEL_INDEX[id]);
+  // SL2: zero the passive progress-watchdog session peak so this run measures its
+  // OWN peak tier (pure read; the watchdog itself changes no gameplay).
+  await page.evaluate(() => { window.__bbWatchdogPeakTier = 0; }).catch(() => {});
 
   const start = Date.now();
   let stepsDone = 0;
@@ -109,6 +112,12 @@ async function runOne(page, id, assignment, full) {
   }
   let complete = false;
   try { complete = (await bb.state())?.complete === true; } catch { /* page gone */ }
+  // SL2: the passive watchdog's peak tier reached during THIS run (should be 0 —
+  // the suite progresses fast, so a correct watchdog never raises). Reported
+  // SEPARATELY from PASS/FAIL so an env beat-flake is never conflated with a
+  // watchdog false-fire.
+  let watchdogPeak = 0;
+  try { watchdogPeak = await page.evaluate(() => window.__bbWatchdogPeakTier | 0); } catch { /* page gone */ }
 
   const pass = !failure && complete;
   return {
@@ -122,6 +131,7 @@ async function runOne(page, id, assignment, full) {
     totalSteps: steps.length,
     failedStep: failure?.step || "",
     error: failure?.error || "",
+    watchdogPeak,
   };
 }
 
@@ -166,7 +176,7 @@ async function main() {
         const r = await runOne(page, id, assignment, FULL);
         results.push(r);
         process.stdout.write(
-          `${r.result} in ${(r.durationMs / 1000).toFixed(1)}s (${r.deaths} deaths, ${r.steps}/${r.totalSteps} steps)` +
+          `${r.result} in ${(r.durationMs / 1000).toFixed(1)}s (${r.deaths} deaths, ${r.steps}/${r.totalSteps} steps, wd-peak ${r.watchdogPeak})` +
           (r.result === "FAIL" ? ` — ${r.failedStep}: ${r.error}` : "")
         );
       }
@@ -202,6 +212,7 @@ async function main() {
         "time(s)": +(r.durationMs / 1000).toFixed(1),
         deaths: r.deaths,
         steps: `${r.steps}/${r.totalSteps}`,
+        "wd-peak": r.watchdogPeak,
         failedStep: r.failedStep,
       }))
     );
@@ -223,6 +234,10 @@ async function main() {
   const matrixPass = results.filter((r) => r.result === "PASS").length;
   const chaosPass = chaosResults.filter((c) => c.result === "PASS").length;
   if (runMatrix) console.log(`\n${matrixPass}/${results.length} matrix runs GREEN`);
+  if (runMatrix) {
+    const wdMax = results.reduce((m, r) => Math.max(m, r.watchdogPeak || 0), 0);
+    console.log(`SL2 watchdog: peak tier ${wdMax} across the matrix (0 = never raised — the no-false-fire guard)`);
+  }
   if (runChaosSmoke) console.log(`${chaosPass}/${chaosResults.length} chaos smokes GREEN`);
   if (pageErrors.length) console.log(`page errors seen (runner listener): ${pageErrors.length} (first: ${pageErrors[0]})`);
 

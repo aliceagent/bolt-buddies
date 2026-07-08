@@ -11,6 +11,7 @@ import { pads, showPadToast } from "../pad.js";
 import { drawWorldIcon } from "../worldIcons.js";
 import { AnimSystem } from "../anim/index.js";
 import { MOTION } from "../anim/motion.js";
+import { ProgressWatchdog } from "../softlock/watchdog.js";
 
 const J = Phaser.Input.Keyboard.JustDown;
 
@@ -218,6 +219,17 @@ export default class GameScene extends Phaser.Scene {
     // adds no on-screen change and (when idle) ~0 fps; A2+ hang the real art here.
     this.anim = new AnimSystem(this);
     this.anim.registerLevel();
+
+    // SL2: the PASSIVE progress watchdog (general stall safety net). A pure
+    // read-only observer — it computes a cheap progress metric from state that
+    // GameScene already resolves each frame and raises `this.stuckTier` (0/1/2)
+    // after escalating windows with no progress while both robots are idle/alive.
+    // It renders nothing (SL4) and changes NO physics/logic/timing/input. Driven
+    // LAST in update(), after anim. Reset here (fresh entry / R-restart re-runs
+    // create()) and on every new checkpoint segment.
+    this.stuckTier = 0;
+    this.watchdog = new ProgressWatchdog(this);
+    this.watchdog.reset();
 
     // physics wiring
     const rideCb = (pl, mv) => {
@@ -3766,6 +3778,10 @@ export default class GameScene extends Phaser.Scene {
     // pure visual overlay (logic first, motion after; input is never eaten). A1
     // is invisible: this places no parts and plays no fidget yet.
     this.anim.update(time, delta);
+    // SL2: drive the passive progress watchdog LAST of all — after every game
+    // system AND the anim overlay — so it observes the fully-settled frame and
+    // only READS it (no physics/logic/input touched; zero per-frame allocation).
+    this.watchdog.update(time, delta);
     this.updateCamera(dt);
   }
 

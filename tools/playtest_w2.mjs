@@ -18,6 +18,7 @@ const CHUNK_TIMEOUT_MS = 180000;
 mkdirSync(SHOTS, { recursive: true });
 
 const results = [];
+let wdPeakMax = 0; // SL2: max passive-watchdog tier seen across all chunks (want 0)
 function check(name, ok, detail = "") {
   results.push({ name, ok, detail });
   console.log(`${ok ? "PASS" : "FAIL"}  ${name}${detail ? " — " + detail : ""}`);
@@ -97,6 +98,10 @@ async function runChunk(name, fn) {
         fn(ctx),
         new Promise((_, rej) => { tId = setTimeout(() => rej(new Error("chunk timeout")), CHUNK_TIMEOUT_MS); }),
       ]).finally(() => clearTimeout(tId));
+      try {
+        const p = await ctx.page.evaluate(() => (typeof window.__bbWatchdogPeakTier === "number" ? window.__bbWatchdogPeakTier : 0));
+        wdPeakMax = Math.max(wdPeakMax, p | 0);
+      } catch { /* page gone */ }
       await ctx.browser.close();
       return;
     } catch (e) {
@@ -316,4 +321,5 @@ await runChunk("2-3", async ({ shot, scene, hold, tap, startLevel, st, tp, skill
 
 const fails = results.filter((r) => !r.ok);
 console.log(`\n${results.length - fails.length}/${results.length} checks passed`);
+console.log(`SL2 watchdog peak tier during W2 playtest: ${wdPeakMax} (0 = never raised)`);
 process.exit(fails.length ? 1 : 0);

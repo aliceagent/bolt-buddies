@@ -178,8 +178,10 @@ await bb.tap("Space");
 await sleep(1200);
 check("continue returned to TITLE (not Hub)", (await active("Title")) && !(await active("Hub")));
 
+const wdPeak = await page.evaluate(() => (typeof window.__bbWatchdogPeakTier === "number" ? window.__bbWatchdogPeakTier : 0)).catch(() => 0);
 await browser.close();
 const fails = results.filter((r) => !r.ok);
 console.log(`\n${results.length - fails.length}/${results.length} checks passed`);
+console.log(`SL2 watchdog peak tier during tut_sanity: ${wdPeak} (0 = never raised)`);
 if (pageErrors.length) console.log(`page errors: ${pageErrors.length} (first: ${pageErrors[0]})`);
 process.exit(fails.length || pageErrors.length ? 1 : 0);

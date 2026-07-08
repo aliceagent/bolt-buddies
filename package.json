@@ -11,7 +11,8 @@
     "playtest": "node tools/playtest.mjs && node tools/playtest_w2.mjs && node tools/playtest_audio.mjs && node tools/tut_sanity.mjs && node tools/beat/runner.mjs",
     "test:beat": "node tools/beat/runner.mjs",
     "test:beat:full": "node tools/beat/runner.mjs --full",
-    "test:softlock": "node tools/softlock/runner.mjs"
+    "test:softlock": "node tools/softlock/runner.mjs",
+    "test:watchdog": "node tools/softlock/watchdog_probe.mjs"
   },
   "dependencies": {
     "phaser": "^3.87.0"
