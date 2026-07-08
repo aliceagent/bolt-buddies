@@ -12,6 +12,8 @@
     "test:beat": "node tools/beat/runner.mjs",
     "test:beat:full": "node tools/beat/runner.mjs --full",
     "test:softlock": "node tools/softlock/runner.mjs",
+    "test:softlock:sweep": "node tools/softlock/sweep.mjs",
+    "test:softlock:fps": "node tools/softlock/fps_ab.mjs",
     "test:watchdog": "node tools/softlock/watchdog_probe.mjs",
     "test:detector": "node tools/softlock/detector_probe.mjs"
   },
