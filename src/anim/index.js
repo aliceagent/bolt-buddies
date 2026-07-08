@@ -21,6 +21,7 @@ import { installRollerAnim } from "./roller_anim.js";
 import { installWardenAnim } from "./warden_anim.js";
 import { installCraneAnim } from "./crane_anim.js";
 import { installDeviceAnim } from "./device_anim.js";
+import { installSocialAnim } from "./social_anim.js";
 import { TIMING } from "./motion.js";
 import { DEPTH } from "../constants.js";
 import { sfx } from "../audio.js";
@@ -68,6 +69,11 @@ export class AnimSystem {
     // exit/lift). Created in registerLevel() once the devices exist; a pure overlay on
     // the SACRED device logic, updated LAST + gated by `enabled` (byte-identical when off).
     this.device = null;
+    // A10: the social & co-op moments controller (exit high-five / reel catch-pose /
+    // escort hand-hold spark / carried-buddy wave / respawn partner-notices). Created
+    // in registerLevel() once the players + rigs exist; a pure overlay on the SACRED
+    // co-op logic, updated LAST + gated by `enabled` (byte-identical when off).
+    this.social = null;
     // rig-off A/B switch. ?animoff=1 boots disabled; the probe flips this live.
     this.enabled = !new URLSearchParams(location.search).has("animoff");
   }
@@ -168,6 +174,8 @@ export class AnimSystem {
     if (s.crane) this.registerCrane(s.crane);
     // A9: wire the device-personality overlays now that every device record exists.
     this.device = installDeviceAnim(s);
+    // A10: wire the social & co-op moment overlays now that both player rigs exist.
+    this.social = installSocialAnim(s, this);
   }
 
   // One frame. Runs AFTER all game logic. When disabled (A/B rig-off) it returns
@@ -179,6 +187,9 @@ export class AnimSystem {
     this._updatePartner();
     // A9: drive the device-personality overlays last (after every rig + game logic).
     if (this.device) this.device.update(time, delta);
+    // A10: drive the social & co-op moment overlays last of all (after the rigs, so
+    // the cosmetic pupil/antenna offsets ride cleanly on top of this frame's placement).
+    if (this.social) this.social.update(time, delta);
   }
 
   // A3 PARTNER-AWARE moment: when BOTH players have been idle within 6 tiles of
@@ -217,5 +228,6 @@ export class AnimSystem {
     this.byHost.clear();
     if (this.deathScatter) this.deathScatter.destroy();
     if (this.device) { this.device.destroy(); this.device = null; }
+    if (this.social) { this.social.destroy(); this.social = null; }
   }
 }

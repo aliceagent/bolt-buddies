@@ -126,6 +126,21 @@ export const MOTION = Object.freeze({
   CHECK_WAKE: Object.freeze({ dur: 440, range: 92, sx: 0.14, sy: 0.20 }), // wake-up stretch blink on first approach (scale)
   EXIT_IMPATIENCE: Object.freeze({ boost: 0.018, ease: 5 }),     // marquee extra phase/ms while exactly one buddy waits
   LIFT_BOUNCE: Object.freeze({ dur: 460, sx: 0.10, sy: 0.16 }),  // suspension settle bounce at each travel end (scale)
+
+  // --- social & co-op moments (A10) ----------------------------------------
+  // Every one is a pure VISUAL overlay on the SACRED co-op LOGIC (carry/detach,
+  // reel/zip, escort/shimmer, respawn, exit-zone detection + finishLevel — ALL
+  // byte-identical). The high-five is a fire-and-forget tween REACTION started off
+  // the completion state (finishLevel already fired; it never gates/ delays it) that
+  // rides the TweenManager through the existing ~500ms finish gap; the reel-catch,
+  // carry-wave and respawn-notice are cosmetic host-ROTATION + pooled-PUPIL/ANTENNA
+  // offsets written AFTER the rig each frame (never a body/velocity/threshold); the
+  // escort spark is a POOLED, budgeted particle drifting between escorting buddies.
+  HIFIVE: Object.freeze({ dur: 820, lean: 15, sparks: 14, slapAt: 0.5, flashDur: 300 }), // exit high-five (<=900ms): turn + lean + spark-slap in the finish gap
+  REEL_CATCH: Object.freeze({ dur: 380, lean: 9, look: 3.0, sparks: 6, ease: 12 }), // reeler "caught you" brace + catch pose on buddy arrival
+  ESCORT_SPARK: Object.freeze({ range: 78, gap: 85, count: 2, life: 620, maxAlive: 10 }), // hand-hold spark drifting between escorting buddies inside shimmer
+  CARRY_WAVE: Object.freeze({ after: 2000, period: 640, antAmp: 5, lookAmp: 2.0, ease: 10 }), // carried buddy waves at the camera after 2s
+  RESPAWN_NOTICE: Object.freeze({ dur: 750, range: 3.2, ease: 9 }), // surviving partner's pupils track the respawn beam
 });
 
 // Idle-tier + fidget-scheduler timing (ms). Kept beside the motion tokens so the

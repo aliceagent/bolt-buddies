@@ -435,6 +435,9 @@ export default class GameScene extends Phaser.Scene {
     // A9: the device-personality controller (built in registerLevel, before this) owns a
     // pooled crusher steam SIGH — count it against the shared ~120 alive-particle budget.
     if (this.anim && this.anim.device && this.anim.device.sigh) this._budgetEmitters.push(this.anim.device.sigh);
+    // A10: the social controller owns a pooled escort HAND-HOLD spark — count it
+    // against the shared ~120 alive-particle budget the same additive way.
+    if (this.anim && this.anim.social && this.anim.social.escortSpark) this._budgetEmitters.push(this.anim.social.escortSpark);
 
     // Thrown-buddy dotted TRAIL (fades 400ms). Distinct from U6's carrying
     // preview arc: this stamps fading dots along a buddy AFTER it is thrown.
