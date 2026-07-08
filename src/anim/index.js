@@ -16,6 +16,7 @@ import { CharRig } from "./rig.js";
 import { FidgetScheduler } from "./fidget.js";
 import { DeathScatter } from "./death.js";
 import { installPlayerAnim } from "./player_anim.js";
+import { installBugAnim } from "./bug_anim.js";
 import { TIMING } from "./motion.js";
 import { DEPTH } from "../constants.js";
 import { sfx } from "../audio.js";
@@ -81,7 +82,7 @@ export class AnimSystem {
   }
 
   registerBug(bug) {
-    return this._add(bug, {
+    const rig = this._add(bug, {
       kind: "bug", depth: DEPTH.entity + 2,
       probe: (h, out) => {
         const b = h.body;
@@ -94,6 +95,9 @@ export class AnimSystem {
         out.input = false;
       },
     });
+    // A5: hang the visible scuttle set (feelers + leg cycle + rear-up + stumble).
+    installBugAnim(rig, this.scene);
+    return rig;
   }
 
   registerRoller(r) {

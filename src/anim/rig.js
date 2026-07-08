@@ -54,6 +54,11 @@ class Part {
     // A4: a reach-out ARM glyph (zip). Like the glyph it reads its OWN world-aimed
     // rotation + reach length + alpha from the pose, not the host transform.
     this.useArm = !!(opts && opts.arm);
+    // A5: an antenna FEELER (scuttlebug). Sits at a facing-mirrored offset but reads
+    // its OWN rotation = base V-splay + pose.feelerBend*side, mirrored by facing —
+    // so the two feelers scissor on a twitch and flare apart on the alarm rear-up.
+    this.useFeeler = !!(opts && opts.feeler);
+    if (this.useFeeler) { this.feelerBase = opts.feeler.base || 0; this.feelerSide = opts.feeler.side || 1; }
     this.treadKeys = (opts && opts.treadKeys) || null; // frame-swap tread cycle
     this._tf = -1; // last tread frame index shown (avoid redundant setTexture)
     this._sc = -1; this._flip = null; // cached scale/flip (skip redundant writes)
@@ -93,6 +98,17 @@ class Part {
       this.obj.setScale((pose.armLen || 1) * sc, sc);
       this.obj.setAlpha(a);
       this.obj.setVisible(this.visible && a > 0.01 && h.visible && !h.dead);
+      return;
+    }
+    // A5 FEELER: facing-mirrored offset, own rotation from base splay + shared bend.
+    // Rotation is visual-only (the host body is never touched — physics is sacred).
+    if (this.useFeeler) {
+      const lx = face * this.ox * sc, ly = this.oy * sc;
+      this.obj.x = h.x + lx;
+      this.obj.y = h.y + ly;
+      this.obj.rotation = (this.feelerBase + (pose.feelerBend || 0) * this.feelerSide) * face;
+      if (sc !== this._sc) { this.obj.setScale(sc); this._sc = sc; }
+      this.obj.setVisible(this.visible && h.visible && !h.dead);
       return;
     }
     let ox = this.ox, oy = this.oy;

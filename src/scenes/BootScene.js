@@ -772,8 +772,11 @@ export default class BootScene extends Phaser.Scene {
       g.fillStyle(0x2a1840);
       legs.forEach((x) => g.fillRect(x, 24, 4, 4)); // legs
     };
+    // A5: a 3-position leg-splay cycle (base -> step -> step2) cycled speed-synced by
+    // the rig. base = neutral, step = splayed-out reach, step2 = tucked-in push.
     make("bug", 44, 28, bug([8, 16, 28, 36]));
     make("bug_step", 44, 28, bug([6, 18, 26, 38]));
+    make("bug_step2", 44, 28, bug([10, 14, 30, 34]));
     // P7: World-2 scuttlebug variant — darker carapace with a hex-spot pattern so
     // it reads as a tougher sub-species. Same silhouette/leg frames as the W1 bug
     // (selected by world in GameScene); pure baked art, no motion added here.
@@ -799,6 +802,7 @@ export default class BootScene extends Phaser.Scene {
     };
     make("bug_w2", 44, 28, bugW2([8, 16, 28, 36]));
     make("bug_w2_step", 44, 28, bugW2([6, 18, 26, 38]));
+    make("bug_w2_step2", 44, 28, bugW2([10, 14, 30, 34])); // A5: W2 third leg frame
     // P7: pooled squish splat decal (purple ichor) — placed on a squish and faded
     // out over ~2s by a per-decal alpha tween in GameScene (event-driven, not a
     // per-frame animation). Pre-coloured so it reads under the Canvas renderer.

@@ -50,6 +50,13 @@ export class FidgetScheduler {
     for (let i = 0; i < this.rigs.length; i++) {
       const rig = this.rigs[i];
       const s = rig.status;
+      // A5: scuttlebugs NEVER stop patrolling, so the player idle-gate would starve
+      // their feeler twitches. Accrue "alive" time instead (movement does not cancel);
+      // only death clears it. The staggered scheduler then fires the twitch at random.
+      if (rig.kind === "bug") {
+        if (s.dead) rig.cancelFidget(); else rig.idleMs += delta;
+        continue;
+      }
       // input OR any real motion resets the idle clock and cancels a fidget —
       // the fidget/wait tiers only build up while the character is truly still.
       if (s.input || s.airborne || Math.abs(s.vx) > 6 || s.carrying || s.dead || s.hurt) {

@@ -40,6 +40,10 @@ export function makePose() {
     armA: 0, // arm glyph alpha (0 => hidden; the resting state)
     armAng: 0, // arm glyph WORLD rotation (radians), aimed at the reach target
     armLen: 1, // arm glyph reach extension (scaleX multiplier)
+    // A5 enemy feelers: a `feeler` part reads its OWN rotation from a base V-splay +
+    // this shared bend channel (twitch + alarm flare), mirrored by facing. The bug
+    // body pose (rear-up/stumble) is applied directly to the host, not through here.
+    feelerBend: 0, // antenna-feeler bend (radians), added ±side per feeler part
     t: 0, // state-local elapsed time (ms) — reset on every state enter
   };
 }
@@ -50,6 +54,7 @@ export function resetPose(p) {
   p.lookX = 0; p.lookY = 0; p.antenna = 0; p.antennaY = 0; p.tread = 0;
   p.glyphSpin = 0; p.glyphA = 0;
   p.armA = 0; p.armAng = 0; p.armLen = 1;
+  p.feelerBend = 0;
   // p.face and p.t are managed by the machine, not cleared here.
 }
 

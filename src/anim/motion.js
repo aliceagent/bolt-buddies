@@ -60,6 +60,14 @@ export const MOTION = Object.freeze({
   DEATH_SCATTER: tok(520, "cubic.out"), // drawn parts fly out with the boom
   DEATH_FADE: tok(600, "linear"), // orphaned parts fade if no respawn follows
   DEATH_REASSEMBLE: tok(360, "back.in"), // respawn beam pulls the parts back + snaps
+
+  // --- enemy: scuttlebug (A5) ----------------------------------------------
+  // Every one is a VISUAL overlay on the SACRED patrol/squish logic (never touches
+  // the bug body/velocity/hitbox — rear-up/stumble are rotation-only, AABB-safe).
+  BUG_SCUTTLE: tok(120, "linear"), // reference cadence; the 3-leg cycle is |vx|-driven
+  BUG_FEELER: tok(360, "sine.inOut"), // antenna-feeler twitch (fired by the shared scheduler)
+  BUG_REARUP: tok(240, "quad.out"), // alarm rear-up ease when a player enters range
+  BUG_STUMBLE: tok(260, "back.out"), // bonk-turn stumble wobble at a patrol reversal
 });
 
 // Idle-tier + fidget-scheduler timing (ms). Kept beside the motion tokens so the

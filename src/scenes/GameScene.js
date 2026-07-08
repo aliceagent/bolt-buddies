@@ -1306,6 +1306,11 @@ export default class GameScene extends Phaser.Scene {
         const bug = this.bugs.create(px, py + 8, w2bug ? "bug_w2" : "bug");
         bug._texBase = w2bug ? "bug_w2" : "bug";
         bug._texStep = w2bug ? "bug_w2_step" : "bug_step";
+        bug._texStep2 = w2bug ? "bug_w2_step2" : "bug_step2"; // A5: third leg frame
+        // A5: deterministic 1-in-4 squish variant (legs-up ghost puff). A per-bug
+        // hash of the patrol bounds — reproducible (same level => same variant), NOT
+        // Math.random. squishBug reads this to add the rare rising ghost-puff.
+        bug._squishGhost = ((((e.min + 1) * 73856093) ^ ((e.max + 1) * 19349663)) >>> 0) % 4 === 0;
         bug.setDepth(DEPTH.entity);
         bug.body.setSize(38, 22).setOffset(3, 4);
         bug.setVelocityX(60);
@@ -1869,9 +1874,17 @@ export default class GameScene extends Phaser.Scene {
   squishBug(bug) {
     this.boom.explode(this.fxBudget(12), bug.x, bug.y); // keep the purple pop
     this.shards.explode(this.fxBudget(9), bug.x, bug.y); // + flung shell-shards
+    // A5: rare (deterministic 1-in-4, per-bug hash) legs-up GHOST-PUFF variant — a
+    // soft grey puff rises off the pop (pooled craneSmoke, routed through fxBudget so
+    // it stays within the ~120 particle cap). Keeps the base pop; just adds the puff.
+    if (bug._squishGhost) this.craneSmoke.explode(this.fxBudget(6), bug.x, bug.y - 4);
     sfx.squish(bug.x, bug.y);
     this.stampSplat(bug.x, bug.body ? bug.body.bottom - 2 : bug.y + 12);
     if (bug.glow) bug.glow.destroy();
+    // A5: hide the rig's pooled feeler parts before the host is destroyed (the rig's
+    // per-frame update early-returns once the host is gone, so they'd otherwise linger).
+    const rig = this.anim && this.anim.rigFor(bug);
+    if (rig && rig.onHostRemoved) rig.onHostRemoved();
     bug.destroy();
   }
 
@@ -3631,9 +3644,9 @@ export default class GameScene extends Phaser.Scene {
       else if (bug.body.blocked.right || bug.x > bug.maxX) bug.setVelocityX(-60);
       else if (!floorAhead && bug.body.blocked.down) bug.setVelocityX(-dir * 60);
       bug.setFlipX(bug.body.velocity.x < 0);
-      // leg wiggle: alternate the two leg-splay frames every ~130ms while moving
-      const legFrame = Math.abs(bug.body.velocity.x) > 5 && (time % 260) < 130;
-      if (bug._lf !== legFrame) { bug._lf = legFrame; bug.setTexture(legFrame ? bug._texStep : bug._texBase); }
+      // A5: the leg scuttle cycle (3-frame, |vx|-synced) now lives in the anim rig
+      // (src/anim/bug_anim.js) so it's a pure visual overlay — under ?animoff=1 the
+      // bug renders static. Facing (flipX above) stays here as plain patrol state.
       // eyes glow brighter as the nearest player closes to ~200px
       const near = this.players.reduce((m, p) => p.dead ? m : Math.min(m, Math.hypot(p.x - bug.x, p.y - bug.y)), Infinity);
       const glowA = near < 200 ? Phaser.Math.Clamp((200 - near) / 150, 0, 1) : 0;
