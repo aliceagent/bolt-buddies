@@ -1888,11 +1888,17 @@ export default class GameScene extends Phaser.Scene {
       this.ropeFlashes.push({ x1: p.x, y1: p.y, x2: tgt.x, y2: tgt.y, t: 200 });
       this.yankCranePlate(tgt.obj);
     } else if (tgt.kind === "partner") {
-      if (p.grounded) {
-        tgt.obj.startReeled(p); // pull buddy to me
+      // A grounded robot OR one HANGING from an anchor (p.zip.hang, arrived) is a
+      // stable winch point, so DOWN+ACTION REELS THE BUDDY UP to it — this is what
+      // "REEL YOUR BUDDY OUT" promises, and it now works after zipping up to a pit
+      // anchor without first landing on a rim. Only genuine free-air (jumping/
+      // falling, not anchored) falls back to using the buddy as a zip anchor.
+      const anchoredHang = !!(p.zip && p.zip.hang && p.zip.arrived);
+      if (p.grounded || anchoredHang) {
+        tgt.obj.startReeled(p); // pull buddy up to me (grounded or hanging winch)
         this.sparks.explode(this.fxBudget(6), p.x, p.y - 8); // P11: sparks at the winch anchor
       } else {
-        p.beginZip(tgt.obj.x, tgt.obj.y - 20, false); // buddy is my anchor
+        p.beginZip(tgt.obj.x, tgt.obj.y - 20, false); // free-air: buddy is my anchor
       }
     }
   }
@@ -2603,6 +2609,10 @@ export default class GameScene extends Phaser.Scene {
   coachBuddyReelable(p) {
     const q = p.partner;
     if (!q || q.dead || q.carriedBy || q.zip || q.reeled) return false;
+    // The reel only pulls the buddy UP from a stable winch point — grounded OR
+    // hanging from an anchor. In genuine free-air the same chord zips to the buddy
+    // instead, so don't promise a "reel" the current state can't deliver.
+    if (!p.grounded && !(p.zip && p.zip.hang && p.zip.arrived)) return false;
     const d = Math.hypot(q.x - p.x, q.y - p.y);
     if (d <= 72 || d > PHYS.grappleRange) return false;
     return this.hasLOS(p.x, p.y, q.x, q.y) || this.hasLOS(p.x, p.y - 44, q.x, q.y - 24);
