@@ -30,6 +30,7 @@ export {
   getAudioSettings,
   duckMusic,
   pauseDuck,
+  setSadMusic,
   engineState,
 } from "./audio/engine.js";
 

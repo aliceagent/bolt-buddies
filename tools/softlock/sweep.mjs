@@ -57,6 +57,9 @@ async function readChain(page) {
       promptHead: ui ? ui.head.text : "",
       promptSub: ui ? ui.sub.text : "",
       capsVisible: !!(ui && ui.caps.visible),
+      promptHeadText: ui ? ui.head.text : "",
+      greyVisible: !!(s && s.greyOverlay && s.greyOverlay.visible),
+      sadMode: (() => { try { const e = window.__BB.audio && window.__BB.audio.engine && window.__BB.audio.engine(); return !!(e && e.sadMode); } catch { return false; } })(),
       modeShown: s ? s._stuckModeShown : "",
       coopHintActive: (() => {
         if (!s) return false;
@@ -183,6 +186,53 @@ async function chainB(page) {
     `tier-2 firm shows the R keycaps + restart/map copy: "${f.promptSub}"`);
 }
 
+// ============================ CHAIN C — full escalation 0→1→2→3 =============
+// SL7: assert the WHOLE escalation ladder — tier-1 now EXPLICIT (R keycaps + the
+// restart line, not just a bare nudge), tier-2 firm, and the NEW tier-3 "cold hard
+// truth" (grey-fade overlay + blunt copy + sad music). Driven with the SL7 tuning
+// windows (t1/t2/t3 — the same knobs SL6/SL7 tune) so the ladder is proven quickly
+// with a genuine settled stall; still input-only + read-only (no faked stuckTier).
+async function chainC(page) {
+  console.log(`\n=== CHAIN C — full escalation 0→1(EXPLICIT)→2(firm)→3(cold-truth grey-fade) + the new copy ===`);
+  await startLevel(page, LEVEL_INDEX[STALL_LEVEL]);
+  // unlock the AudioContext so the tier-3 sad-music treatment has a live bus to read.
+  await page.keyboard.press("KeyZ");
+  await page.evaluate(() => {
+    const s = window.__BB.scene;
+    for (const p of s.players) { if (!p.skill) p.setSkill("heavy"); p.invuln = 999999; p.setVelocity(0, 0); }
+    const w = s.watchdog; w.T1 = 500; w.T2 = 1000; w.T3 = 1500; w.reset();
+  });
+
+  const seen = {}; const copy = {};
+  const t0 = Date.now(); let last = -1;
+  while (Date.now() - t0 < 4000) {
+    const c = await readChain(page);
+    if (c.stuckTier !== last) {
+      const el = ((Date.now() - t0) / 1000).toFixed(2);
+      console.log(`  t=${el}s tier=${c.stuckTier} mode=${c.modeShown} caps=${c.capsVisible} grey=${c.greyVisible} sad=${c.sadMode} head="${c.promptHeadText}" sub="${c.promptSub}"`);
+      if (seen[c.stuckTier] === undefined) { seen[c.stuckTier] = el; copy[c.stuckTier] = { head: c.promptHeadText, sub: c.promptSub, caps: c.capsVisible, grey: c.greyVisible, sad: c.sadMode }; }
+      last = c.stuckTier;
+    }
+    if (seen[3] !== undefined) break;
+    await sleep(60);
+  }
+
+  ok(seen[1] !== undefined && seen[2] !== undefined && seen[3] !== undefined, `escalated through EVERY tier 0→1→2→3 (t1@${seen[1]}s t2@${seen[2]}s t3@${seen[3]}s)`);
+  // tier-1 is now EXPLICIT: keycaps + a "restart" instruction (was a bare nudge)
+  ok(copy[1] && copy[1].caps && /restart/i.test(copy[1].sub) && /ESC/i.test(copy[1].sub), `tier-1 is EXPLICIT now — R keycaps + "${copy[1] ? copy[1].sub : ""}"`);
+  ok(copy[2] && /fresh start/i.test(copy[2].head) && copy[2].caps, `tier-2 firm restart offer: "${copy[2] ? copy[2].head : ""}"`);
+  // tier-3 cold-truth: blunt copy + grey overlay + sad music, keycaps present
+  ok(copy[3] && /STUCK/i.test(copy[3].head) && copy[3].caps, `tier-3 blunt "cold truth" copy + keycaps: "${copy[3] ? copy[3].head : ""}"`);
+  ok(copy[3] && copy[3].grey, `tier-3 grey-fade overlay SHOWS`);
+  ok(copy[3] && copy[3].sad, `tier-3 sad-music treatment ON`);
+  // and it must CLEAR the instant progress resumes (drive real movement)
+  await page.keyboard.down("KeyD"); await sleep(500); await page.keyboard.up("KeyD");
+  await page.evaluate(() => { const w = window.__BB.scene.watchdog; w.T1 = 25000; w.T2 = 50000; w.T3 = 75000; });
+  await sleep(300);
+  const cc = await readChain(page);
+  ok(!cc.promptVisible && !cc.greyVisible && !cc.sadMode && cc.stuckTier === 0, `grey-fade + prompt + sad-music all CLEAR the instant progress resumes (tier=${cc.stuckTier})`);
+}
+
 async function main() {
   const browser = await chromium.launch({ executablePath: CHROMIUM });
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
@@ -191,14 +241,15 @@ async function main() {
   await page.goto(URL, { waitUntil: "networkidle" });
   await sleep(1200);
 
-  console.log("Bolt Buddies — SL6 softlock end-to-end chain sweep\n");
+  console.log("Bolt Buddies — SL7 softlock end-to-end chain sweep\n");
   await chainA(page);
   await chainB(page);
+  await chainC(page);
 
   ok(pageErrors.length === 0, `0 page errors (saw ${pageErrors.length}${pageErrors.length ? ": " + pageErrors[0] : ""})`);
   await browser.close();
 
-  console.log(`\n${fails.length ? "SWEEP FAILURES:\n  - " + fails.join("\n  - ") : "ALL SL6 CHAIN CHECKS PASSED — every hard softlock surfaces the tier-2 restart prompt; a general stall escalates 0→1→2 in step"}`);
+  console.log(`\n${fails.length ? "SWEEP FAILURES:\n  - " + fails.join("\n  - ") : "ALL SL7 CHAIN CHECKS PASSED — every hard softlock surfaces the restart prompt; a general stall escalates 0→1(explicit)→2(firm)→3(cold-truth grey-fade) in step"}`);
   process.exit(fails.length ? 1 : 0);
 }
 

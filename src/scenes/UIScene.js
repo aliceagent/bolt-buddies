@@ -509,7 +509,12 @@ export default class UIScene extends Phaser.Scene {
   }
 
   buildBlipBar(W, H) {
-    const x0 = W / 2 - 460, y0 = H - 92, w = 920, h = 66;
+    // SL7 bubble-fit: the long KOBI lines wrap to TWO rows of FS.large; at the old
+    // h=66 the 2nd row ended ~2px off the bar's bottom edge (touching). Grow the bar
+    // to h=80 so a 2-line blip clears the floor with ~16px of breathing room, and
+    // recenter the avatar to the new mid-line. Top edge (y0=H-92) is UNCHANGED, so
+    // the U3 confirm-toast + SL4 stuck-prompt clamps (which key off the bar top) hold.
+    const x0 = W / 2 - 460, y0 = H - 92, w = 920, h = 80;
     this.blipBar = this.add.container(0, 0).setVisible(false);
 
     const bg = this.add.graphics();
@@ -523,7 +528,7 @@ export default class UIScene extends Phaser.Scene {
 
     // KOBI avatar — layered so the iris can wander/snap, the ring can recolour to
     // his mood, and a defeated eyelid can droop, all without per-frame allocations.
-    const ax = x0 + 42, ay = y0 + 33;
+    const ax = x0 + 42, ay = y0 + h / 2;
     this._avx = ax; this._avy = ay;
     const avBase = this.add.graphics();
     avBase.fillStyle(0x1a1020, 1).fillCircle(ax, ay, 22);   // socket

@@ -3,7 +3,7 @@ import { TILE, COLORS, PHYS, DEPTH, SKILL_INFO, WORLD_THEMES, FONT, FS, TEXT, PA
 import { LEVELS } from "../levels/registry.js";
 import { makeGrid } from "../levels/builder.js";
 import { completeLevel, loadSave } from "../save.js";
-import { initAudio, sfx, installMute, playTrack, setMusicLayer, playJingle, trackForLevel, setListener, clearListener, proximity, setLoop, stopLoops, pauseDuck } from "../audio.js";
+import { initAudio, sfx, installMute, playTrack, setMusicLayer, playJingle, trackForLevel, setListener, clearListener, proximity, setLoop, stopLoops, pauseDuck, setSadMusic } from "../audio.js";
 import { addGradient, addMotes, addPropStrip, addFogBand, addDrips, addDustShafts, addVignette } from "../backdrop.js";
 import Player from "../objects/Player.js";
 import { uxHints, uxShakeScale, uxFlashScale, saveRecord, fmtTime, markTutorialDone } from "../ux.js";
@@ -512,7 +512,7 @@ export default class GameScene extends Phaser.Scene {
     // overlay (unzoomed), so this scene only wires the key.
     installMute(this, { icon: false });
     // tear down ambience loops + the proximity listener when the level unloads
-    this.events.once("shutdown", () => { stopLoops(); clearListener(); pauseDuck(false); });
+    this.events.once("shutdown", () => { stopLoops(); clearListener(); pauseDuck(false); setSadMusic(false); });
 
     // per-level music: requested in create (crossfades from the hub track). A
     // no-op if this track is already playing, so death/respawn never restart it.
@@ -541,10 +541,31 @@ export default class GameScene extends Phaser.Scene {
     const theme = this.theme || WORLD_THEMES[1];
     const accent = theme.accent;
     const accentHex = "#" + accent.toString(16).padStart(6, "0");
-    const bw = 560, bh = 88;
+    const bh = 88;
     const restY = 132, offY = -70;
 
     const c = this.add.container(W / 2, offY).setScrollFactor(0).setDepth(DEPTH.fx + 50);
+
+    // the tutorial has no chamber number ("tut"), so show just its name; real
+    // levels keep the "CHAMBER <id> — <NAME>" plate. Build the text FIRST, measure
+    // it, THEN size the plate — SL7 bubble-fit: the longest name ("CHAMBER 2-1 —
+    // MAINTENANCE TUNNELS" ≈ 515px) collided with the left world-emblem inside the
+    // old fixed bw=560, so widen the plate to hold the head + the icon on its left
+    // with clear margins (container array below keeps the plate behind the text).
+    const headStr = def.tutorial ? def.name.toUpperCase() : `CHAMBER ${def.id} — ${def.name.toUpperCase()}`;
+    const head = this.add.text(0, -15, headStr, {
+      fontFamily: FONT, fontSize: FS.title, fontStyle: "bold", color: TEXT.bright,
+    }).setOrigin(0.5);
+    const pair = (def.skills || []).map((k) => (SKILL_INFO[k] ? SKILL_INFO[k].name : k.toUpperCase())).join("   +   ");
+    const sub = this.add.text(0, 18, pair, {
+      fontFamily: FONT, fontSize: FS.body, fontStyle: "bold", color: accentHex,
+    }).setOrigin(0.5);
+    // reserve ~40px of icon+gap on the LEFT of the centered head; keeping the head
+    // centered means the plate half-width must clear head/2 + that reserve on BOTH
+    // sides, so the emblem never sits under the first letters.
+    const ICONRES = 40;
+    const bw = Math.max(560, Math.ceil(head.width + ICONRES * 2 + 24), Math.ceil(sub.width + 56));
+
     const g = this.add.graphics();
     g.fillStyle(COLORS.hudBg, 0.94).fillRoundedRect(-bw / 2, -bh / 2, bw, bh, 14);
     g.lineStyle(3, accent, 1).strokeRoundedRect(-bw / 2, -bh / 2, bw, bh, 14);
@@ -561,16 +582,6 @@ export default class GameScene extends Phaser.Scene {
     const topLight = this.add.image(0, -bh / 2 + 3, "toplight")
       .setOrigin(0.5, 0).setDisplaySize(bw - 22, bh * 0.72).setAlpha(0.14);
 
-    // the tutorial has no chamber number ("tut"), so show just its name; real
-    // levels keep the "CHAMBER <id> — <NAME>" plate.
-    const headStr = def.tutorial ? def.name.toUpperCase() : `CHAMBER ${def.id} — ${def.name.toUpperCase()}`;
-    const head = this.add.text(0, -15, headStr, {
-      fontFamily: FONT, fontSize: FS.title, fontStyle: "bold", color: TEXT.bright,
-    }).setOrigin(0.5);
-    const pair = (def.skills || []).map((k) => (SKILL_INFO[k] ? SKILL_INFO[k].name : k.toUpperCase())).join("   +   ");
-    const sub = this.add.text(0, 18, pair, {
-      fontFamily: FONT, fontSize: FS.body, fontStyle: "bold", color: accentHex,
-    }).setOrigin(0.5);
     // P9: the per-world emblem (shared P2 drawWorldIcon) sits just left of the
     // chamber name, clamped inside the plate so a long name can't push it out.
     const iconG = this.add.graphics();
@@ -1615,17 +1626,27 @@ export default class GameScene extends Phaser.Scene {
   // border. Stored in pieces so `equipItemCard` can shrink it to a small tag.
   buildItemCard(ped, x, cardY, info) {
     const col = info.color;
-    const W = 236, H = 90, TB = 24;
+    const TB = 24;
+    // SL7 bubble-fit: size the card to its TEXT. The longest body line ("Smash,
+    // stomp, and stand your ground." ≈ 281px) overflowed the old fixed W=236 panel;
+    // now we measure the title + multi-line body first and draw the panel from the
+    // widest row + padding, so nothing touches the edges. Text objects are created
+    // first (measured), then the graphics — the container array below fixes z-order.
+    const title = this.add.text(0, 0, info.name, {
+      fontFamily: FONT, fontSize: FS.mini, fontStyle: "bold", color: "#0a0f1e",
+    }).setOrigin(0.5);
+    const body = this.add.text(0, 0, `${info.card}\n[ACTION to equip]`, {
+      fontFamily: FONT, fontSize: FS.mini, color: TEXT.body, align: "center",
+    }).setOrigin(0.5);
+    const PADX = 18, PADY = 14;
+    const W = Math.max(236, Math.ceil(body.width + PADX * 2), Math.ceil(title.width + PADX * 2));
+    const H = Math.ceil(TB + body.height + PADY * 2);
     const g = this.add.graphics();
     g.fillStyle(COLORS.hudBg, 0.96).fillRoundedRect(-W / 2, -H / 2, W, H, 10);
     g.fillStyle(col, 0.9).fillRoundedRect(-W / 2, -H / 2, W, TB, { tl: 10, tr: 10, bl: 0, br: 0 });
     g.lineStyle(2, col).strokeRoundedRect(-W / 2, -H / 2, W, H, 10);
-    const title = this.add.text(0, -H / 2 + 12, info.name, {
-      fontFamily: FONT, fontSize: FS.mini, fontStyle: "bold", color: "#0a0f1e",
-    }).setOrigin(0.5);
-    const body = this.add.text(0, 8, `${info.card}\n[ACTION to equip]`, {
-      fontFamily: FONT, fontSize: FS.mini, color: TEXT.body, align: "center",
-    }).setOrigin(0.5);
+    title.setY(-H / 2 + 12);
+    body.setY(TB / 2); // centered in the area below the coloured title bar
     // sit above the floating "SPACE/L = ACTION" hints (also DEPTH.fx): at spawn a
     // robot stands under its pedestal and its hint would otherwise occlude the
     // card's own "[ACTION to equip]" line. Card wins; the hints separate as the
@@ -3111,13 +3132,19 @@ export default class GameScene extends Phaser.Scene {
   // while pending — never a per-frame allocation.
   buildConfirm() {
     const W = this.scale.width, H = this.scale.height;
-    const bw = 380, bh = 64;
-    const g = this.add.graphics();
-    g.fillStyle(COLORS.hudBg, 0.95).fillRoundedRect(-bw / 2, -bh / 2, bw, bh, 12);
-    g.lineStyle(3, COLORS.amber, 1).strokeRoundedRect(-bw / 2, -bh / 2, bw, bh, 12);
     const label = this.add.text(0, -7, "", {
       fontFamily: FONT, fontSize: FS.head, fontStyle: "bold", color: TEXT.warn,
     }).setOrigin(0.5);
+    // SL7 bubble-fit: size the toast to the WIDER of its two messages ("press ESC
+    // again for the map" ≈ 357px was only ~11px inside the old fixed bw=380) so the
+    // label never touches the edges. Measure both, then draw the panel + progress bar.
+    label.setText("press ESC again for the map"); const wEsc = label.width;
+    label.setText("press R again to restart"); const wR = label.width;
+    label.setText("");
+    const bw = Math.max(380, Math.ceil(Math.max(wEsc, wR) + 48)), bh = 64;
+    const g = this.add.graphics();
+    g.fillStyle(COLORS.hudBg, 0.95).fillRoundedRect(-bw / 2, -bh / 2, bw, bh, 12);
+    g.lineStyle(3, COLORS.amber, 1).strokeRoundedRect(-bw / 2, -bh / 2, bw, bh, 12);
     const barX = -bw / 2 + 22, barY = bh / 2 - 15, barFull = bw - 44;
     const track = this.add.graphics();
     track.fillStyle(0x000000, 0.4).fillRoundedRect(barX, barY, barFull, 6, 3);
@@ -3196,73 +3223,152 @@ export default class GameScene extends Phaser.Scene {
   // U3 confirm toast (H*0.4) and the KOBI blip bar (UIScene y = H-92 .. H-26).
   buildStuckPrompt() {
     const W = this.scale.width, H = this.scale.height;
+
+    // SL7 — the tier-3 "cold hard truth" grey overlay. A single screen-fixed, full-
+    // screen desaturating rectangle: built ONCE here, toggled only on the tier-3
+    // edge. It is NON-INTERACTIVE (never setInteractive → pointer passes straight
+    // through), sits ABOVE gameplay (DEPTH.fx+40) but BELOW the stuck prompt
+    // (DEPTH.fx+58), the U3 confirm toast (DEPTH.fx+60) and the whole HUD/blip bar
+    // (the UIScene renders on top of GameScene). It makes the stuck state
+    // unmistakable WITHOUT trapping the player — movement, action and the R×2
+    // restart all still work through it, and it CLEARS INSTANTLY on progress/restart.
+    const grey = this.add.rectangle(W / 2, H / 2, W, H, 0x080b12)
+      .setScrollFactor(0).setDepth(DEPTH.fx + 40).setVisible(false).setAlpha(0);
+    this.greyOverlay = grey;
+
     const g = this.add.graphics();                    // panel bg+border (drawn on tier change)
-    const caps = this.add.graphics().setVisible(false); // R keycap boxes (tier-2 only)
+    const caps = this.add.graphics().setVisible(false); // R keycap boxes
     // keycap glyphs — two "R" letters, repositioned on show (1 in the tutorial's
     // single-press mode, 2 for the real R×2). Built once, toggled/moved on change.
     const capA = this.add.text(0, 2, "R", { fontFamily: FONT, fontSize: FS.head, fontStyle: "bold", color: "#ffd94d" }).setOrigin(0.5).setVisible(false);
     const capB = this.add.text(0, 2, "R", { fontFamily: FONT, fontSize: FS.head, fontStyle: "bold", color: "#ffd94d" }).setOrigin(0.5).setVisible(false);
     const head = this.add.text(0, 0, "", { fontFamily: FONT, fontSize: FS.head, fontStyle: "bold", color: TEXT.warn }).setOrigin(0.5);
     const sub = this.add.text(0, 34, "", { fontFamily: FONT, fontSize: FS.small, color: TEXT.dim }).setOrigin(0.5).setVisible(false);
-    // clamp the y so the tallest (tier-2) panel always clears the blip bar top.
-    const y = Math.min(H * 0.62, H - 92 - 66);
+    // clamp the y so the tallest panel always clears the blip bar top.
+    const y = Math.min(H * 0.62, H - 92 - 70);
     const c = this.add.container(W / 2, y, [g, caps, capA, capB, head, sub])
       .setScrollFactor(0).setDepth(DEPTH.fx + 58).setVisible(false);
     this.stuckUI = { c, g, caps, capA, capB, head, sub };
     this._stuckTierShown = 0;   // the tier currently rendered (0 = hidden)
-    this._stuckModeShown = "";  // "gentle" | "firm" | "softlock"
+    this._stuckModeShown = "";  // "gentle" | "firm" | "softlock" | "coldtruth"
+    this._softlockSince = 0;    // scene time a hard-lock signal first appeared (t3 escalation)
   }
 
   // Render the prompt for a tier (called ONLY on a tier/mode change, never idle).
+  // SL7: EVERY tier now tells the player exactly what to press — tier-1 gains the
+  // R keycaps + explicit restart line (still calm cyan, so it reads softer than the
+  // firm amber tier-2), and tier-3 adds the blunt KOBI "cold hard truth" copy + the
+  // grey-fade overlay. The panel is SIZED TO ITS TEXT: we setText first, measure the
+  // rendered head/sub widths, then draw the panel from the widest row + padding, so
+  // no string can overflow. All measure/draw happens ONLY here (a tier change), never
+  // per-frame. Single-press (tutorial) shows one R keycap; real levels show R×2.
   showStuckPrompt(mode) {
     const ui = this.stuckUI;
+    const single = !!(this.def && this.def.tutorial);
     this.tweens.killTweensOf(ui.c);
     ui.g.clear();
     ui.caps.clear();
+
+    // per-mode styling: head copy/colour + panel edge. Gentle stays calm-cyan and
+    // softer; firm/softlock are firm amber; cold-truth is the blunt red escalation.
+    let headText, headColor, edge, edgeAlpha, edgeW, bgAlpha, subText;
+    const restartCopy = single ? "Press R to restart  ·  ESC = map"
+                               : "Hold R twice to restart  ·  ESC twice = map";
     if (mode === "gentle") {
-      // Tier 1 — a soft, blame-free KOBI nudge. No keycaps, calm cyan edge.
-      const bw = 348, bh = 50;
-      ui.g.fillStyle(COLORS.hudBg, 0.9).fillRoundedRect(-bw / 2, -bh / 2, bw, bh, 12);
-      ui.g.lineStyle(2.5, COLORS.neon, 0.8).strokeRoundedRect(-bw / 2, -bh / 2, bw, bh, 12);
-      ui.head.setColor(TEXT.body).setText("Stuck? No shame in a fresh start.").setY(0);
-      ui.caps.setVisible(false); ui.capA.setVisible(false); ui.capB.setVisible(false);
-      ui.sub.setVisible(false);
+      headText = "Stuck? No shame in a fresh start.";
+      headColor = TEXT.body; edge = COLORS.neon; edgeAlpha = 0.85; edgeW = 2.5; bgAlpha = 0.9;
+      subText = restartCopy;
+    } else if (mode === "coldtruth") {
+      headText = "You're STUCK. This won't fix itself.";
+      headColor = TEXT.warn; edge = COLORS.hazard; edgeAlpha = 1; edgeW = 3.5; bgAlpha = 0.97;
+      subText = restartCopy;
     } else {
-      // Tier 2 — a clear, firm (but blame-free) restart offer with R keycaps. A
-      // confirmed SL3 hard softlock ("softlock") gets confident copy; a watchdog t2
-      // stall ("firm") gets the encouraging variant. The tutorial restarts on a
-      // SINGLE R press (see update()), so it shows ONE keycap + single-press copy.
-      const single = !!(this.def && this.def.tutorial);
-      const bw = 452, bh = 108;
-      ui.g.fillStyle(COLORS.hudBg, 0.95).fillRoundedRect(-bw / 2, -bh / 2, bw, bh, 14);
-      ui.g.lineStyle(3, COLORS.amber, 1).strokeRoundedRect(-bw / 2, -bh / 2, bw, bh, 14);
-      ui.head.setColor(TEXT.warn).setY(-34).setText(mode === "softlock" ? "DEAD END — no way through" : "STUCK? Time for a fresh start");
-      // lay out 1 or 2 R keycaps, centered on the middle row
-      const capW = 34, capH = 34, gap = 14;
-      const drawCap = (cx) => {
-        ui.caps.fillStyle(0x000000, 0.55).fillRoundedRect(cx - capW / 2, 2 - capH / 2, capW, capH, 7);
-        ui.caps.lineStyle(2.5, COLORS.amber, 1).strokeRoundedRect(cx - capW / 2, 2 - capH / 2, capW, capH, 7);
-      };
-      if (single) {
-        drawCap(0); ui.capA.setX(0).setVisible(true); ui.capB.setVisible(false);
-        ui.sub.setText("Press R to restart  ·  ESC = map");
-      } else {
-        const cA = -(capW + gap) / 2, cB = (capW + gap) / 2;
-        drawCap(cA); drawCap(cB);
-        ui.capA.setX(cA).setVisible(true); ui.capB.setX(cB).setVisible(true);
-        ui.sub.setText("Hold R twice to restart  ·  ESC twice = map");
-      }
-      ui.caps.setVisible(true);
-      ui.sub.setVisible(true);
+      // tier-2: a confirmed hard lock ("softlock") gets confident copy; a watchdog
+      // t2 stall ("firm") gets the encouraging variant.
+      headText = mode === "softlock" ? "DEAD END — no way through" : "STUCK? Time for a fresh start";
+      headColor = TEXT.warn; edge = COLORS.amber; edgeAlpha = 1; edgeW = 3; bgAlpha = 0.95;
+      subText = restartCopy;
     }
+
+    // --- lay out the R keycap row (1 or 2 boxes) ---
+    const capW = 34, capH = 34, capGap = 14;
+    const capsRowW = single ? capW : capW * 2 + capGap;
+
+    // --- measure the text so the panel fits it ---
+    ui.head.setColor(headColor).setText(headText);
+    ui.sub.setText(subText);
+    const PADX = 26, PADY = 15, ROWGAP = 9;
+    const headH = ui.head.height, subH = ui.sub.height;
+    const contentW = Math.max(ui.head.width, ui.sub.width, capsRowW);
+    const contentH = headH + ROWGAP + capH + ROWGAP + subH;
+    const bw = Math.ceil(contentW + PADX * 2);
+    const bh = Math.ceil(contentH + PADY * 2);
+    const radius = mode === "gentle" ? 12 : 14;
+
+    // row centres, top-anchored inside the panel
+    const top = -contentH / 2;
+    const headY = top + headH / 2;
+    const capY = top + headH + ROWGAP + capH / 2;
+    const subY = top + headH + ROWGAP + capH + ROWGAP + subH / 2;
+
+    ui.g.fillStyle(COLORS.hudBg, bgAlpha).fillRoundedRect(-bw / 2, -bh / 2, bw, bh, radius);
+    ui.g.lineStyle(edgeW, edge, edgeAlpha).strokeRoundedRect(-bw / 2, -bh / 2, bw, bh, radius);
+
+    ui.head.setY(headY);
+
+    // keycap boxes share the panel's edge colour so the tier reads as one piece.
+    const drawCap = (cx) => {
+      ui.caps.fillStyle(0x000000, 0.55).fillRoundedRect(cx - capW / 2, capY - capH / 2, capW, capH, 7);
+      ui.caps.lineStyle(2.5, edge, edgeAlpha).strokeRoundedRect(cx - capW / 2, capY - capH / 2, capW, capH, 7);
+    };
+    if (single) {
+      drawCap(0); ui.capA.setPosition(0, capY).setVisible(true); ui.capB.setVisible(false);
+    } else {
+      const cA = -(capW + capGap) / 2, cB = (capW + capGap) / 2;
+      drawCap(cA); drawCap(cB);
+      ui.capA.setPosition(cA, capY).setVisible(true); ui.capB.setPosition(cB, capY).setVisible(true);
+    }
+    ui.caps.setVisible(true);
+    ui.sub.setY(subY).setVisible(true);
+
+    // SL7 — the tier-3 grey-fade: show/fade-in the desaturating overlay ONLY at the
+    // cold-truth tier; any other tier hides it instantly. Non-interactive, so input
+    // (incl. the R×2 restart) passes straight through.
+    if (mode === "coldtruth") {
+      const gr = this.greyOverlay;
+      if (gr) {
+        this.tweens.killTweensOf(gr);
+        gr.setVisible(true);
+        this.tweens.add({ targets: gr, alpha: 0.55, duration: 320, ease: "quad.out" });
+      }
+      // SL7 — the somber "cold hard truth": the grey screen + sad music together.
+      // Reversible bus treatment; silent if music is muted. Cleared the instant the
+      // tier drops (below) or on restart/exit.
+      setSadMusic(true);
+    } else {
+      this._hideGrey();
+      setSadMusic(false);
+    }
+
     ui.c.setVisible(true).setScale(0.85).setAlpha(0);
     this.tweens.add({ targets: ui.c, scale: 1, alpha: 1, duration: 180, ease: "back.out" });
+  }
+
+  // Instant grey-overlay clear (per roadmap #1: the stuck state must vanish the
+  // MOMENT progress resumes / on restart — no lingering fade-out that trails play).
+  _hideGrey() {
+    const gr = this.greyOverlay;
+    if (!gr) return;
+    this.tweens.killTweensOf(gr);
+    gr.setVisible(false).setAlpha(0);
   }
 
   hideStuckPrompt() {
     if (!this.stuckUI) return;
     this.tweens.killTweensOf(this.stuckUI.c);
     this.stuckUI.c.setVisible(false).setAlpha(1).setScale(1);
+    this._hideGrey();
+    setSadMusic(false); // stuck cleared ⇒ restore normal music completely
   }
 
   // True while any contextual co-op hint is showing OR applies — tier-1 DEFERS to
@@ -3286,12 +3392,23 @@ export default class GameScene extends Phaser.Scene {
   // progress resumes (stuckTier→0 / softlock cleared) — no per-frame work when the
   // tier is unchanged. U11 is already honored upstream (the watchdog/detectors
   // never raise a tier while hints/comfort are off), so this never shows then.
-  updateStuckPrompt() {
+  updateStuckPrompt(time) {
     let tier = 0, mode = "";
-    if (this.softlock) { tier = 2; mode = "softlock"; }        // SL3 confirmed hard lock
-    else {
+    if (this.softlock) {
+      // SL3 confirmed hard lock — firm tier-2, ESCALATING to the tier-3 grey-fade
+      // "cold truth" if the persistent player stays trapped past the t3 window
+      // (~25s after the firm offer). The detector pins stuckTier=2, so we time the
+      // escalation here off when the signal first appeared. Passive read only.
+      if (!this._softlockSince) this._softlockSince = time;
+      const persisted = time - this._softlockSince;
+      const t3gap = (this.watchdog ? this.watchdog.T3 - this.watchdog.T2 : 25000);
+      if (persisted >= t3gap) { tier = 3; mode = "coldtruth"; }
+      else { tier = 2; mode = "softlock"; }
+    } else {
+      this._softlockSince = 0;
       const st = this.stuckTier | 0;
-      if (st >= 2) { tier = 2; mode = "firm"; }                 // SL2 watchdog t2
+      if (st >= 3) { tier = 3; mode = "coldtruth"; }            // SL2 watchdog t3 (SL7)
+      else if (st >= 2) { tier = 2; mode = "firm"; }            // SL2 watchdog t2
       else if (st === 1) { tier = 1; mode = "gentle"; }         // SL2 watchdog t1
     }
     // Tier-1 defers to any active/applicable contextual co-op hint (roadmap §2).
@@ -3940,7 +4057,7 @@ export default class GameScene extends Phaser.Scene {
     // SL4: render the pooled "Stuck?" prompt from the now-settled SL2/SL3 signals.
     // Pure read of this.stuckTier / this.softlock; toggles the prompt only on a
     // tier change (zero per-frame alloc). Offers R×2/ESC×2 — never touches input.
-    this.updateStuckPrompt();
+    this.updateStuckPrompt(time);
     this.updateCamera(dt);
   }
 

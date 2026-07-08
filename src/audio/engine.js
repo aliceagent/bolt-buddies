@@ -47,6 +47,18 @@ let ducked = false;
 // 0.5x while paused WITHOUT touching the saved music volume. Independent of the
 // KOBI-blip `ducked` flag so the two can stack cleanly.
 let pauseDucked = false;
+// SL7 "cold hard truth" sad-music treatment: a fully-reversible, additive melancholy
+// pass on the MUSIC BUS ONLY, tied to the tier-3 grey-fade. When on, the bus dips to
+// SAD_MUSIC_GAIN and a lowpass muffles the bright leads/arps so the bed reads somber;
+// when off it restores byte-for-byte normal playback (factor 1.0 + transparent 20 kHz
+// cutoff). It rides through the same applySettings() plumbing as the KOBI/pause ducks,
+// so it stacks cleanly and honors mute (musicMuted → 0 regardless). Never touched by
+// any suite (they never reach tier-3), which is the no-regression guard.
+let sadMode = false;
+let musicFilter = null;      // always in the music path; transparent unless sad
+const SAD_MUSIC_GAIN = 0.55; // bus multiplier while sad (melancholy recede)
+const SAD_LP_HZ = 620;       // lowpass cutoff while sad (muffled/somber)
+const OPEN_LP_HZ = 20000;    // transparent cutoff when normal (no audible colour)
 let settings = loadSettings();
 
 function loadSettings() {
@@ -87,7 +99,7 @@ function applySettings() {
   if (!ctx) return;
   const t = ctx.currentTime;
   masterGain.gain.setTargetAtTime(settings.muted ? 0 : MASTER, t, 0.008);
-  musicBus.gain.setTargetAtTime(settings.musicMuted ? 0 : settings.music * (ducked ? 0.7 : 1) * (pauseDucked ? 0.5 : 1), t, 0.02);
+  musicBus.gain.setTargetAtTime(settings.musicMuted ? 0 : settings.music * (ducked ? 0.7 : 1) * (pauseDucked ? 0.5 : 1) * (sadMode ? SAD_MUSIC_GAIN : 1), t, 0.02);
   sfxBus.gain.setTargetAtTime(settings.sfxMuted ? 0 : settings.sfx, t, 0.02);
 }
 
@@ -115,13 +127,21 @@ export function initAudio() {
       limiter.ratio.value = 20;
       limiter.attack.value = 0.003;
       limiter.release.value = 0.12;
-      musicBus.connect(masterGain);
+      // SL7: an always-present lowpass on the music path, transparent (20 kHz) in
+      // normal play. Only the tier-3 sad-mode drops its cutoff; off = no audible
+      // colour, so normal playback is unchanged. music bus → filter → master.
+      musicFilter = ctx.createBiquadFilter();
+      musicFilter.type = "lowpass";
+      musicFilter.frequency.value = OPEN_LP_HZ;
+      musicFilter.Q.value = 0.707;
+      musicBus.connect(musicFilter);
+      musicFilter.connect(masterGain);
       sfxBus.connect(masterGain);
       masterGain.connect(limiter);
       limiter.connect(ctx.destination);
       // set gains immediately (no ramp) so the very first note is at the right level
       masterGain.gain.value = settings.muted ? 0 : MASTER;
-      musicBus.gain.value = settings.musicMuted ? 0 : settings.music * (ducked ? 0.7 : 1) * (pauseDucked ? 0.5 : 1);
+      musicBus.gain.value = settings.musicMuted ? 0 : settings.music * (ducked ? 0.7 : 1) * (pauseDucked ? 0.5 : 1) * (sadMode ? SAD_MUSIC_GAIN : 1);
       sfxBus.gain.value = settings.sfxMuted ? 0 : settings.sfx;
     } catch (e) {
       ctx = null; // audio unsupported — game stays silent
@@ -208,6 +228,23 @@ export function duckMusic(on) {
   ducked = !!on;
   applySettings();
 }
+// SL7: toggle the tier-3 "cold hard truth" sad-music treatment. On → dip the music
+// bus + close the lowpass to SAD_LP_HZ (muffled/somber). Off → restore the bus gain
+// and re-open the lowpass to transparent, i.e. exactly normal playback. Reversible,
+// additive, and inert when audio is muted (applySettings drives musicMuted → 0). No-op
+// if the context/filter hasn't been built yet (nothing to treat).
+export function setSadMusic(on) {
+  const next = !!on;
+  if (next === sadMode) return;
+  sadMode = next;
+  if (musicFilter && ctx) {
+    // ramp the cutoff so the muffle/un-muffle glides (no click), matching the
+    // grey-fade's ~0.3s feel; setTargetAtTime time-constant ≈ perceived glide.
+    musicFilter.frequency.setTargetAtTime(sadMode ? SAD_LP_HZ : OPEN_LP_HZ, ctx.currentTime, 0.12);
+  }
+  applySettings(); // bus gain dip / restore rides the standard duck plumbing
+}
+
 // Pause duck (S4): halve the music bus while the in-game pause overlay is up.
 // Leaves the saved `settings.music` untouched, so resuming restores exactly the
 // player's chosen level.
@@ -224,5 +261,7 @@ export function engineState() {
     masterGain: masterGain ? masterGain.gain.value : null,
     musicBus: musicBus ? musicBus.gain.value : null,
     sfxBus: sfxBus ? sfxBus.gain.value : null,
+    sadMode,
+    musicLP: musicFilter ? musicFilter.frequency.value : null,
   };
 }

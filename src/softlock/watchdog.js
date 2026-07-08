@@ -24,7 +24,7 @@
 // after anim.update() — a pure read-only observer of the settled frame.
 //
 // Signals exposed for SL3/SL4 (and the headless probes):
-//   scene.stuckTier            — current tier 0/1/2 (authoritative field)
+//   scene.stuckTier            — current tier 0/1/2/3 (authoritative field; SL7 adds t3)
 //   game event "bb:stuck"      — emitted (tier) only when the tier CHANGES
 //   window.__bbStuckTier       — mirror of the current tier
 //   window.__bbWatchdogPeakTier— session-max tier ever raised (probe reads/zeroes)
@@ -35,6 +35,8 @@ import { uxHints } from "../ux.js";
 // --- starting thresholds (SL6 finalizes) -------------------------------------
 const T1_MS = 25000; // gentle nudge after ~25s of genuine stall
 const T2_MS = 50000; // firm restart-offer after ~50s
+const T3_MS = 75000; // SL7: "cold hard truth" grey-fade after ~75s (~25s past t2) —
+                     //  the persistent player who ignored the firm restart offer.
 
 // A frame counts as "progress / activity" (and RESETS the stall window) when any
 // of these hold, so the watchdog only ever accumulates during a true settled
@@ -49,6 +51,7 @@ export class ProgressWatchdog {
     this.scene = scene;
     this.T1 = T1_MS;
     this.T2 = T2_MS;
+    this.T3 = T3_MS;
 
     // private tracking (all scalars; reset() seeds them from the fresh level)
     this._stallMs = 0;
@@ -176,7 +179,9 @@ export class ProgressWatchdog {
     // Settled stall: both alive, grounded, still, not exploring, no new progress.
     this._stallMs += delta;
     if (!this._hintsOn) return; // U11: honor hints-off — bookkeep, never signal.
-    const tier = this._stallMs >= this.T2 ? 2 : this._stallMs >= this.T1 ? 1 : 0;
+    const tier = this._stallMs >= this.T3 ? 3
+      : this._stallMs >= this.T2 ? 2
+      : this._stallMs >= this.T1 ? 1 : 0;
     this._setTier(tier, time);
   }
 
