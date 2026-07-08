@@ -31,6 +31,7 @@
 //   * CANVAS-SAFE — drawn TileSprite tread + drawn pupil/antenna/hook glyph overlays
 //     + pose transforms; the phase flicker rides alpha (not a tint-only state).
 
+import Phaser from "phaser";
 import { MOTION } from "./motion.js";
 
 // framerate-independent approach toward a target (no allocation).
@@ -51,7 +52,19 @@ const EYES = { x: 0.5, y: -1 };
 const ANT = { x: 0, y: -21 };
 const TREAD = { x: 0, y: 20.5 };
 const HOOK = { x: 15, y: -3 };
+// A4 reach-out arm glyph pivots from the shoulder line (local ~ y -4).
+const ARM = { x: 0, y: -4 };
 const TREAD_KEYS = ["tread0", "tread1", "tread2", "tread3"];
+
+// A4 per-action envelope durations (ms), drawn from the MOTION tokens so no stray
+// magic numbers survive the A12 audit. Read by reference, never rebuilt.
+const ACT_DUR = Object.freeze({
+  throw: MOTION.THROW_ACT.dur, // windup lean -> follow-through (+high-toss squat)
+  stompland: MOTION.STOMP_SPLAY.dur, // heavy impact splay + antenna boing
+  equip: MOTION.EQUIP_POSE.dur, // pedestal "tries on the skill" one-beat pose
+});
+// smoothstep helper (allocation-free).
+const smooth = (x) => x * x * (3 - 2 * x);
 
 // A3 fidget/wait durations (ms). Every beat's ease/tempo is drawn from the MOTION
 // tokens; these are the whole-beat envelopes (out-and-back / two-beat spans) that
@@ -96,9 +109,55 @@ export function installPlayerAnim(rig, scene) {
   // the grapple waiting glyph — hung on EVERY player (skills are swapped at
   // runtime), invisible at rest (glyphA == 0), twirled only by the tier-2 wait.
   rig.addPart("hook", drawHook, { x: HOOK.x, y: HOOK.y }, { glyph: true });
+  // A4 reach-out arm glyph — hung on every player, invisible at rest (armA == 0),
+  // extended + aimed only during a grapple ZIP flight/hang. Origin at the shoulder
+  // so its reach stretches with scaleX and it aims in world space at the anchor.
+  const armPart = rig.addPart("arm", "arm_glyph", { x: ARM.x, y: ARM.y }, { arm: true });
+  armPart.obj.setOrigin(0.12, 0.5);
 
   rig._pupils = rig.getPart("pupils");
   rig._ant = rig.getPart("ant");
+
+  // A4 pooled equip FLASH ring (created ONCE): popped over the head on skill equip.
+  rig._eflash = scene.add.image(host.x, host.y, "equipflash")
+    .setDepth(host.depth + 3).setVisible(false);
+  if (scene.game.renderer.type === Phaser.WEBGL) rig._eflash.setBlendMode(Phaser.BlendModes.ADD);
+
+  // A4 ACTION overlay state — all PREALLOCATED (zero per-frame alloc). `_act` is the
+  // single reused timed-action descriptor (throw / stomp-land splay / equip pose);
+  // `_aout` is the scratch bag the per-frame action stepper writes its visual
+  // channels into (composed onto the locomotion channels in the update hook).
+  rig._act = { type: "", t: 0, dur: 0, dir: 1, hi: false, active: false };
+  rig._aout = {
+    bob: 0, lean: 0, sx: 1, sy: 1, lookX: 0, lookY: 0, ant: 0, antY: 0,
+    armA: 0, armAng: 0, armLen: 1, override: false,
+  };
+
+  // Fire a timed action overlay (fire-and-forget; ends on its own). Never eats
+  // input — it's a pure visual layer on the instant game logic that already ran.
+  rig.startAction = (type, dir, opts) => {
+    const a = rig._act;
+    a.type = type; a.t = 0; a.dur = ACT_DUR[type] || 300;
+    a.dir = dir || host.facing || 1; a.hi = !!(opts && opts.hi); a.active = true;
+  };
+
+  // Pedestal EQUIP: the robot "tries on" the skill — a badge pop + a head flash +
+  // a one-beat proud pose. Cosmetic; the skill was already assigned by game logic.
+  rig.startEquip = () => {
+    rig.startAction("equip", host.facing);
+    if (host.badge) { // badge pops onto the head (scale punch on the fresh badge)
+      host.badge.setScale(0.2);
+      scene.tweens.add({ targets: host.badge, scale: 1, duration: MOTION.EQUIP_POP.dur, ease: MOTION.EQUIP_POP.ease });
+    }
+    const fl = rig._eflash;
+    scene.tweens.killTweensOf(fl);
+    fl.setVisible(true).setPosition(host.x, host.y - 40).setScale(0.4).setAlpha(0.95);
+    scene.tweens.add({
+      targets: fl, scale: 1.5, alpha: 0,
+      duration: MOTION.EQUIP_FLASH.dur, ease: MOTION.EQUIP_FLASH.ease,
+      onComplete: () => fl.setVisible(false),
+    });
+  };
 
   // per-rig scratch for throttled dust (primitive counters, no alloc)
   rig._skidDustCd = 0;
@@ -272,6 +331,22 @@ export function installPlayerAnim(rig, scene) {
         }
       }
 
+      // ---- A4 ACTION OVERLAYS -------------------------------------------------
+      // Event/state-driven action layer (zip/stomp/carry/throw/equip/phase). It is
+      // a pure VISUAL overlay on instant game logic that already ran — it composes
+      // onto the locomotion channels here and rides the SAME applyLocomotion path,
+      // so every action scale pose is body-invariant (_syncBody cancels it). zip and
+      // the stomp tuck OWN the pose (override); the rest add on top of locomotion.
+      const a = rig._aout;
+      stepPlayerAction(rig, host, status, pose, dt, a);
+      if (a.override) {
+        bob = a.bob; lean = a.lean; lookX = a.lookX; lookY = a.lookY; ant = a.ant; antY = a.antY;
+      } else {
+        bob += a.bob; lean += a.lean; lookX += a.lookX; lookY += a.lookY; ant += a.ant; antY += a.antY;
+      }
+      sx *= a.sx; sy *= a.sy;
+      pose.armA = a.armA; pose.armAng = a.armAng; pose.armLen = a.armLen;
+
       // smooth the light overlays toward their targets (cheap, no pops on a state flip)
       const f = Math.min(1, (dt / 1000) * 16);
       pose.lookX = approach(pose.lookX, lookX, f);
@@ -391,4 +466,102 @@ function stepFidget(rig, host, fx, dt) {
     }
   }
   if (f.t >= f.dur) cleanupFidget(rig, host);
+}
+
+// One frame of the A4 ACTION layer. Fills the reused scratch bag `o` with this
+// frame's visual channels from the host's ALREADY-RESOLVED action state (zip /
+// stomp / carry / phase) plus any active timed one-shot (throw / stomp-land /
+// equip). Allocation-free. NEVER reads or writes body/velocity/timing — it only
+// reports visual deltas that the update hook routes through applyLocomotion.
+function stepPlayerAction(rig, host, status, pose, dt, o) {
+  o.bob = 0; o.lean = 0; o.sx = 1; o.sy = 1;
+  o.lookX = 0; o.lookY = 0; o.ant = 0; o.antY = 0;
+  o.armA = 0; o.armAng = 0; o.armLen = 1; o.override = false;
+  const face = pose.face || 1;
+
+  // ZIP (grapple flight): reach the arm-glyph at the anchor + body STRETCH along the
+  // flight line; a hang pose at arrival. Overlay only — updateZip owns the physics.
+  if (host.zip) {
+    const z = host.zip;
+    const dx = z.x - host.x, dy = (z.y + 44) - host.y;
+    if (!z.arrived) {
+      const spd = Math.sqrt(status.vx * status.vx + status.vy * status.vy);
+      const s = Math.min(1, spd / 520);
+      o.sx = 1 - 0.13 * s; o.sy = 1 + 0.17 * s; // stretch toward the anchor
+      o.armAng = Math.atan2(dy, dx); o.armLen = 1.55; o.armA = 1;
+      o.lookX = Math.cos(o.armAng) * 2.2; o.lookY = Math.sin(o.armAng) * 2.2;
+      o.lean = Math.cos(o.armAng) * 7; // lean into the line of flight
+    } else {
+      const sway = Math.sin(pose.t / 240); // hang pose: reach up, slight sway
+      o.armAng = -Math.PI / 2 + sway * 0.16; o.armLen = 1.2; o.armA = 1;
+      o.sy = 1.05; o.lean = sway * 2.4; o.lookY = -0.8;
+    }
+    o.override = true;
+    return o;
+  }
+
+  // STOMP windup (heavy dive): a mid-air tuck. Overlay on the existing stomp — the
+  // stomp mechanics (startStomp / heavyImpact) are untouched.
+  if (host.stomping && status.airborne) {
+    o.sx = 1.14; o.sy = 0.84; // tuck: pull tall -> squat ball
+    o.bob = 3; o.lookY = 1.6; o.ant = face * 1.2; o.antY = -2;
+    o.override = true;
+  }
+
+  // PHASE TRANSIT: horizontal shimmer elongation while inside a phase wall
+  // (coordinates with the P6 afterimage). Additive scale; body-invariant.
+  if (host.inPhaseWall && !host.dead) {
+    o.sx *= 1.16; o.sy *= 0.93;
+  }
+
+  // CARRY: carrier leans back under the overhead weight; the carried buddy gets an
+  // arms-up antenna wobble (enhances P6's baked carry pose, no competing arm glyph).
+  if (host.carrying) o.lean += -face * 6;
+  if (host.carriedBy) {
+    const w = Math.sin((host.scene ? host.scene.time.now : 0) / 150);
+    o.ant += w * 2.4; o.antY += -Math.abs(w) * 1.2; o.sx *= 1 + 0.02 * w;
+  }
+
+  // TIMED one-shots — throw follow-through / stomp-land splay / equip pose.
+  const act = rig._act;
+  if (act.active) {
+    act.t += dt;
+    const p = act.dur > 0 ? act.t / act.dur : 1;
+    stepTimedAction(act, o, face, p);
+    if (act.t >= act.dur) act.active = false;
+  }
+  return o;
+}
+
+// The timed one-shot envelopes. `p` is 0..1 progress; writes visual deltas into `o`.
+function stepTimedAction(a, o, face, p) {
+  const pc = p > 1 ? 1 : p;
+  switch (a.type) {
+    case "throw": {
+      // windup lean back (0..0.32) -> follow-through overshoot forward (0.32..1).
+      // high-toss adds a squat during the windup (the big upward heave).
+      const wind = pc < 0.32 ? pc / 0.32 : Math.max(0, 1 - (pc - 0.32) / 0.2);
+      const foll = pc >= 0.32 ? (pc - 0.32) / 0.68 : 0;
+      const fEnv = Math.sin(Math.min(1, foll) * Math.PI);
+      o.lean += -a.dir * 11 * smooth(wind) + a.dir * 15 * fEnv;
+      o.bob += -2 * fEnv;
+      o.lookX += a.dir * 1.4 * fEnv;
+      if (a.hi) { o.sy *= 1 - 0.13 * smooth(wind); o.sx *= 1 + 0.09 * smooth(wind); o.bob += 4 * smooth(wind); }
+      break;
+    }
+    case "stompland": {
+      // impact SPLAY (wide squash, fast decay) + a damped antenna BOING.
+      const sp = Math.max(0, 1 - pc / 0.3);
+      o.sx *= 1 + 0.2 * sp; o.sy *= 1 - 0.17 * sp; o.bob += 2.4 * sp;
+      const boing = Math.exp(-pc * 4) * Math.sin(pc * Math.PI * 8);
+      o.antY += boing * 4.5; o.ant += face * boing * 2.2;
+      break;
+    }
+    case "equip": {
+      // "tries on the skill": a proud bounce/stretch + a glance up at the new badge.
+      const b = Math.sin(pc * Math.PI);
+      o.bob += -5 * b; o.sy *= 1 + 0.08 * b; o.sx *= 1 - 0.04 * b; o.lookY += -1.4 * b;
+      break;
+    }
+  }
 }

@@ -1617,6 +1617,10 @@ export default class GameScene extends Phaser.Scene {
       this.equipItemCard(ped);
       p.setSkill(ped.skill);
       sfx.equip();
+      // A4: the robot "tries on" the skill — badge pop + head flash + a one-beat
+      // proud pose. Purely cosmetic; the skill was already assigned above.
+      const erig = this.anim && this.anim.enabled && this.anim.rigFor(p);
+      if (erig && erig.startEquip) erig.startEquip();
       this.game.events.emit("bb:skill", { idx: p.idx, skill: ped.skill, name: SKILL_INFO[ped.skill].name });
       if (this.players.every((q) => q.skill) && this.def.blips.skills) {
         this.game.events.emit("bb:blip", this.def.blips.skills);
@@ -1729,6 +1733,10 @@ export default class GameScene extends Phaser.Scene {
     q._throwTrail = 400; // P11: dotted fading trail follows the thrown buddy for 400ms
     if (highToss) sfx.tossHigh();
     else sfx.throwIt();
+    // A4: thrower's windup->follow-through overlay (+high-toss squat). Cosmetic —
+    // the throw velocity/logic above is untouched (logic first, motion after).
+    const rig = this.anim && this.anim.enabled && this.anim.rigFor(p);
+    if (rig) rig.startAction("throw", p.facing, { hi: highToss });
   }
 
   detachCarry(carrier, carried, hop) {
@@ -1824,6 +1832,10 @@ export default class GameScene extends Phaser.Scene {
     const fx = p.x;
     const fy = p.body.bottom;
     sfx.stomp(fx, fy);
+    // A4: impact splay + antenna boing overlay on the heavy landing. Cosmetic —
+    // the stomp impact mechanics below are unchanged.
+    const srig = this.anim && this.anim.enabled && this.anim.rigFor(p);
+    if (srig) srig.startAction("stompland", p.facing);
     this.camShake(strong ? 160 : 90, strong ? 0.005 : 0.002);
     this.boom.explode(this.fxBudget(strong ? 20 : 10), fx, fy);
     // expanding shockwave ring + floor dust burst + a brief zoom-punch
@@ -2145,6 +2157,10 @@ export default class GameScene extends Phaser.Scene {
     sfx.die(p.x, p.y);
     this.boom.explode(this.fxBudget(16), p.x, p.y);
     this.bolts.explode(this.fxBudget(8), p.x, p.y); // + a few bolt/gear shards
+    // A4: scatter 5 pooled DRAWN parts with the boom. Pure visual overlay on the
+    // SACRED death->respawn timing below — it reads p.x/p.y and never delays or
+    // moves the respawn (the beat routes depend on that timing being byte-exact).
+    if (this.anim && this.anim.enabled) this.anim.deathScatter.scatter(p);
     this.time.delayedCall(900, () => {
       const cp = this.cpPos[p.idx];
       p.body.reset(cp.x, cp.y - 8); // slight lift so a big body never spawns embedded
@@ -2156,6 +2172,9 @@ export default class GameScene extends Phaser.Scene {
       p.wasGround = false;
       sfx.respawn(); // beam back in
       this.respawnFx(cp.x, cp.y, p); // beam-in column + materialize blink
+      // A4: the beam gathers the scattered parts to the checkpoint and snaps them
+      // in. Reads the checkpoint the respawn already chose — moves nothing itself.
+      if (this.anim && this.anim.enabled) this.anim.deathScatter.reassemble(p, cp.x, cp.y);
     });
   }
 

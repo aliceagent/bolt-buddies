@@ -34,6 +34,12 @@ export function makePose() {
     // inheriting the host transform, so the glyph can twirl while the body is still.
     glyphSpin: 0, // glyph part rotation (radians), independent of the host
     glyphA: 0, // glyph part alpha (0 => hidden; the resting state)
+    // A4 reach-out arm glyph (zip): an `arm` part reads its OWN world-aimed angle +
+    // length + alpha from these channels (like the glyph, it does not inherit the
+    // host transform), so the arm can point at a zip anchor while the body stretches.
+    armA: 0, // arm glyph alpha (0 => hidden; the resting state)
+    armAng: 0, // arm glyph WORLD rotation (radians), aimed at the reach target
+    armLen: 1, // arm glyph reach extension (scaleX multiplier)
     t: 0, // state-local elapsed time (ms) — reset on every state enter
   };
 }
@@ -43,6 +49,7 @@ export function resetPose(p) {
   p.sx = 1; p.sy = 1; p.ox = 0; p.oy = 0; p.lean = 0;
   p.lookX = 0; p.lookY = 0; p.antenna = 0; p.antennaY = 0; p.tread = 0;
   p.glyphSpin = 0; p.glyphA = 0;
+  p.armA = 0; p.armAng = 0; p.armLen = 1;
   // p.face and p.t are managed by the machine, not cleared here.
 }
 

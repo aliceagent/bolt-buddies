@@ -526,6 +526,45 @@ export default class BootScene extends Phaser.Scene {
       g.fillStyle(0xffffff, 0.9).fillCircle(2.3, 2.3, 0.8);
     });
 
+    // --- ANIM A4: action + death set art (pooled, drawn, canvas-safe) -------
+    // Reach-out ARM glyph for the grapple ZIP: a slim forearm ending in a claw,
+    // ORIGIN at the shoulder (left edge) so the rig can stretch its reach with a
+    // scaleX and aim it in world space at the zip anchor.
+    make("arm_glyph", 18, 8, (g) => {
+      g.fillStyle(0x223049, 1).fillRoundedRect(0, 2.5, 12, 3, 1.5); // forearm
+      g.lineStyle(2, 0x35f0ff, 0.9);
+      g.strokeCircle(13.5, 4, 3); // claw ring
+      g.lineBetween(12, 1.5, 15, 0); // upper prong
+      g.lineBetween(12, 6.5, 15, 8); // lower prong
+      g.fillStyle(0xbdf3ff, 1).fillCircle(2, 4, 2); // shoulder stud
+    });
+    // Equip FLASH: a bright expanding ring popped over the head on skill assignment.
+    make("equipflash", 40, 40, (g) => {
+      g.lineStyle(4, 0xffffff, 0.9).strokeCircle(20, 20, 12);
+      g.lineStyle(2, 0xbfeaff, 0.7).strokeCircle(20, 20, 17);
+      for (let i = 0; i < 6; i++) {
+        const a = (Math.PI / 3) * i;
+        g.fillStyle(0xffffff, 0.85).fillCircle(20 + Math.cos(a) * 14, 20 + Math.sin(a) * 14, 1.6);
+      }
+    });
+    // Death-scatter CHUNKS: 5 drawn robot pieces (visor / antenna / tread / body
+    // plate / bolt), one set per player accent colour. Pooled + flung on death,
+    // pulled back together by the respawn beam (see src/anim/death.js).
+    const chunk = {
+      visor: (g, ac) => { g.fillStyle(0x0a1626, 1).fillRoundedRect(0, 2, 14, 6, 2); g.fillStyle(ac, 0.9).fillRect(2, 3, 10, 2); g.fillStyle(0xffffff, 0.8).fillCircle(4, 4.5, 1); },
+      ant: (g, ac) => { g.fillStyle(0x2a3247, 1).fillRect(3, 2, 2, 8); g.fillStyle(0xdfe8ff, 0.95).fillCircle(4, 2, 2.4); g.fillStyle(ac, 0.9).fillCircle(4, 2, 1.1); },
+      tread: (g) => { g.fillStyle(0x0c1019, 1).fillRoundedRect(0, 1, 14, 6, 1.5); g.fillStyle(0x2a3247, 1).fillCircle(4, 4, 2.2); g.fillStyle(0x2a3247, 1).fillCircle(10, 4, 2.2); },
+      plate: (g, ac) => { g.fillStyle(0x1a2740, 1).fillRoundedRect(0, 0, 12, 10, 2); g.lineStyle(1.5, ac, 0.8).strokeRoundedRect(1, 1, 10, 8, 2); g.fillStyle(0x384360, 0.8).fillRect(3, 3, 6, 1.5); },
+      bolt: (g, ac) => { g.fillStyle(0x8fa3d9, 1).fillCircle(4, 4, 3.5); g.fillStyle(ac, 0.7).fillCircle(4, 4, 1.6); },
+    };
+    for (const [key, ac] of [["b", COLORS.beep], ["o", COLORS.boop]]) {
+      make(`dp_visor_${key}`, 14, 10, (g) => chunk.visor(g, ac));
+      make(`dp_ant_${key}`, 8, 12, (g) => chunk.ant(g, ac));
+      make(`dp_tread_${key}`, 14, 8, (g) => chunk.tread(g, ac));
+      make(`dp_plate_${key}`, 12, 10, (g) => chunk.plate(g, ac));
+      make(`dp_bolt_${key}`, 8, 8, (g) => chunk.bolt(g, ac));
+    }
+
     // --- interactables -----------------------------------------------------
     make("anchor", 32, 32, (g) => {
       g.lineStyle(4, COLORS.neon).strokeCircle(16, 16, 11);

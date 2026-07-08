@@ -44,10 +44,22 @@ export const MOTION = Object.freeze({
   WAIT_HOP: tok(320, "quad.out"), // tiny two-hop in place
   WAIT_GLANCE: tok(600, "sine.inOut"), // partner-aware turn-and-look at each other
 
-  // --- reactions (A4, seeded for later) ------------------------------------
+  // --- reactions / generic action envelope (A4) ----------------------------
   HURT_SHAKE: tok(220, "quad.out"), // brief recoil shudder on taking a hit
   ACT_WINDUP: tok(140, "quad.out"), // generic action anticipation (zip/stomp/throw)
   ACT_FOLLOW: tok(220, "back.out"), // generic action follow-through / recoil
+
+  // --- action set (A4, per-action envelopes) -------------------------------
+  // Every one is a VISUAL overlay on instant game logic (physics untouched).
+  THROW_ACT: tok(360, "back.out"), // throw windup->follow-through (high-toss squat)
+  STOMP_SPLAY: tok(520, "quad.out"), // heavy impact splay + antenna boing (damped)
+  EQUIP_POSE: tok(520, "back.out"), // pedestal "tries on the skill" one-beat pose
+  EQUIP_POP: tok(300, "back.out"), // badge pops onto the head
+  EQUIP_FLASH: tok(360, "cubic.out"), // head flash ring on equip
+  // death/respawn: pure visual overlay on the SACRED death->respawn timing.
+  DEATH_SCATTER: tok(520, "cubic.out"), // drawn parts fly out with the boom
+  DEATH_FADE: tok(600, "linear"), // orphaned parts fade if no respawn follows
+  DEATH_REASSEMBLE: tok(360, "back.in"), // respawn beam pulls the parts back + snaps
 });
 
 // Idle-tier + fidget-scheduler timing (ms). Kept beside the motion tokens so the

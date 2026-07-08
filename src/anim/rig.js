@@ -51,6 +51,9 @@ class Part {
     // A3: a free-spinning glyph part (grapple's twirled hook) reads its rotation +
     // alpha from the pose's glyph channels instead of inheriting the host transform.
     this.useGlyph = !!(opts && opts.glyph);
+    // A4: a reach-out ARM glyph (zip). Like the glyph it reads its OWN world-aimed
+    // rotation + reach length + alpha from the pose, not the host transform.
+    this.useArm = !!(opts && opts.arm);
     this.treadKeys = (opts && opts.treadKeys) || null; // frame-swap tread cycle
     this._tf = -1; // last tread frame index shown (avoid redundant setTexture)
     this._sc = -1; this._flip = null; // cached scale/flip (skip redundant writes)
@@ -75,6 +78,19 @@ class Part {
       this.obj.rotation = pose.glyphSpin || 0;
       if (sc !== this._sc) { this.obj.setScale(sc); this._sc = sc; }
       const a = pose.glyphA || 0;
+      this.obj.setAlpha(a);
+      this.obj.setVisible(this.visible && a > 0.01 && h.visible && !h.dead);
+      return;
+    }
+    // A4 ARM glyph: pivots from the shoulder, aimed in WORLD space at the reach
+    // target (zip anchor). Reach length stretches its scaleX; alpha 0 => hidden.
+    if (this.useArm) {
+      const a = pose.armA || 0;
+      const sc = h.scaleX < 0 ? -h.scaleX : h.scaleX;
+      this.obj.x = h.x + this.ox * sc; // shoulder-ish anchor (facing-neutral; aim is world)
+      this.obj.y = h.y + this.oy * sc;
+      this.obj.rotation = pose.armAng || 0;
+      this.obj.setScale((pose.armLen || 1) * sc, sc);
       this.obj.setAlpha(a);
       this.obj.setVisible(this.visible && a > 0.01 && h.visible && !h.dead);
       return;

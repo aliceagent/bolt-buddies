@@ -14,6 +14,7 @@
 
 import { CharRig } from "./rig.js";
 import { FidgetScheduler } from "./fidget.js";
+import { DeathScatter } from "./death.js";
 import { installPlayerAnim } from "./player_anim.js";
 import { TIMING } from "./motion.js";
 import { DEPTH } from "../constants.js";
@@ -48,6 +49,9 @@ export class AnimSystem {
     this.rigs = [];
     this.byHost = new Map(); // host GameObject -> its rig
     this.fidget = new FidgetScheduler(scene);
+    // A4: the pooled death-part scatter + respawn reassembly (a pure visual overlay
+    // on the SACRED death->respawn timing; fired from GameScene.killPlayer/respawn).
+    this.deathScatter = new DeathScatter(scene);
     // A3: the scheduler's per-rig eligibility hook dispatches to the rig's own
     // fidget starter (installed on players by installPlayerAnim; enemies have none,
     // so their fidget path stays a no-op until their A-sprint wires one).
@@ -182,5 +186,6 @@ export class AnimSystem {
     for (let i = 0; i < this.rigs.length; i++) this.rigs[i].destroy();
     this.rigs.length = 0;
     this.byHost.clear();
+    if (this.deathScatter) this.deathScatter.destroy();
   }
 }
