@@ -1,0 +1,439 @@
+{
+  "when": "2026-07-08T10:59:17.341Z",
+  "url": "http://localhost:5173/?canvas=1",
+  "results": [
+    {
+      "id": "tut-station4-both-in",
+      "level": "tut",
+      "category": "A",
+      "candidate": "Station-4 grapple pit — BOTH robots fall in (safe pit, no death escape)",
+      "durationMs": 27412,
+      "deaths": 0,
+      "classification": "RECOVERABLE",
+      "stuck": {
+        "bothInPit": true,
+        "players": [
+          {
+            "tx": 37.07,
+            "ty": 17.5,
+            "dead": false,
+            "skill": "grapple",
+            "grounded": true,
+            "carrying": false,
+            "carriedBy": false
+          },
+          {
+            "tx": 36.82,
+            "ty": 17.42,
+            "dead": false,
+            "skill": "heavy",
+            "grounded": true,
+            "carrying": false,
+            "carriedBy": false
+          }
+        ]
+      },
+      "recoveries": [
+        {
+          "name": "U13: grapple zips UP to anchor (36,9), lands on rim, reels buddy out (DOWN+ACTION)",
+          "ok": true,
+          "note": "grapple self-zipped out (ty<14=true); buddy reeled out (ty<14=true)"
+        }
+      ],
+      "repro": [
+        "equip grapple@x23, heavy@x26; gate opens",
+        "both walk right off the x33 rim into the 4-tile Station-4 pit (x34-38, floored by the world bottom, no hazard)",
+        "neither can die (no '^' floor) and neither can jump 4 tiles out"
+      ],
+      "verdict": "RECOVERABLE — grapple self-zips out of the pit then reels the buddy out; no restart needed.",
+      "notes": "The safe pit cannot kill (floored by the world bottom, GameScene 3279 only fires below worldH+60). The ONLY escape is the grapple zip-up + reel — role-symmetric because the grapple robot always carries the zip. Both assignments behave the same."
+    },
+    {
+      "id": "tut-station4-heavy-only-in",
+      "level": "tut",
+      "category": "A",
+      "candidate": "Station-4 grapple pit — heavy falls in, grapple free on the rim",
+      "durationMs": 19570,
+      "deaths": 0,
+      "classification": "RECOVERABLE",
+      "stuck": {
+        "heavyInPit": true,
+        "players": [
+          {
+            "tx": 33.79,
+            "ty": 13.52,
+            "dead": false,
+            "skill": "grapple",
+            "grounded": true,
+            "carrying": false,
+            "carriedBy": false
+          },
+          {
+            "tx": 36.84,
+            "ty": 17.39,
+            "dead": false,
+            "skill": "heavy",
+            "grounded": true,
+            "carrying": false,
+            "carriedBy": false
+          }
+        ]
+      },
+      "recoveries": [
+        {
+          "name": "U13b: grapple on the rim reels the stranded buddy out (DOWN+ACTION)",
+          "ok": true,
+          "note": "heavy out of pit (ty<14)=true"
+        }
+      ],
+      "repro": [
+        "equip both; gate opens",
+        "heavy walks off the x33 rim into the pit; grapple stays on the rim",
+        "heavy cannot climb 4 tiles out alone"
+      ],
+      "verdict": "RECOVERABLE — grapple on the rim reels the stranded buddy out.",
+      "notes": "Asymmetric case (one in, one free). If the GRAPPLE robot is the one that falls in, the both-in scenario covers it (grapple self-zips). If the HEAVY falls in, the free grapple reels it out — this test."
+    },
+    {
+      "id": "2-1-solo-tiny-walled",
+      "level": "2-1",
+      "category": "C",
+      "candidate": "Roller yard — solo Tiny walled by shimmer pillars without a Phase escort",
+      "durationMs": 37500,
+      "deaths": 1,
+      "classification": "RECOVERABLE",
+      "stuck": {
+        "soloTinyStalledAtTx": 49.83,
+        "wasWalled": true
+      },
+      "recoveries": [
+        {
+          "name": "U5 Phase hand-hold escort through the shimmer pillars (buddy within 78px passes)",
+          "ok": true,
+          "note": "escort to exit complete=true"
+        }
+      ],
+      "repro": [
+        "full-lane traversal to the merge zone (x45-46)",
+        "Tiny alone tries to pass the shimmer pillar at x50 — it collides for non-phase robots and her jump is a hair short, so she's WALLED",
+        "recovery: Phase escorts hand-in-hand (within 78px the shimmer lets the buddy through)"
+      ],
+      "verdict": "RECOVERABLE — solo Tiny is walled by the shimmer pillars (confirmed she can't bull through and can't die — rollers ignore Tiny), but the Phase escort walks her through. Phase is always free to return; if Phase is stuck it can die to a roller and respawn at the shared x46 checkpoint to reunite.",
+      "expectedUnverified": true,
+      "notes": "The shimmer pillars are the U5 lesson: a solo non-phase robot is silently walled. Not a hard softlock while the partner is free to escort (or to die-and-reunite via the global checkpoint)."
+    },
+    {
+      "id": "1-1-electric-pit-both",
+      "level": "1-1",
+      "category": "A",
+      "candidate": "x14-19 electric pit — a robot falls in before learning the belt-gap zip",
+      "durationMs": 7318,
+      "deaths": 0,
+      "classification": "RECOVERABLE",
+      "stuck": {
+        "note": "grapple entered the electric pit (hazard)"
+      },
+      "recoveries": [
+        {
+          "name": "hazard death → automatic respawn at the shared active checkpoint (safe ground)",
+          "ok": true,
+          "note": "respawned alive on solid ground at tx=2.5 ty=13.5 (dead=false)"
+        }
+      ],
+      "repro": [
+        "equip grapple@x5, heavy@x8; gate opens",
+        "grapple zips the belt gap to anchor (17,9), then releases straight DOWN into the electric pit (x14-19, '^' floor at r16)"
+      ],
+      "verdict": "RECOVERABLE — a hazard pit KILLS and respawns the robot at the shared checkpoint on safe ground; a 'both fall in' outcome is the same (both respawn). No restart needed.",
+      "notes": "Contrast with the tutorial Station-4 pit: THAT one has no '^' floor so it cannot kill (the trap). This one is a hazard → death → shared-checkpoint respawn (GameScene 3275). Checkpoints are global, so both robots always respawn together on solid ground."
+    },
+    {
+      "id": "1-1-lift-deathloop-and-x50",
+      "level": "1-1",
+      "category": "D",
+      "candidate": "Co-op lift (needs both, threshold 3) death-loop + x50 landing-pit respawn-strand",
+      "durationMs": 48195,
+      "deaths": 0,
+      "classification": "RECOVERABLE",
+      "stuck": {
+        "note": "team at the lift / x50 landing",
+        "players": [
+          {
+            "tx": 57.9,
+            "ty": 9.46,
+            "dead": false,
+            "skill": "grapple",
+            "grounded": true,
+            "carrying": false,
+            "carriedBy": false
+          },
+          {
+            "tx": 58.63,
+            "ty": 9.42,
+            "dead": false,
+            "skill": "heavy",
+            "grounded": true,
+            "carrying": false,
+            "carriedBy": false
+          }
+        ]
+      },
+      "recoveries": [
+        {
+          "name": "lift needs BOTH (weight 3) — a puzzle gate, not a lock; either robot can re-board and the lift returns home when unweighted",
+          "ok": true,
+          "note": "lift rises only at weight 3 (heavy 2 + grapple 1)"
+        },
+        {
+          "name": "x50 landing-pit: U4 forward-step climb-out (auto-hop the x51 riser); lift re-ride fallback",
+          "ok": true,
+          "note": "route complete=true"
+        }
+      ],
+      "repro": [
+        "full 1-1: both weigh the lift (heavy=2 + grapple=1 = 3) to rise; grapple carries heavy across to the terrace",
+        "a short terrace jump drops into the x50-51 landing strip (solid, NOT hazard) — the U4 forward-step (x51 2-tile riser) climbs out; lift re-ride is the fallback"
+      ],
+      "verdict": "RECOVERABLE — the lift is a needs-both puzzle gate (not a softlock); the x50 landing is solid floor with the U4 forward-step out. The U4 terrace checkpoint (x52,8) sits on solid ground, NOT over the open shaft, so no respawn-strand.",
+      "expectedUnverified": true,
+      "notes": "Respawn-strand audit: 1-1 checkpoints are at x23, x40 and the terrace x52,8 — all on solid floor. The U4 note in level1_1.js explicitly moved the post-lift checkpoint OFF the lift runway (which could drop a respawn into the open shaft) onto the terrace. Lift returns home when unweighted (GameScene 3567) so it never traps a lone rider."
+    },
+    {
+      "id": "1-2-plate-holder-strand",
+      "level": "1-2",
+      "category": "B/C",
+      "candidate": "Heavy holds plate plA (opens sky-door b1) — who frees the holder?",
+      "durationMs": 13463,
+      "deaths": 0,
+      "classification": "RECOVERABLE",
+      "stuck": {
+        "plateWasHeld": true,
+        "b1WasOpen": true,
+        "note": "heavy on the plate holding b1 for the buddy"
+      },
+      "recoveries": [
+        {
+          "name": "holder frees ITSELF: heavy steps off the momentary plate and walks on (crusher-immune)",
+          "ok": true,
+          "note": "heavy walked off to tx=26.5 (b1 auto-closed=true)"
+        }
+      ],
+      "repro": [
+        "equip both; gate opens",
+        "heavy parks on plate plA (x15-16) → sky-door b1 opens; grapple takes the sky route over the crushers",
+        "heavy then simply STEPS OFF the plate and walks the tunnel — b1 is momentary/non-latch and heavy doesn't need it"
+      ],
+      "verdict": "RECOVERABLE — no strand: b1 is a momentary (non-latch) core-route barrier; once the grapple buddy is across, the heavy just walks off the plate. The holder needs no external release.",
+      "notes": "b1 (needs plates:[plA]) gates the optional sky route; the base traversal never seals heavy behind the plate."
+    },
+    {
+      "id": "1-2-reel-across-chasm",
+      "level": "1-2",
+      "category": "C",
+      "candidate": "Reel-across electric chasm — grapple crosses, heavy stranded on the near side",
+      "durationMs": 41344,
+      "deaths": 0,
+      "classification": "RECOVERABLE",
+      "stuck": {
+        "note": "heavy on the near chasm edge; grapple across",
+        "bothAcross": true
+      },
+      "recoveries": [
+        {
+          "name": "grapple anchor-reel pulls the stranded heavy across the chasm (DOWN+ACTION); zip-back available via the same anchors",
+          "ok": true,
+          "note": "route complete=true"
+        }
+      ],
+      "repro": [
+        "full 1-2 traversal: at the chasm (x40-52) grapple zips the anchor chain to the pillar/far floor and REELS heavy across (DOWN+ACTION)",
+        "the reel is the recovery for a stranded partner; anchors on both sides also allow a grapple zip-BACK retrace"
+      ],
+      "verdict": "RECOVERABLE — the anchor-reel that completes the crossing IS the un-strand: a partner left on the near side is reeled over. Grapple can also zip BACK across the anchors to retrace.",
+      "expectedUnverified": true,
+      "notes": "Anchors at 43/46/52 straddle the pillar so grapple can reel the buddy across OR zip back. And since checkpoints are global, a stranded heavy that steps into the electric chasm respawns at the shared checkpoint (x54 once grapple activates it) — death can also reunite the team across the gap."
+    },
+    {
+      "id": "2-3-timed-doors-seal",
+      "level": "2-3",
+      "category": "B",
+      "candidate": "HIGHEST RISK — cross-lane timed doors (6.5s): can a team be SEALED between two closed doors?",
+      "durationMs": 24142,
+      "deaths": 0,
+      "classification": "RECOVERABLE",
+      "stuck": {
+        "oneTimedDoorPerLane": true,
+        "tDoorA_closedAfterTimer": true,
+        "lvB1_poppedOffOnExpiry": true,
+        "tDoorA_reopenedByRepull": true,
+        "tDoorB_openedByLvA1": true,
+        "tinyPastDoorA": true,
+        "phasePastDoorB": true
+      },
+      "recoveries": [
+        {
+          "name": "re-pull the cross-lane lever after the 6.5s timer expires — it pops back out and RE-FIRES the window",
+          "ok": true,
+          "note": "lvB1 on-after-pull=true, off-after-expiry=true, tDoorA reopened=true"
+        },
+        {
+          "name": "complete the relay (Tiny→lvA1→tDoorB→Phase); a botched window is always retryable",
+          "ok": true,
+          "note": "tDoorB opened by lvA1=true"
+        }
+      ],
+      "repro": [
+        "equip; Phase ambushes w1 and stages at lvB1 (x24, bottom lane); Tiny stages just short of tDoorA (x26, top lane)",
+        "PROBE A: Phase pulls lvB1 → tDoorA opens 6.5s; DON'T cross; wait out the timer → tDoorA closes AND lvB1 pops back out",
+        "PROBE A: Phase RE-PULLS lvB1 → tDoorA re-opens (the re-open lever re-fires and is reachable by the free partner)",
+        "PROBE C: complete the relay — Tiny through tDoorA to lvA1 (x32) → tDoorB (x34) opens → Phase through"
+      ],
+      "verdict": "RECOVERABLE — NO hard seal is possible. The two 6.5s doors are in SEPARATE lanes (tDoorA top, tDoorB bottom), so no single robot is ever between both. Each door's re-open lever is in the PARTNER's lane and always reachable; on timer expiry the lever pops back out and re-firing it re-opens the door. A door never closes on a robot standing in it (no crush), and global checkpoints let a death reunite the team. Drive-confirmed: door timed out → lever re-fired → door re-opened → relay completed.",
+      "notes": "Definitive answer to the flagged highest-risk item: a team CANNOT be permanently sealed between two closed timed doors. Dependency chain is linear and rooted at lvB1, which Phase can always reach in the bottom lane. levers re-fire after the 6.5s window (GameScene 3430-3438 pops the lever off on expiry; pullLever re-arms it)."
+    },
+    {
+      "id": "2-3-finale-throw",
+      "level": "2-3",
+      "category": "C",
+      "candidate": "Finale throw-across gap — Phase throws Tiny; a miss respawns Tiny near-side",
+      "durationMs": 28407,
+      "deaths": 0,
+      "classification": "RECOVERABLE",
+      "stuck": {
+        "note": "Phase carrying Tiny at the finale gap",
+        "players": [
+          {
+            "tx": 61.78,
+            "ty": 13.46,
+            "dead": false,
+            "skill": "phase",
+            "grounded": true,
+            "carrying": false,
+            "carriedBy": false
+          },
+          {
+            "tx": 61.75,
+            "ty": 13.73,
+            "dead": false,
+            "skill": "tiny",
+            "grounded": true,
+            "carrying": false,
+            "carriedBy": false
+          }
+        ]
+      },
+      "recoveries": [
+        {
+          "name": "re-throw: a missed toss respawns Tiny at the shared x47 checkpoint (near side); Phase picks up and throws again",
+          "ok": true,
+          "note": "route complete=true"
+        }
+      ],
+      "repro": [
+        "full 2-3: Phase ambushes w3, carries Tiny through panel x49, and THROWS her across the electric gap (x52-58)",
+        "a missed throw drops Tiny in the gap (hazard) → she respawns at the shared x47 checkpoint (near side) → Phase re-throws"
+      ],
+      "verdict": "RECOVERABLE — the throw crosses the gap; a miss drops Tiny into the electric gap (hazard) which respawns her at the shared x47 checkpoint on the NEAR side, where Phase re-picks-up and re-throws. No permanent strand.",
+      "expectedUnverified": true,
+      "notes": "The gap is a hazard (electric), so a fumbled throw is self-correcting: Tiny dies and both are back at x47 together. Phase is never left unable to re-throw."
+    },
+    {
+      "id": "1-3-tower-reel-and-crane",
+      "level": "1-3",
+      "category": "C",
+      "candidate": "Tower reel-up — heavy falls, grapple at top must re-descend; + is the crane unwinnable?",
+      "durationMs": 66485,
+      "deaths": 0,
+      "classification": "RECOVERABLE",
+      "stuck": {
+        "note": "heavy at the tower base, grapple up a ledge",
+        "players": [
+          {
+            "tx": 52.74,
+            "ty": 2.5,
+            "dead": false,
+            "skill": "grapple",
+            "grounded": true,
+            "carrying": false,
+            "carriedBy": false
+          },
+          {
+            "tx": 54.17,
+            "ty": 2.42,
+            "dead": false,
+            "skill": "heavy",
+            "grounded": true,
+            "carrying": false,
+            "carriedBy": false
+          }
+        ]
+      },
+      "recoveries": [
+        {
+          "name": "crane fight completes (yank plates + stomp pods) — NOT unwinnable",
+          "ok": true,
+          "note": "progressed to 'both reach the exit -> complete'"
+        },
+        {
+          "name": "tower reel-up: grapple zips back down and re-reels a fallen heavy (rung retry)",
+          "ok": true,
+          "note": "route complete=true"
+        }
+      ],
+      "repro": [
+        "full 1-3: defeat the crane (yank plates + stomp pods), then the tower — grapple zips up the anchors and REELS heavy up ledge by ledge",
+        "if heavy falls off a ledge it lands on the tower-base floor (no hazard); grapple zips back down and re-reels (the route's rung() retry)"
+      ],
+      "verdict": "RECOVERABLE — the crane is beatable (hard, not a hard-lock) and the tower reel-up re-descends/re-reels any fallen buddy. A heavy that falls lands on the tower-base floor (no hazard) and gets reeled again.",
+      "expectedUnverified": true,
+      "notes": "Tower-base floor is solid (r14) so a fallen heavy never dies and never leaves the reel's reach. The crane door is latch-open once defeated. No permanent strand."
+    },
+    {
+      "id": "2-2-fan-cross-lane",
+      "level": "2-2",
+      "category": "C",
+      "candidate": "Cross-lane separation; fan-ride required for Tiny (thermally non-deterministic)",
+      "durationMs": 39950,
+      "deaths": 0,
+      "classification": "RECOVERABLE",
+      "stuck": {
+        "note": "cross-lane fan/steam section",
+        "players": [
+          {
+            "tx": 54.73,
+            "ty": 13.47,
+            "dead": false,
+            "skill": "phase",
+            "grounded": true,
+            "carrying": false,
+            "carriedBy": false
+          },
+          {
+            "tx": 56.22,
+            "ty": 13.74,
+            "dead": false,
+            "skill": "tiny",
+            "grounded": true,
+            "carrying": false,
+            "carriedBy": false
+          }
+        ]
+      },
+      "recoveries": [
+        {
+          "name": "escort + fan-ride + valve (retrace to the escort wall reunites the lanes)",
+          "ok": true,
+          "note": "route complete=true (last: P holds plate pl1, T pulls lvF -> exit; both finish)"
+        }
+      ],
+      "repro": [
+        "full 2-2: Phase escorts Tiny through the entry wall; the FAN lifts Tiny to the high deck; the valve shuts the steam wall for Phase's corridor",
+        "the fan-lift + timed steam jets are fps-sensitive (the known 2-2 thermal flake on this box)"
+      ],
+      "verdict": "RECOVERABLE — the fan-ride/escort completes; the lanes rejoin at the reunion yard and either robot can retrace to the escort wall. Global checkpoints (x8, x17, x40) reunite on any death.",
+      "expectedUnverified": true,
+      "notes": "Explicitly flagged non-deterministic per the verification protocol. Classification defers to a cleaner run; the mechanics (escort back through the wall, shared checkpoints) provide recovery."
+    }
+  ],
+  "pageErrors": []
+}
