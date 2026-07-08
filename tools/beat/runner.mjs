@@ -77,6 +77,10 @@ async function runOne(page, id, assignment, full) {
   // SL2: zero the passive progress-watchdog session peak so this run measures its
   // OWN peak tier (pure read; the watchdog itself changes no gameplay).
   await page.evaluate(() => { window.__bbWatchdogPeakTier = 0; }).catch(() => {});
+  // SL3: likewise zero the explicit-softlock detector peak. It MUST stay 0 across
+  // the whole matrix (even +cores — the beat kit deliberately skips 1-2 core0):
+  // the explicit detector fires ONLY in the real hard softlock, never in a run.
+  await page.evaluate(() => { window.__bbSoftlockPeak = 0; window.__bbSoftlock = null; }).catch(() => {});
 
   const start = Date.now();
   let stepsDone = 0;
@@ -118,6 +122,10 @@ async function runOne(page, id, assignment, full) {
   // watchdog false-fire.
   let watchdogPeak = 0;
   try { watchdogPeak = await page.evaluate(() => window.__bbWatchdogPeakTier | 0); } catch { /* page gone */ }
+  // SL3: the explicit-detector peak reached during THIS run (must be 0 — no run
+  // enters the one real hard softlock). Reported SEPARATELY, like wd-peak.
+  let softlockPeak = 0;
+  try { softlockPeak = await page.evaluate(() => window.__bbSoftlockPeak | 0); } catch { /* page gone */ }
 
   const pass = !failure && complete;
   return {
@@ -132,6 +140,7 @@ async function runOne(page, id, assignment, full) {
     failedStep: failure?.step || "",
     error: failure?.error || "",
     watchdogPeak,
+    softlockPeak,
   };
 }
 
@@ -176,7 +185,7 @@ async function main() {
         const r = await runOne(page, id, assignment, FULL);
         results.push(r);
         process.stdout.write(
-          `${r.result} in ${(r.durationMs / 1000).toFixed(1)}s (${r.deaths} deaths, ${r.steps}/${r.totalSteps} steps, wd-peak ${r.watchdogPeak})` +
+          `${r.result} in ${(r.durationMs / 1000).toFixed(1)}s (${r.deaths} deaths, ${r.steps}/${r.totalSteps} steps, wd-peak ${r.watchdogPeak}, sl-peak ${r.softlockPeak})` +
           (r.result === "FAIL" ? ` — ${r.failedStep}: ${r.error}` : "")
         );
       }
@@ -213,6 +222,7 @@ async function main() {
         deaths: r.deaths,
         steps: `${r.steps}/${r.totalSteps}`,
         "wd-peak": r.watchdogPeak,
+        "sl-peak": r.softlockPeak,
         failedStep: r.failedStep,
       }))
     );
@@ -237,6 +247,10 @@ async function main() {
   if (runMatrix) {
     const wdMax = results.reduce((m, r) => Math.max(m, r.watchdogPeak || 0), 0);
     console.log(`SL2 watchdog: peak tier ${wdMax} across the matrix (0 = never raised — the no-false-fire guard)`);
+    const slMax = results.reduce((m, r) => Math.max(m, r.softlockPeak || 0), 0);
+    const slFired = results.filter((r) => (r.softlockPeak || 0) > 0);
+    console.log(`SL3 explicit detector: peak ${slMax} across the matrix (0 = never fired — the no-false-fire guard)`);
+    if (slFired.length) console.log(`  !! SL3 FALSE-FIRE on: ${slFired.map((r) => `${r.id}[${r.assignment}]`).join(", ")}`);
   }
   if (runChaosSmoke) console.log(`${chaosPass}/${chaosResults.length} chaos smokes GREEN`);
   if (pageErrors.length) console.log(`page errors seen (runner listener): ${pageErrors.length} (first: ${pageErrors[0]})`);

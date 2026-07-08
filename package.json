@@ -12,7 +12,8 @@
     "test:beat": "node tools/beat/runner.mjs",
     "test:beat:full": "node tools/beat/runner.mjs --full",
     "test:softlock": "node tools/softlock/runner.mjs",
-    "test:watchdog": "node tools/softlock/watchdog_probe.mjs"
+    "test:watchdog": "node tools/softlock/watchdog_probe.mjs",
+    "test:detector": "node tools/softlock/detector_probe.mjs"
   },
   "dependencies": {
     "phaser": "^3.87.0"

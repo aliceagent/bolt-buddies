@@ -12,6 +12,7 @@ import { drawWorldIcon } from "../worldIcons.js";
 import { AnimSystem } from "../anim/index.js";
 import { MOTION } from "../anim/motion.js";
 import { ProgressWatchdog } from "../softlock/watchdog.js";
+import { SoftlockDetectors } from "../softlock/detectors.js";
 
 const J = Phaser.Input.Keyboard.JustDown;
 
@@ -230,6 +231,18 @@ export default class GameScene extends Phaser.Scene {
     this.stuckTier = 0;
     this.watchdog = new ProgressWatchdog(this);
     this.watchdog.reset();
+
+    // SL3: the PASSIVE explicit-softlock detectors — precise per-softlock
+    // predicates that recognize a confirmed HARD SOFTLOCK the instant it forms and
+    // raise the firm signal immediately (no 25-50s wait), reusing SL2's stuckTier
+    // path + a structured `this.softlock` descriptor SL4 consumes. Read-only,
+    // zero per-frame alloc, changes NO physics/logic/timing/input. Driven right
+    // AFTER the watchdog in update() so a confirmed lock supersedes the live tier.
+    // Only ONE detector is active (1-2 core0 severed-tunnel trap — SL1's sole hard
+    // softlock); every RECOVERABLE situation is left to the watchdog's general net.
+    this.softlock = null;
+    this.detectors = new SoftlockDetectors(this);
+    this.detectors.reset();
 
     // physics wiring
     const rideCb = (pl, mv) => {
@@ -3782,6 +3795,11 @@ export default class GameScene extends Phaser.Scene {
     // system AND the anim overlay — so it observes the fully-settled frame and
     // only READS it (no physics/logic/input touched; zero per-frame allocation).
     this.watchdog.update(time, delta);
+    // SL3: drive the explicit-softlock detectors immediately AFTER the watchdog —
+    // same settled frame, read-only. On a confirmed hard softlock this raises the
+    // firm tier-2 + structured `this.softlock` signal, overriding the watchdog's
+    // live tier for the frame. Silent (no signal) in every recoverable situation.
+    this.detectors.update(time, delta);
     this.updateCamera(dt);
   }
 

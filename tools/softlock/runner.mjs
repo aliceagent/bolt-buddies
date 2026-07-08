@@ -47,6 +47,10 @@ async function runScenario(page, scn) {
   const bb = new Driver(page);
   bb.setRoles(ROLES_A);
   await startLevel(page, LEVEL_INDEX[scn.level]);
+  // SL3: zero the explicit-detector session peak so this scenario measures its OWN
+  // peak. It MUST stay 0 on every RECOVERABLE scenario — the no-false-fire guard
+  // (the explicit detector only ever fires in the one real hard softlock).
+  await page.evaluate(() => { window.__bbSoftlockPeak = 0; window.__bbSoftlock = null; }).catch(() => {});
   const start = Date.now();
   let res;
   try {
@@ -70,9 +74,13 @@ async function runScenario(page, scn) {
     "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "KeyL"]) {
     await page.keyboard.up(c).catch(() => {});
   }
+  // SL3: the explicit detector's peak reached during THIS scenario (must be 0 —
+  // every scenario here is RECOVERABLE, so no explicit detector may fire).
+  let softlockPeak = 0;
+  try { softlockPeak = await page.evaluate(() => window.__bbSoftlockPeak | 0); } catch { /* page gone */ }
   return {
     id: scn.id, level: scn.level, category: scn.category, candidate: scn.candidate,
-    durationMs: Date.now() - start, deaths: bb.deaths, ...res,
+    durationMs: Date.now() - start, deaths: bb.deaths, softlockPeak, ...res,
   };
 }
 
@@ -119,6 +127,10 @@ async function main() {
 
   const counts = results.reduce((m, r) => (m[r.classification] = (m[r.classification] || 0) + 1, m), {});
   console.log(`\nRECOVERABLE: ${counts.RECOVERABLE || 0}   HARD SOFTLOCK: ${counts["HARD SOFTLOCK"] || 0}   UNVERIFIED: ${counts.UNVERIFIED || 0}`);
+  const slMax = results.reduce((m, r) => Math.max(m, r.softlockPeak || 0), 0);
+  const slFired = results.filter((r) => (r.softlockPeak || 0) > 0);
+  console.log(`SL3 explicit detector: peak ${slMax} across all ${results.length} RECOVERABLE scenarios (0 = never fired — the no-false-fire guard)`);
+  if (slFired.length) console.log(`  !! SL3 FALSE-FIRE on: ${slFired.map((r) => r.id).join(", ")}`);
   const hard = results.filter((r) => r.classification === "HARD SOFTLOCK");
   if (hard.length) {
     console.log(`\nHARD SOFTLOCKS (for SL3/SL4):`);
