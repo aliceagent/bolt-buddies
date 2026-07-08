@@ -2326,7 +2326,13 @@ export default class GameScene extends Phaser.Scene {
     this._handholdCd = 0; // U5 (F2): shared cooldown for the shimmer-wall hand-hold hint
     this._ductHintCd = 0; // U12: shared cooldown for the vent-pinch "only tiny fits" hint
     // U13: co-op deep-pit rescue hint state (in-memory, per level instance).
+    // Two sibling cases share the pit zone + the 250ms check timer:
+    //   * BOTH-stuck  → teach the in-pit grapple to zip UP to the anchor (_pit*).
+    //   * ONE-stuck, partner OUT & grapple-capable → teach that partner the
+    //     DOWN+ACTION reel-out (_pitReel*). Each latches + cools independently.
     this._pitNextCheck = 0; this._pitStuckSince = 0; this._pitHintFired = false; this._pitHintCd = 0;
+    this._pitReelSince = 0; this._pitReelFired = false; this._pitReelCd = 0;
+    this._pitReelMeta = null; // passive probe observability (display-only)
   }
 
   drawCoachIcon(g, kind, cx, cy, idx, extra) {
@@ -2638,13 +2644,20 @@ export default class GameScene extends Phaser.Scene {
 
   // --- U13: co-op deep-pit rescue hint (tutorial-only) --------------------------
   // The tutorial's Station-4 grapple gap is a 4-tile-deep pit floored by the world
-  // bottom: BOTH robots can end up standing at the bottom with no jump-height way
-  // out (a soft-lock feeling for a first-timer). When both sit stuck for ~2.2s we
-  // teach the verified co-op escape: the GRAPPLE zips UP to the anchor above the
-  // pit, then REELS its buddy up. ALL reads are passive (positions/velocity/flags);
-  // this mutates no physics, geometry, or save. Gated on def.pitHint (only the
-  // tutorial declares it) + uxHints(); throttled to ~4Hz on its own timer. Fires
-  // ONCE per trap episode, re-arming only after BOTH escape the pit.
+  // bottom: a first-timer can end up standing at the bottom with no jump-height way
+  // out (a soft-lock feeling). Two sibling escapes get taught, ONE coherent picker:
+  //   CASE A — BOTH robots stuck at the bottom (~2.2s): teach the in-pit GRAPPLE to
+  //     zip UP to the anchor above the pit (it can then reel its buddy up).
+  //   CASE B — ONE robot stuck while its GRAPPLE partner stands OUT on the edge
+  //     holding the hook (the more common report): teach that OUT partner the
+  //     DOWN+ACTION reel-out. coachBuddyReelable(out) is EXACTLY "out can reel its
+  //     buddy" (buddy within (72,grappleRange], LOS) — so the taught chord always
+  //     works. Debounced ~1.6s.
+  // A binds the in-pit grapple, B binds the OUT grapple, so they never target the
+  // same intent at once; each latches once per episode with its own cooldown and
+  // re-arms only after nobody is left in the pit band. ALL reads are passive
+  // (positions/velocity/flags/skill); no physics, geometry, or save is touched.
+  // Gated on def.pitHint (tutorial-only) + uxHints(); throttled to ~4Hz.
   updatePitHint(time) {
     if (time < this._pitNextCheck) return;
     this._pitNextCheck = time + 250;
@@ -2654,22 +2667,48 @@ export default class GameScene extends Phaser.Scene {
     // a rope/zip/carry, and roughly still.
     const inPit = (p) => !p.dead && p.grounded && !p.zip && !p.reeled && !p.carriedBy &&
       !p.carrying && p.x > x0 && p.x < x1 && p.y > yLine && Math.abs(p.body.velocity.x) < 30;
-    const bothStuck = uxHints() && this.players.length >= 2 && this.players.every(inPit);
-    if (bothStuck) {
+    const hints = uxHints();
+    const two = this.players.length >= 2;
+    const stuck = two ? this.players.filter(inPit) : [];
+
+    // CASE A — BOTH stuck: teach the in-pit grapple to zip UP to the anchor.
+    if (hints && stuck.length === 2) {
+      this._pitReelSince = 0; // the asymmetric case can't co-apply while both sit
       if (!this._pitStuckSince) this._pitStuckSince = time;
       else if (!this._pitHintFired && time - this._pitStuckSince > 2200 && time > this._pitHintCd) {
         this._pitHintFired = true;
         this._pitHintCd = time + 12000; // rate-limit re-fires
         this.showPitHint();
       }
-    } else {
-      this._pitStuckSince = 0;
-      // Re-arm + clear only once BOTH are back out of the pit (they escaped).
-      const anyInBand = this.players.some((p) => !p.dead && p.x > x0 && p.x < x1 && p.y > yLine);
-      if (!anyInBand && this._pitHintFired) {
-        this._pitHintFired = false;
-        this.clearPitHint();
+      return;
+    }
+    this._pitStuckSince = 0;
+
+    // CASE B — exactly ONE stuck, and its partner is OUT of the pit, GRAPPLE-skilled,
+    // and can reel the stuck buddy (coachBuddyReelable). Teach that partner the reel.
+    let reelOut = null;
+    if (hints && stuck.length === 1) {
+      const out = stuck[0].partner;
+      if (out && !out.dead && out.skill === "grapple" && !inPit(out) &&
+        out.y < yLine && this.coachBuddyReelable(out)) reelOut = out;
+    }
+    if (reelOut) {
+      if (!this._pitReelSince) this._pitReelSince = time;
+      else if (!this._pitReelFired && time - this._pitReelSince > 1600 && time > this._pitReelCd) {
+        this._pitReelFired = true;
+        this._pitReelCd = time + 12000; // rate-limit re-fires
+        this.showReelHint(reelOut);
       }
+      return;
+    }
+    this._pitReelSince = 0;
+
+    // Neither case applies. Re-arm + clear each fired hint once NOBODY is left in
+    // the pit band (the stuck buddy was reeled/climbed out — they escaped).
+    const anyInBand = this.players.some((p) => !p.dead && p.x > x0 && p.x < x1 && p.y > yLine);
+    if (!anyInBand) {
+      if (this._pitHintFired) { this._pitHintFired = false; this.clearPitHint("pithint"); }
+      if (this._pitReelFired) { this._pitReelFired = false; this.clearPitHint("pitreel"); }
     }
   }
 
@@ -2689,9 +2728,30 @@ export default class GameScene extends Phaser.Scene {
     this.game.events.emit("bb:blip", "KOBI: Stuck? Work TOGETHER — zip UP, then REEL your buddy out.");
   }
 
-  clearPitHint() {
+  // CASE B: the OUT grapple partner reels the stuck buddy up. Bubble rides the OUT
+  // player (the one who acts); a leading DOWN-arrow + its DOWN key + its ACTION
+  // keycap spell the chord. `coachBuddyReelable(out)` already proved it works.
+  showReelHint(out) {
+    const gi = out.idx;
+    const downCap = gi === 0 ? "S" : "↓";
+    const actCap = gi === 0 ? "SPACE" : "L";
+    const tokens = gi === 0
+      ? [{ icon: "arrow", angle: Math.PI / 2 }, { cap: "S" }, { plus: true }, { cap: "SPACE" }]
+      : [{ icon: "arrow", angle: Math.PI / 2 }, { cap: "↓" }, { plus: true }, { cap: "L", p: 1 }];
+    this.coachShow(gi, {
+      tokens, caption: "REEL YOUR BUDDY OUT",
+      follow: { obj: out, dy: -out.displayHeight / 2 - 30 },
+      key: "pitreel", dur: 6000, colorP: gi,
+    });
+    // passive probe observability (display-only; never read by gameplay)
+    this._pitReelMeta = { idx: gi, caption: "REEL YOUR BUDDY OUT", downCap, actCap };
+    // KOBI flavor blip naming the reel-out chord for the grapple partner.
+    this.game.events.emit("bb:blip", "KOBI: Grapple partner — hold ↓ + ACTION to REEL them out.");
+  }
+
+  clearPitHint(key) {
     for (const b of this.coach.bubbles) {
-      if (b.active && b.key === "pithint") {
+      if (b.active && (b.key === "pithint" || b.key === "pitreel") && (!key || b.key === key)) {
         b.active = false; b.follow = null; b.c.setVisible(false); this.tweens.killTweensOf(b.c);
       }
     }
