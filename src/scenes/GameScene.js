@@ -1194,13 +1194,27 @@ export default class GameScene extends Phaser.Scene {
         };
         this.doors.push(door);
         // P5: small ID plate riveted on the side rail (drawn detail, not a lamp).
+        // P12: right-align the plate against the door's left rail and size it to
+        // its text, growing LEFTWARD into the gap BESIDE the leaf. A 4-char id
+        // ("GATE") used to sit centred on the rail (DEPTH.entity-1) and slide under
+        // the door leaf (DEPTH.entity, drawn over it), clipping to "GA". Now the tag
+        // lives fully clear of the leaf; it draws just above the assembly so the
+        // rail/leaf can never swallow it, and — being beside, not under, the leaf —
+        // an opening leaf still slides up past it with no floating-in-the-doorway.
         if (!door.isExit && e.id) {
-          const pw = 26, ph = 12, plx = cx - halfW - 2.5, ply = top + h / 2;
-          frame.fillStyle(0x0c1424, 0.95).fillRoundedRect(plx - pw / 2, ply - ph / 2, pw, ph, 2);
-          frame.lineStyle(1, 0x44548c).strokeRoundedRect(plx - pw / 2, ply - ph / 2, pw, ph, 2);
-          this.add.text(plx, ply, String(e.id).slice(0, 4).toUpperCase(), {
+          const ph = 12, ply = top + h / 2, pad = 6;
+          const label = String(e.id).slice(0, 4).toUpperCase();
+          const prx = cx - halfW - 7; // plate right edge, clear of the side rail + leaf
+          // Own graphics + text at DEPTH.entity + 1: the plate sits in the gap
+          // BESIDE the leaf (not under it), so this reads as a riveted rail tag and
+          // is never clipped by the leaf/rail that used to swallow a 4-char id.
+          const plate = this.add.graphics().setDepth(DEPTH.entity + 1);
+          const t = this.add.text(prx - pad, ply, label, {
             fontFamily: FONT, fontSize: FS.tiny, color: TEXT.dim,
-          }).setOrigin(0.5).setDepth(DEPTH.entity - 1).setResolution(2);
+          }).setOrigin(1, 0.5).setDepth(DEPTH.entity + 2).setResolution(2);
+          const pw = t.width + pad * 2;
+          plate.fillStyle(0x0c1424, 0.95).fillRoundedRect(prx - pw, ply - ph / 2, pw, ph, 2);
+          plate.lineStyle(1, 0x44548c).strokeRoundedRect(prx - pw, ply - ph / 2, pw, ph, 2);
         }
         if (door.isExit) {
           this.exitDoor = door;

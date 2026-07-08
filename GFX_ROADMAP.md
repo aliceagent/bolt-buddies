@@ -231,3 +231,35 @@ Same as Pass 1: each sprint implemented by an Opus agent on buddies dev,
 reviewed by Fable (screenshots + independent full-stack run), accepted →
 buddies main (auto-deploy), rejected → precise fixes. Matrix red = binding
 beat-failure protocol.
+
+## P12 audit — findings & fixes
+
+Regenerated the full gallery into `tools/shots/gallery2/` (26 shots: title, hub
+fresh+progressed, settings, pause, all 6 levels start+action, tutorial ×2, clear
+overlay, plus the states shipped since the last gallery — the SL4 "Stuck?" prompt
+tiers, the global mute dropdown, and representative animation frames) and diffed
+it shot-by-shot against the old `tools/shots/gallery/`.
+
+**Defect fixed this pass**
+- **Door ID plate clipped** — a 4-char door id ("GATE") was centred on the side
+  rail at `DEPTH.entity-1` and slid *under* the leaf (drawn over it at
+  `DEPTH.entity`), clipping to "GA". Now the plate is right-aligned against the
+  rail, sized to its text, drawn at `DEPTH.entity+1/+2` in the gap **beside** the
+  leaf (never under it) — the tag reads in full and an opening leaf slides clear
+  past it. (`src/scenes/GameScene.js`, cosmetic draw-only.)
+
+**Full stack green (proves the fix was cosmetic-only)**
+- 12-run beat matrix: world-1 6/6 GREEN; world-2 4/6 (the 2 misses are the
+  documented 2-2 fan thermal env flake — wd-peak 0 + sl-peak 0 on every run,
+  standalone 2-2 re-runs pass). tut_sanity 21/21. `test:softlock` 10 RECOVERABLE
+  / 0 HARD / 1 UNVERIFIED (the 2-2 env flake). `test:softlock:sweep` ALL CHAIN
+  CHECKS PASSED. Watchdog + detector peaks 0 everywhere.
+
+**Follow-up UX-clarity pass (identified here, addressed in the next sprint)**
+- The **tier-1 "Stuck?" prompt** ("No shame in a fresh start.") does not tell the
+  player *how* to restart — it must show the R×2 keycaps + explicit instruction.
+- **Text-bubble fit** — every pop-up bubble (stuck prompts, KOBI blip bar, coach
+  hints, pedestal item cards, intro banner, confirm toast, pit hints, exit toast)
+  should be sized to its text and wrap to two lines where that reads better.
+- A **tier-3 "cold hard truth" escalation** — a persistent player who ignores the
+  restart advice gets a grey-fade + a firmer re-prompt after a longer stuck window.

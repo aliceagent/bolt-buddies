@@ -63,6 +63,8 @@ crowds of enemies never turn into a wall of noise.
 - ✅ Hub map, hidden data-cores, localStorage save
 - ✅ "Orientation Day" tutorial chamber (KOBI-narrated, reachable from the main menu)
 - ✅ UI polish pass: one shared typography scale (`FONT`/`FS`) and colour palette (`TEXT`), audited depth ordering, and a consistent world-accent language across HUD, hubs and intro banners
+- ✅ Full procedural animation pass (idle/run/skill/reaction rigs, enemies, crane & devices) and a non-blocking "Stuck?" recovery prompt (escalating gentle → firm R×2 restart), with a global mute dropdown and Orientation-Day restart lesson
+- ✅ Meticulous final visual audit (GFX P12): full gallery regenerated shot-by-shot and every meaning-bearing state verified under Canvas — zero known visual defects
 - 🔜 Worlds 3–4, story scenes, polish (see roadmap in the design doc)
 
 ## Run locally
