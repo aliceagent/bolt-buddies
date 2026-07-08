@@ -17,6 +17,7 @@ import { FidgetScheduler } from "./fidget.js";
 import { DeathScatter } from "./death.js";
 import { installPlayerAnim } from "./player_anim.js";
 import { installBugAnim } from "./bug_anim.js";
+import { installRollerAnim } from "./roller_anim.js";
 import { TIMING } from "./motion.js";
 import { DEPTH } from "../constants.js";
 import { sfx } from "../audio.js";
@@ -101,7 +102,7 @@ export class AnimSystem {
   }
 
   registerRoller(r) {
-    return this._add(r.img, {
+    const rig = this._add(r.img, {
       kind: "roller", depth: DEPTH.entity + 2,
       probe: (h, out) => {
         const b = h.body;
@@ -113,6 +114,10 @@ export class AnimSystem {
         out.input = false;
       },
     });
+    // A6: hang the visible roller set (wheel spin + pupil track/snap/dilate +
+    // klaxon sweep + hmm head-tilt + zap recoil) as a pure overlay on the beam logic.
+    installRollerAnim(rig, this.scene, r);
+    return rig;
   }
 
   registerWarden(w) {

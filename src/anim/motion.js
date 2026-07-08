@@ -68,6 +68,17 @@ export const MOTION = Object.freeze({
   BUG_FEELER: tok(360, "sine.inOut"), // antenna-feeler twitch (fired by the shared scheduler)
   BUG_REARUP: tok(240, "quad.out"), // alarm rear-up ease when a player enters range
   BUG_STUMBLE: tok(260, "back.out"), // bonk-turn stumble wobble at a patrol reversal
+
+  // --- enemy: patrol roller (A6) -------------------------------------------
+  // Every one is a VISUAL overlay on the SACRED patrol/beam/alert/zap logic (never
+  // touches the roller body/velocity or the beam geometry — head-tilt + recoil are
+  // host-rotation-only, which the Arcade AABB ignores and the beam origin never reads).
+  // `amp` is the rotation amplitude in radians (added beside dur/ease).
+  ROLLER_WHEEL: tok(120, "linear"), // reference cadence; the wheel roll is |vx|-driven
+  ROLLER_PUPIL: tok(180, "sine.out"), // pupil track ease (snap on alert is immediate)
+  ROLLER_KLAXON: tok(475, "linear"), // klaxon beacon sweep period while alerted
+  ROLLER_HMM: Object.freeze({ dur: 1000, ease: "sine.inOut", amp: 0.20 }), // LOS-break head-tilt + squint
+  ROLLER_RECOIL: Object.freeze({ dur: 340, ease: "back.out", amp: 0.24 }), // zap kickback rock
 });
 
 // Idle-tier + fidget-scheduler timing (ms). Kept beside the motion tokens so the

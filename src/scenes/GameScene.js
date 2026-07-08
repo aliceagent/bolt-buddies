@@ -3850,6 +3850,7 @@ export default class GameScene extends Phaser.Scene {
         (p) => !p.dead && p.invuln <= 0 && !p.carriedBy && p.skill !== "tiny" &&
           Phaser.Geom.Rectangle.Overlaps(r.beamRect, bodyRect(p))
       );
+      r._seen = seen || null; // A6: cache the resolved beam target for the rig's pupil snap (read-only)
       if (r.state === "patrol" && seen) {
         r.state = "alert";
         r.timer = 500;
@@ -3878,11 +3879,14 @@ export default class GameScene extends Phaser.Scene {
         const sx = r.dir === 1 ? bx + i * seg : bx - (i + 1) * seg;
         this.beamGfx.fillRect(sx, eyeY - h / 2, seg, h);
       }
-      // pupil slides toward the patrol direction; wheels spin with travel
-      r.pupil.setPosition(img.x + r.dir * 14, img.y - 5);
-      if (r.state === "patrol") r.wheelAngle += r.dir * 320 * dt;
-      r.wheels[0].setPosition(img.x - 9, img.y + 11).setAngle(r.wheelAngle);
-      r.wheels[1].setPosition(img.x + 9, img.y + 11).setAngle(r.wheelAngle);
+      // A6: base ATTACHMENT only — the pupil sits at the eye centre and the wheels
+      // ride their hubs; the ANIM RIG (roller_anim.js) drives the pupil track/snap/
+      // dilate slide and the velocity-matched wheel spin as a pure overlay, so a
+      // rig-off (`?animoff=1`) roller renders static. Position stays here (so the
+      // P7 art follows the body even with the rig disabled); rotation/scale is the rig's.
+      r.pupil.setPosition(img.x, img.y - 5);
+      r.wheels[0].setPosition(img.x - 9, img.y + 11);
+      r.wheels[1].setPosition(img.x + 9, img.y + 11);
       // P7: warning lamp lit while alerted (static texture-state swap; no spin)
       const lampTex = r.state === "alert" ? "roller_lamp_lit" : "roller_lamp";
       if (r._lampTex !== lampTex) { r._lampTex = lampTex; r.lamp.setTexture(lampTex); }
