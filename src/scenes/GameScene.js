@@ -313,6 +313,11 @@ export default class GameScene extends Phaser.Scene {
     // screen-fixed, canvas-safe). Built for every level; only armed on real
     // chambers (the tutorial keeps single-press — see update()).
     this.buildConfirm();
+    // SL4 — the pooled "Stuck?" escalating recovery prompt (tier-1 gentle nudge /
+    // tier-2 firm R×2 restart offer). Built once here; update() only toggles it on
+    // a TIER CHANGE. It consumes SL2's this.stuckTier + SL3's this.softlock and
+    // ONLY offers the existing R×2 restart / ESC×2 map — never blocks input.
+    this.buildStuckPrompt();
 
     // P11: impact family — white core (world accent is carried by the paired
     // dust/ring tints). Swept onto the PARTICLES palette map.
@@ -3166,6 +3171,124 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
+  // --- SL4: "Stuck?" escalating recovery prompt ----------------------------------
+  // A single pooled, screen-fixed prompt reused for the tier-1 gentle nudge and the
+  // tier-2 firm restart offer. Mirrors the U3 confirm toast (buildConfirm): built
+  // ONCE here; updateStuckPrompt() only swaps text + toggles visibility on a TIER
+  // CHANGE — never a per-frame allocation, never a redraw while idle. It only READS
+  // this.stuckTier (SL2 watchdog) / this.softlock (SL3 detectors) and OFFERS the
+  // EXISTING R×2 restart / ESC×2 map — it never blocks/eats/delays input, never
+  // auto-restarts, never seizes control. Positioned at H*0.62 so it clears BOTH the
+  // U3 confirm toast (H*0.4) and the KOBI blip bar (UIScene y = H-92 .. H-26).
+  buildStuckPrompt() {
+    const W = this.scale.width, H = this.scale.height;
+    const g = this.add.graphics();                    // panel bg+border (drawn on tier change)
+    const caps = this.add.graphics().setVisible(false); // R keycap boxes (tier-2 only)
+    // keycap glyphs — two "R" letters, repositioned on show (1 in the tutorial's
+    // single-press mode, 2 for the real R×2). Built once, toggled/moved on change.
+    const capA = this.add.text(0, 2, "R", { fontFamily: FONT, fontSize: FS.head, fontStyle: "bold", color: "#ffd94d" }).setOrigin(0.5).setVisible(false);
+    const capB = this.add.text(0, 2, "R", { fontFamily: FONT, fontSize: FS.head, fontStyle: "bold", color: "#ffd94d" }).setOrigin(0.5).setVisible(false);
+    const head = this.add.text(0, 0, "", { fontFamily: FONT, fontSize: FS.head, fontStyle: "bold", color: TEXT.warn }).setOrigin(0.5);
+    const sub = this.add.text(0, 34, "", { fontFamily: FONT, fontSize: FS.small, color: TEXT.dim }).setOrigin(0.5).setVisible(false);
+    // clamp the y so the tallest (tier-2) panel always clears the blip bar top.
+    const y = Math.min(H * 0.62, H - 92 - 66);
+    const c = this.add.container(W / 2, y, [g, caps, capA, capB, head, sub])
+      .setScrollFactor(0).setDepth(DEPTH.fx + 58).setVisible(false);
+    this.stuckUI = { c, g, caps, capA, capB, head, sub };
+    this._stuckTierShown = 0;   // the tier currently rendered (0 = hidden)
+    this._stuckModeShown = "";  // "gentle" | "firm" | "softlock"
+  }
+
+  // Render the prompt for a tier (called ONLY on a tier/mode change, never idle).
+  showStuckPrompt(mode) {
+    const ui = this.stuckUI;
+    this.tweens.killTweensOf(ui.c);
+    ui.g.clear();
+    ui.caps.clear();
+    if (mode === "gentle") {
+      // Tier 1 — a soft, blame-free KOBI nudge. No keycaps, calm cyan edge.
+      const bw = 348, bh = 50;
+      ui.g.fillStyle(COLORS.hudBg, 0.9).fillRoundedRect(-bw / 2, -bh / 2, bw, bh, 12);
+      ui.g.lineStyle(2.5, COLORS.neon, 0.8).strokeRoundedRect(-bw / 2, -bh / 2, bw, bh, 12);
+      ui.head.setColor(TEXT.body).setText("Stuck? No shame in a fresh start.").setY(0);
+      ui.caps.setVisible(false); ui.capA.setVisible(false); ui.capB.setVisible(false);
+      ui.sub.setVisible(false);
+    } else {
+      // Tier 2 — a clear, firm (but blame-free) restart offer with R keycaps. A
+      // confirmed SL3 hard softlock ("softlock") gets confident copy; a watchdog t2
+      // stall ("firm") gets the encouraging variant. The tutorial restarts on a
+      // SINGLE R press (see update()), so it shows ONE keycap + single-press copy.
+      const single = !!(this.def && this.def.tutorial);
+      const bw = 452, bh = 108;
+      ui.g.fillStyle(COLORS.hudBg, 0.95).fillRoundedRect(-bw / 2, -bh / 2, bw, bh, 14);
+      ui.g.lineStyle(3, COLORS.amber, 1).strokeRoundedRect(-bw / 2, -bh / 2, bw, bh, 14);
+      ui.head.setColor(TEXT.warn).setY(-34).setText(mode === "softlock" ? "DEAD END — no way through" : "STUCK? Time for a fresh start");
+      // lay out 1 or 2 R keycaps, centered on the middle row
+      const capW = 34, capH = 34, gap = 14;
+      const drawCap = (cx) => {
+        ui.caps.fillStyle(0x000000, 0.55).fillRoundedRect(cx - capW / 2, 2 - capH / 2, capW, capH, 7);
+        ui.caps.lineStyle(2.5, COLORS.amber, 1).strokeRoundedRect(cx - capW / 2, 2 - capH / 2, capW, capH, 7);
+      };
+      if (single) {
+        drawCap(0); ui.capA.setX(0).setVisible(true); ui.capB.setVisible(false);
+        ui.sub.setText("Press R to restart  ·  ESC = map");
+      } else {
+        const cA = -(capW + gap) / 2, cB = (capW + gap) / 2;
+        drawCap(cA); drawCap(cB);
+        ui.capA.setX(cA).setVisible(true); ui.capB.setX(cB).setVisible(true);
+        ui.sub.setText("Hold R twice to restart  ·  ESC twice = map");
+      }
+      ui.caps.setVisible(true);
+      ui.sub.setVisible(true);
+    }
+    ui.c.setVisible(true).setScale(0.85).setAlpha(0);
+    this.tweens.add({ targets: ui.c, scale: 1, alpha: 1, duration: 180, ease: "back.out" });
+  }
+
+  hideStuckPrompt() {
+    if (!this.stuckUI) return;
+    this.tweens.killTweensOf(this.stuckUI.c);
+    this.stuckUI.c.setVisible(false).setAlpha(1).setScale(1);
+  }
+
+  // True while any contextual co-op hint is showing OR applies — tier-1 DEFERS to
+  // it (never stacks a second prompt on the co-op hint). Every contextual hint (U1
+  // coach, U5 escort, throw / re-pull, U13/U13b pit reel) renders through a coach
+  // bubble, so an active bubble covers "is showing"; the U13 pit-fired flags cover
+  // "still applies" across the bubble's post-fire cooldown while the team sits in
+  // the pit band. Pure scalar reads — zero allocation.
+  _coopHintActive() {
+    const co = this.coach;
+    if (co && co.bubbles) {
+      for (let i = 0; i < co.bubbles.length; i++) if (co.bubbles[i].active) return true;
+    }
+    if (this._pitHintFired || this._pitReelFired) return true;
+    return false;
+  }
+
+  // Driven at the tail of update(), AFTER the watchdog + detectors have settled the
+  // frame's signal. Resolves the desired tier/mode from the READ-ONLY signals and,
+  // on a CHANGE only, shows/hides the pooled prompt. Clears INSTANTLY the moment
+  // progress resumes (stuckTier→0 / softlock cleared) — no per-frame work when the
+  // tier is unchanged. U11 is already honored upstream (the watchdog/detectors
+  // never raise a tier while hints/comfort are off), so this never shows then.
+  updateStuckPrompt() {
+    let tier = 0, mode = "";
+    if (this.softlock) { tier = 2; mode = "softlock"; }        // SL3 confirmed hard lock
+    else {
+      const st = this.stuckTier | 0;
+      if (st >= 2) { tier = 2; mode = "firm"; }                 // SL2 watchdog t2
+      else if (st === 1) { tier = 1; mode = "gentle"; }         // SL2 watchdog t1
+    }
+    // Tier-1 defers to any active/applicable contextual co-op hint (roadmap §2).
+    if (tier === 1 && this._coopHintActive()) { tier = 0; mode = ""; }
+    if (tier === this._stuckTierShown && mode === this._stuckModeShown) return;
+    this._stuckTierShown = tier;
+    this._stuckModeShown = mode;
+    if (tier === 0) this.hideStuckPrompt();
+    else this.showStuckPrompt(mode);
+  }
+
   // --- main loop -----------------------------------------------------------------
   update(time, delta) {
     if (this.complete) return;
@@ -3800,6 +3923,10 @@ export default class GameScene extends Phaser.Scene {
     // firm tier-2 + structured `this.softlock` signal, overriding the watchdog's
     // live tier for the frame. Silent (no signal) in every recoverable situation.
     this.detectors.update(time, delta);
+    // SL4: render the pooled "Stuck?" prompt from the now-settled SL2/SL3 signals.
+    // Pure read of this.stuckTier / this.softlock; toggles the prompt only on a
+    // tier change (zero per-frame alloc). Offers R×2/ESC×2 — never touches input.
+    this.updateStuckPrompt();
     this.updateCamera(dt);
   }
 
