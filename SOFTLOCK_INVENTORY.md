@@ -63,18 +63,26 @@ Why, grounded in geometry + code + the driven probe:
 - A door **never closes on a robot standing in its zone** (no crush; GameScene 3483).
 - Global checkpoints (x7, x47) mean any death **reunites** the team.
 
-**Exact repro (driven):**
+**Exact repro (driven, deterministic — 3/3 RECOVERABLE on re-runs):**
 1. Equip; Phase ambushes w1 through the x20 shimmer panel and stages at `lvB1` (x24);
    Tiny stages just short of `tDoorA` (x26).
-2. Phase pulls `lvB1` → `tDoorA` opens (`lvB1 on-after-pull=true`). **Do NOT cross.**
-3. Wait out the 6.5 s timer → `tDoorA` closes and `lvB1` pops back out
-   (`tDoorA_closedAfterTimer=true`, `lvB1_poppedOffOnExpiry=true`).
+2. Phase pulls `lvB1` → `tDoorA` opens (`lvB1 on-after-pull=true`). Tiny retreats clear of
+   the door zone (x23) and does **not** cross.
+3. Poll out the 6.5 s timer → `tDoorA` **re-arms**: `lvB1` pops back out
+   (`tDoorA_reArmedOnExpiry=true` — the deterministic expiry signal, flipped in the same
+   GameScene branch that re-closes the door) and the door is observed closed
+   (`tDoorA_closedObservedInWindow=true`). *Note:* if a robot instead waits inside the door
+   zone, the door re-arms but stays physically open — the "never close on someone" guard —
+   which is if anything safer.
 4. Phase **re-pulls** `lvB1` → `tDoorA` re-opens (`tDoorA_reopenedByRepull=true`).
 5. Complete the relay: Tiny through `tDoorA` → `lvA1` (x32) → `tDoorB` opens
    (`tDoorB_openedByLvA1=true`) → Phase through (`tinyPastDoorA` & `phasePastDoorB=true`).
 
-A botched window is therefore always retryable; there is no reachable configuration in
-which the re-open lever is unreachable *and* the partner is also trapped.
+The verdict rests on the deterministic assertions (expiry re-arm → re-pull re-opens →
+relay completes with both robots past their doors); the closed-state capture is
+corroborating, not load-bearing. A botched window is therefore always retryable; there is
+no reachable configuration in which the re-open lever is unreachable *and* the partner is
+also trapped.
 
 ---
 

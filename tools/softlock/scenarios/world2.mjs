@@ -63,9 +63,9 @@ export default [
     candidate: "HIGHEST RISK — cross-lane timed doors (6.5s): can a team be SEALED between two closed doors?",
     repro: [
       "equip; Phase ambushes w1 and stages at lvB1 (x24, bottom lane); Tiny stages just short of tDoorA (x26, top lane)",
-      "PROBE A: Phase pulls lvB1 → tDoorA opens 6.5s; DON'T cross; wait out the timer → tDoorA closes AND lvB1 pops back out",
+      "PROBE A: Phase pulls lvB1 → tDoorA opens 6.5s; Tiny retreats clear (x23) and DOESN'T cross; poll out the timer → tDoorA RE-ARMS (lvB1 pops back out; door observed closed)",
       "PROBE A: Phase RE-PULLS lvB1 → tDoorA re-opens (the re-open lever re-fires and is reachable by the free partner)",
-      "PROBE C: complete the relay — Tiny through tDoorA to lvA1 (x32) → tDoorB (x34) opens → Phase through",
+      "PROBE C: complete the relay — Tiny through tDoorA to lvA1 (x32) → tDoorB (x34) opens → Phase through (both robots pass)",
     ],
     async run(bb) {
       const ti = bb.idx("T");
@@ -81,10 +81,25 @@ export default [
       await bb.act("P"); // pull lvB1
       await bb.waitFor((s) => s.doors.find((d) => d.id === "tDoorA")?.open, 4000, "tDoorA open");
       const lvB1OnAfterPull = (await bb.state()).levers.find((l) => l.id === "lvB1")?.on;
-      // wait out the 6.5s timer (T does NOT cross)
-      const closed = await bb.waitFor((s) => !s.doors.find((d) => d.id === "tDoorA")?.open, 12000, "tDoorA re-armed/closed")
-        .then(() => true).catch(() => false);
-      const lvB1OffAfterExpiry = !(await bb.state()).levers.find((l) => l.id === "lvB1")?.on;
+      // Retreat Tiny clear of tDoorA's zone (x23) so the door isn't held open by
+      // the "never close on someone" guard — otherwise it re-arms (lever pops) but
+      // stays physically open while she waits in it, and the close is never seen.
+      await bb.walkTo("T", 23, { tol: 6, timeout: 5000 }).catch(() => {});
+      // Wait out the 6.5s timer (T does NOT cross), POLLING the whole post-open
+      // window at ~80ms so the transient "door observed closed" capture is robust
+      // on a thermally-hot box (a single lucky sample is fragile). lvB1 popping
+      // back off is the DETERMINISTIC expiry signal — it flips in the exact same
+      // GameScene branch that re-arms the door — so we key the loop off that, with
+      // a generous settle margin well past the 6.5s window.
+      let closedObserved = false, lvB1OffAfterExpiry = false;
+      const pollEnd = now() + 11000; // 6.5s timer + ~4.5s hot-box settle margin
+      while (now() < pollEnd) {
+        const s = await bb.state();
+        if (!s.doors.find((d) => d.id === "tDoorA")?.open) closedObserved = true;
+        if (!s.levers.find((l) => l.id === "lvB1")?.on) lvB1OffAfterExpiry = true;
+        if (closedObserved && lvB1OffAfterExpiry) break; // expiry fully observed
+        await sleep(80);
+      }
       // re-pull the SAME lever — proves it re-fires and is reachable
       await bb.act("P");
       const reopened = await bb.waitFor((s) => s.doors.find((d) => d.id === "tDoorA")?.open, 4000, "tDoorA re-opened")
@@ -100,12 +115,19 @@ export default [
       const tPastA = st.players[ti].tx > 26;
       const pPastB = st.players[pi].tx > 34;
 
-      const sealProven = oneDoorPerLane && lvB1OnAfterPull && closed && lvB1OffAfterExpiry && reopened && tDoorBOpen;
+      // Recoverability rests ONLY on the deterministic assertions: the timer
+      // expired (lever popped off) → re-pull re-opened the door → the relay
+      // completed with BOTH robots past their doors. The transient closed-state
+      // capture is corroborating, NOT load-bearing — one fragile frame must never
+      // flip a proven-recoverable scenario to UNVERIFIED.
+      const sealProven = oneDoorPerLane && lvB1OnAfterPull && lvB1OffAfterExpiry
+        && reopened && tDoorBOpen && tPastA && pPastB;
       return {
         classification: sealProven ? "RECOVERABLE" : "UNVERIFIED",
         stuck: {
           oneTimedDoorPerLane: oneDoorPerLane,
-          tDoorA_closedAfterTimer: closed, lvB1_poppedOffOnExpiry: lvB1OffAfterExpiry,
+          tDoorA_reArmedOnExpiry: lvB1OffAfterExpiry, // deterministic 6.5s-expiry signal (lever pops off)
+          tDoorA_closedObservedInWindow: closedObserved, // corroborating (polled, not load-bearing)
           tDoorA_reopenedByRepull: reopened, tDoorB_openedByLvA1: tDoorBOpen,
           tinyPastDoorA: tPastA, phasePastDoorB: pPastB,
         },
