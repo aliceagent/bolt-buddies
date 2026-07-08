@@ -20,6 +20,7 @@ import { installBugAnim } from "./bug_anim.js";
 import { installRollerAnim } from "./roller_anim.js";
 import { installWardenAnim } from "./warden_anim.js";
 import { installCraneAnim } from "./crane_anim.js";
+import { installDeviceAnim } from "./device_anim.js";
 import { TIMING } from "./motion.js";
 import { DEPTH } from "../constants.js";
 import { sfx } from "../audio.js";
@@ -63,6 +64,10 @@ export class AnimSystem {
       if (rig.startAnimFidget) rig.startAnimFidget(tier);
     };
     this._partnerFired = false; // A3 partner one-shot latch (re-arms on separate/move)
+    // A9: the living-lab device-personality controller (crusher/pedestal/checkpoint/
+    // exit/lift). Created in registerLevel() once the devices exist; a pure overlay on
+    // the SACRED device logic, updated LAST + gated by `enabled` (byte-identical when off).
+    this.device = null;
     // rig-off A/B switch. ?animoff=1 boots disabled; the probe flips this live.
     this.enabled = !new URLSearchParams(location.search).has("animoff");
   }
@@ -161,6 +166,8 @@ export class AnimSystem {
     if (s.rollers) s.rollers.forEach((r) => this.registerRoller(r));
     if (s.wardens) s.wardens.forEach((w) => this.registerWarden(w));
     if (s.crane) this.registerCrane(s.crane);
+    // A9: wire the device-personality overlays now that every device record exists.
+    this.device = installDeviceAnim(s);
   }
 
   // One frame. Runs AFTER all game logic. When disabled (A/B rig-off) it returns
@@ -170,6 +177,8 @@ export class AnimSystem {
     for (let i = 0; i < this.rigs.length; i++) this.rigs[i].update(time, delta);
     this.fidget.update(time, delta);
     this._updatePartner();
+    // A9: drive the device-personality overlays last (after every rig + game logic).
+    if (this.device) this.device.update(time, delta);
   }
 
   // A3 PARTNER-AWARE moment: when BOTH players have been idle within 6 tiles of
@@ -207,5 +216,6 @@ export class AnimSystem {
     this.rigs.length = 0;
     this.byHost.clear();
     if (this.deathScatter) this.deathScatter.destroy();
+    if (this.device) { this.device.destroy(); this.device = null; }
   }
 }

@@ -109,6 +109,23 @@ export const MOTION = Object.freeze({
   CRANE_SQUASH: Object.freeze({ dur: 420, ease: "quad.out", sx: 0.16, sy: 0.20 }), // slam impact squash + rebound (scale)
   CRANE_FLINCH: Object.freeze({ dur: 360, ease: "back.out", amp: 0.09 }), // per-plate-yank flinch (rotation kick)
   CRANE_DEFEAT: Object.freeze({ lampDur: 520, defiantAt: 640, defiantDur: 300, defiantAmp: 0.05 }), // staged power-down beats (ms + scale)
+
+  // --- devices: living lab / device personality (A9) ------------------------
+  // Every one is a VISUAL overlay on the SACRED device LOGIC (crusher slam timing/
+  // hitbox, pedestal equip, checkpoint activation + respawn point, exit finishLevel
+  // trigger, lift movement/threshold/y-positions — ALL byte-identical). The quiver is
+  // host ROTATION only (the slam hitbox reads img.x/img.y — never rotation); the sigh
+  // is a POOLED, budgeted steam puff; the pedestal lean is a cosmetic icon-container
+  // transform + orbit-tween timeScale (the equip reads ped.x/ped.y, never the icon);
+  // the checkpoint wake + lift bounce are body-invariant SCALE (origin-centred: img.x/
+  // img.y and the arcade body are unmoved); the exit impatience only bumps the marquee
+  // PHASE (cosmetic dots; finishLevel reads zone containment, never the phase).
+  CRUSH_QUIVER: Object.freeze({ dur: 320, amp: 0.05, freq: 46 }), // wind-up servo quiver: window(ms) + rotation amp(rad) + osc freq
+  CRUSH_SIGH: Object.freeze({ count: 10, life: 640 }),            // relieved steam puff after impact (pooled + budgeted)
+  PED_ORBIT: Object.freeze({ range: 150, maxScale: 2.6, lean: 6, tilt: 8, ease: 6 }), // orbit speed-up + lean toward an approaching unskilled robot (px/deg)
+  CHECK_WAKE: Object.freeze({ dur: 440, range: 92, sx: 0.14, sy: 0.20 }), // wake-up stretch blink on first approach (scale)
+  EXIT_IMPATIENCE: Object.freeze({ boost: 0.018, ease: 5 }),     // marquee extra phase/ms while exactly one buddy waits
+  LIFT_BOUNCE: Object.freeze({ dur: 460, sx: 0.10, sy: 0.16 }),  // suspension settle bounce at each travel end (scale)
 });
 
 // Idle-tier + fidget-scheduler timing (ms). Kept beside the motion tokens so the

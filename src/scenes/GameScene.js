@@ -432,6 +432,9 @@ export default class GameScene extends Phaser.Scene {
       this.boom, this.sparks, this.dust, this.shards, this.craneSmoke,
       this.zipLines, this.starBurst, this.bolts, this.jetDrips, this.ventPuff,
     ];
+    // A9: the device-personality controller (built in registerLevel, before this) owns a
+    // pooled crusher steam SIGH — count it against the shared ~120 alive-particle budget.
+    if (this.anim && this.anim.device && this.anim.device.sigh) this._budgetEmitters.push(this.anim.device.sigh);
 
     // Thrown-buddy dotted TRAIL (fades 400ms). Distinct from U6's carrying
     // preview arc: this stamps fading dots along a buddy AFTER it is thrown.
@@ -1060,7 +1063,10 @@ export default class GameScene extends Phaser.Scene {
         // pedestals' cards never overlap each other. Verified clear of the intro
         // banner + top HUD band by the spawn overlap-audit sweep.
         const cardY = py - 150 - this.pedestals.length * 96;
-        const ped = { x: px, y: py, skill: e.skill, taken: false, img, icon, beam, bands: [band1, band2].filter(Boolean), glyphEmit };
+        // A9: `orbit` is exposed so the device-personality overlay can speed up the
+        // skill-icon orbit toward an approaching unskilled robot (cosmetic; the equip
+        // reads ped.x/ped.y, never the icon/orbit transform).
+        const ped = { x: px, y: py, skill: e.skill, taken: false, img, icon, orbit, beam, bands: [band1, band2].filter(Boolean), glyphEmit };
         this.buildItemCard(ped, px, cardY, info);
         this.pedestals.push(ped);
         break;
