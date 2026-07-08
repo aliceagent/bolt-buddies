@@ -79,6 +79,19 @@ export const MOTION = Object.freeze({
   ROLLER_KLAXON: tok(475, "linear"), // klaxon beacon sweep period while alerted
   ROLLER_HMM: Object.freeze({ dur: 1000, ease: "sine.inOut", amp: 0.20 }), // LOS-break head-tilt + squint
   ROLLER_RECOIL: Object.freeze({ dur: 340, ease: "back.out", amp: 0.24 }), // zap kickback rock
+
+  // --- enemy: wall-warden (A7) ---------------------------------------------
+  // Every one is a VISUAL overlay on the SACRED shove/defeat logic (never touches
+  // the warden body/hitbox, the shove push/cd/timing, or the defeat trigger — the
+  // idle sway + shove lunge/recoil are host-rotation-only, which the Arcade static
+  // AABB ignores and the shove/defeat detection [reads img.x/img.y] never sees; the
+  // stance-widen is a body-invariant sprite scale [the static body never follows it]).
+  WARDEN_SWAY: Object.freeze({ dur: 3200, ease: "sine.inOut", amp: 0.0349 }), // ±2° idle sway (full period)
+  WARDEN_GLINT: tok(650, "sine.inOut"), // visor scan-sweep glint (fired by the shared scheduler ~every 5s)
+  WARDEN_STANCE: tok(160, "quad.out"),  // alert stance-widen ease reference (feet spread + slight grow)
+  WARDEN_LUNGE: Object.freeze({ dur: 360, ease: "back.out", amp: 0.22 }), // shove lunge-into-contact + recoil rock
+  WARDEN_TOPPLE: tok(600, "bounce.out"), // defeat topple gains a bounce as it settles
+  WARDEN_TWITCH: tok(90, "quad.out"),   // settled body twitches once ~2s later (comedy beat)
 });
 
 // Idle-tier + fidget-scheduler timing (ms). Kept beside the motion tokens so the

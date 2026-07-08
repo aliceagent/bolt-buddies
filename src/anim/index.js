@@ -18,6 +18,7 @@ import { DeathScatter } from "./death.js";
 import { installPlayerAnim } from "./player_anim.js";
 import { installBugAnim } from "./bug_anim.js";
 import { installRollerAnim } from "./roller_anim.js";
+import { installWardenAnim } from "./warden_anim.js";
 import { TIMING } from "./motion.js";
 import { DEPTH } from "../constants.js";
 import { sfx } from "../audio.js";
@@ -121,7 +122,7 @@ export class AnimSystem {
   }
 
   registerWarden(w) {
-    return this._add(w.img, {
+    const rig = this._add(w.img, {
       kind: "warden", depth: DEPTH.entity + 2,
       probe: (h, out) => {
         out.dead = !!w.defeated; out.hurt = false; out.carrying = false;
@@ -129,6 +130,10 @@ export class AnimSystem {
         out.face = w.facing || 1; out.input = false;
       },
     });
+    // A7: hang the visible wall-warden set (idle sway + visor glint + alert stance-
+    // widen + shove lunge/recoil) as a pure overlay on the shove/defeat logic.
+    installWardenAnim(rig, this.scene, w);
+    return rig;
   }
 
   registerCrane(c) {

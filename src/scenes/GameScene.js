@@ -10,6 +10,7 @@ import { uxHints, uxShakeScale, uxFlashScale, saveRecord, fmtTime, markTutorialD
 import { pads, showPadToast } from "../pad.js";
 import { drawWorldIcon } from "../worldIcons.js";
 import { AnimSystem } from "../anim/index.js";
+import { MOTION } from "../anim/motion.js";
 
 const J = Phaser.Input.Keyboard.JustDown;
 
@@ -1417,15 +1418,15 @@ export default class GameScene extends Phaser.Scene {
         const glow = this.add.image(img.x + facing * 9, img.y - 12, "glowBlob").setDepth(DEPTH.entity - 1)
           .setBlendMode(Phaser.BlendModes.ADD).setScale(0.13).setAlpha(0.4);
         this.tweens.add({ targets: glow, alpha: { from: 0.28, to: 0.6 }, duration: 1200, yoyo: true, repeat: -1, ease: "sine.inOut" });
-        // idle sway ±2°
-        const sway = this.tweens.add({ targets: img, angle: { from: -2, to: 2 }, duration: 1600, yoyo: true, repeat: -1, ease: "sine.inOut" });
+        // A7: the idle ±2° sway is now RETIMED + OWNED by the warden anim rig (host
+        // rotation, so `?animoff=1` renders a static warden — the A5/A6 A/B contract).
         // P7: badge-number stencil on the chest (W1/W2 numbering from the id).
         // Drawn once over the chest plate — static, no per-frame cost.
         const badgeNum = (e.id || "w1").replace(/\D/g, "") || "1";
         const badge = this.add.text(px, img.y + 14, badgeNum, {
           fontFamily: FONT, fontSize: FS.small, fontStyle: "bold", color: "#dff5e6",
         }).setOrigin(0.5).setDepth(DEPTH.entity + 1);
-        this.wardens.push({ id: e.id, img, facing, defeated: false, x: px, glow, sway, badge });
+        this.wardens.push({ id: e.id, img, facing, defeated: false, x: px, glow, badge });
         break;
       }
       case "jet": {
@@ -3935,9 +3936,26 @@ export default class GameScene extends Phaser.Scene {
           this.boom.explode(this.fxBudget(16), w.img.x, w.img.y);
           sfx.wardenTopple(w.img.x, w.img.y); // descending slide-whistle topple
           w.img.body.enable = false;
-          if (w.sway) w.sway.stop(); // stop idle sway so the topple reads cleanly
           if (w.glow) { this.tweens.killTweensOf(w.glow); w.glow.setVisible(false); }
-          this.tweens.add({ targets: w.img, angle: -w.facing * 84, alpha: 0.25, y: w.img.y + 18, duration: 500 });
+          // A7: the topple gains a BOUNCE (bounce.out settles the fall with a rebound);
+          // ~2s after it settles the body TWITCHES once (a comedy beat). Both are cosmetic
+          // overlays on the existing topple — the anim rig has handed the host rotation
+          // back to this tween (it returns early once w.defeated flips). Body already
+          // disabled above, so this motion never touches gameplay geometry.
+          this.tweens.add({
+            targets: w.img, angle: -w.facing * 84, alpha: 0.25, y: w.img.y + 18,
+            duration: MOTION.WARDEN_TOPPLE.dur, ease: MOTION.WARDEN_TOPPLE.ease,
+            onComplete: () => {
+              if (!w.img || !w.img.scene) return;
+              this.time.delayedCall(2000, () => {
+                if (!w.img || !w.img.scene) return;
+                this.tweens.add({
+                  targets: w.img, angle: w.img.angle + w.facing * 7,
+                  duration: MOTION.WARDEN_TWITCH.dur, yoyo: true, ease: MOTION.WARDEN_TWITCH.ease,
+                });
+              });
+            },
+          });
           this.dizzyStars(w.img.x, w.img.y); // stars circle the fallen body ~1s
           this.game.events.emit("bb:blip", "KOBI: WARDEN DOWN?! You went THROUGH the WALL?! That is CHEATING and also very clever.");
         }
