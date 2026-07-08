@@ -82,6 +82,15 @@ export default {
       blip: "KOBI: Robot stacking is FORBIDDEN. ...Oh, you already did it. Fine.",
     },
     { t: "core", x: 46, y: 9 }, // tutorial core — just for joy, never saved
+    // Restart lesson (SL5): a blame-free KOBI beat taught AFTER the pit stations
+    // (Station 4's co-op reel escape) so RESTART reads as the universal fallback.
+    // Non-solid display-only trigger in the single free column (x46) between the
+    // `s5` zone (x41-45) and Station 6's trigger (x47-49); fires as the robots
+    // walk on toward the plate room. No id — the throw-arc gate keys off `s5`.
+    {
+      t: "trigger", x: 46, y: 12, w: 1, h: 3, once: true,
+      blip: "KOBI: And if you're ever truly WEDGED — hold R twice to restart the room. It is FINE. A little sad, but FINE. ESC bails you back to the map.",
+    },
 
     // --- Station 6: Plates & teamwork (x48-52) -------------------------------
     { t: "checkpoint", x: 47, y: 13 },
@@ -112,6 +121,9 @@ export default {
     { x: 31, y: 12, caps: [{ k: "E" }, { k: "L", p: 1 }] },
     // Station 5 — ACTION to grab/throw, hold JUMP for a high toss
     { x: 43, y: 12, caps: [{ k: "E" }, { k: "L", p: 1 }, { gap: 14 }, { k: "W" }, { k: "↑", p: 1 }] },
+    // Restart lesson (SL5) — R×2 restarts the room, ESC returns to the map. Floats
+    // above the joy-core ledge, clear of the driven route along the floor.
+    { x: 46, y: 7, caps: [{ k: "R" }, { k: "R" }, { gap: 14 }, { k: "ESC" }] },
   ],
   blips: {
     // fires after the intro banner leaves (Station 1)
