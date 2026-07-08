@@ -7,6 +7,7 @@ import { initAudio, sfx, playTrack, installMute } from "../audio.js";
 import { pads, showPadToast } from "../pad.js";
 import { tutorialDone, uxFlashScale } from "../ux.js";
 import { keyCap as kitKeyCap, chipRow as kitChipRow, neonPanel, addSkyline } from "../ui/kit.js";
+import { MOTION } from "../anim/motion.js";
 
 const ACCENT = WORLD_THEMES[1].accent; // world-1 amber accent for buttons
 const hexStr = (n) => "#" + (n & 0xffffff).toString(16).padStart(6, "0");
@@ -65,13 +66,14 @@ export default class TitleScene extends Phaser.Scene {
     this.events.once("shutdown", () => {
       if (this.eraseTimer) this.eraseTimer.remove();
       if (this.flickerTimer) this.flickerTimer.remove();
+      if (this.eyeRollTimer) this.eyeRollTimer.remove();
     });
   }
 
   // U7: pad1 drives the menu 1:1 with the keyboard handler — up/down select,
   // A/confirm activates. Any pad button counts for the audio unlock, and a fresh
   // connection pops the per-session detection toast.
-  update(time) {
+  update(time, delta) {
     pads.poll(time);
     const p = pads.p(0);
     if (pads.anyButtonJust()) initAudio();
@@ -80,6 +82,20 @@ export default class TitleScene extends Phaser.Scene {
     if (p.upJust) this.moveSel(-1);
     else if (p.downJust) this.moveSel(1);
     if (p.confirmJust) this.activate();
+    this.updateBoltWag(delta || 16); // A11: decay the tail-wag excitement toward idle
+  }
+
+  // A11: the tail wags FASTER the more actively the player moves through the menu.
+  // `excite` (topped to 1 by boltMenuReact) decays linearly back to 0 over BOLT_TAIL.decay
+  // ms (frame-rate-independent — uses delta), driving the reused wag tween's timeScale.
+  // No allocation; a pure timeScale nudge on the existing pooled tween.
+  updateBoltWag(delta) {
+    const b = this.bolt; if (!b || !b.tailTween) return;
+    if (b.excite > 0) {
+      b.excite = Math.max(0, b.excite - delta / MOTION.BOLT_TAIL.decay);
+    }
+    const maxScale = MOTION.BOLT_TAIL.slow / MOTION.BOLT_TAIL.fast; // idle:1 -> excited:2.5x
+    b.tailTween.timeScale = 1 + b.excite * (maxScale - 1);
   }
 
   // --- distant lab skyline + a scrolling conveyor line ------------------------
@@ -259,9 +275,20 @@ export default class TitleScene extends Phaser.Scene {
 
   // Bolt the robo-puppy: body + stub legs, head with snout + ear flaps, an eye
   // with a catchlight, and a stub tail that wags. Faces right (toward BOOP).
+  //
+  // A11 extends this ORIGINAL rig (does NOT rebuild it): the parts now hang off a
+  // container so Bolt can SIT (settle drop + squash), the EAR is its own object so it
+  // can PERK when the menu selection moves, the tail-wag SPEED scales with how
+  // actively the player is moving through the menu, and an excited SPIN plays on NEW
+  // GAME activation. All pooled (parts + one wag tween reused; the perk/spin are
+  // one-shot tweens on menu EVENTS), and all skippable — none of this ever gates or
+  // delays menu input/navigation (moveSel/activate act first, motion after).
   buildBolt(cx, cy) {
     const body = 0xd9dee8, dark = 0x8b93a8, collar = ACCENT, eyec = 0x243046;
-    const g = this.add.graphics({ x: cx, y: cy }).setDepth(0);
+    // container holds the whole dog so SIT/SPIN/HOP transform it as one (the body
+    // sway rides on the body graphic, the wag on the tail — they compose cleanly).
+    const c = this.add.container(cx, cy).setDepth(0);
+    const g = this.add.graphics().setDepth(0);
     // stub legs
     g.fillStyle(dark);
     [-16, -4, 12, 22].forEach((lx) => g.fillRoundedRect(lx, 8, 7, 9, 2));
@@ -280,24 +307,76 @@ export default class TitleScene extends Phaser.Scene {
     g.fillStyle(body).fillRoundedRect(30, -12, 14, 11, 4);
     g.fillStyle(dark).fillCircle(43, -8, 2.6); // nose
     g.fillStyle(0x11151f).fillRect(34, -3, 9, 1.6); // mouth line
-    // ear flap (floppy, hanging back off the head)
-    g.fillStyle(dark).fillTriangle(16, -22, 24, -26, 20, -8);
-    g.fillStyle(0x6c7488).fillTriangle(17, -21, 22, -23, 20, -12);
     // eye + catchlight
     g.fillStyle(eyec).fillCircle(27, -15, 3.4);
     g.fillStyle(0xffffff, 0.95).fillCircle(28.2, -16.2, 1.2);
     // little antenna nub so he reads as robotic
     g.lineStyle(2, dark).lineBetween(20, -26, 20, -32);
     g.fillStyle(ACCENT).fillCircle(20, -33, 2.4);
-    // gentle body sway
+    // gentle body sway (unchanged — rides on the body graphic inside the container)
     this.tweens.add({ targets: g, angle: { from: -3, to: 3 }, duration: 520, yoyo: true, repeat: -1, ease: "sine.inOut" });
 
-    // stub tail (separate graphics so it can wag around its base at the rump)
-    const tail = this.add.graphics({ x: cx - 20, y: cy - 4 }).setDepth(0);
+    // ear flap — now its OWN graphic pivoting at its base near the head so it can
+    // PERK (lift + tilt back) when the menu selection changes. Same floppy shape,
+    // drawn relative to the pivot at (18, -10).
+    const ear = this.add.graphics({ x: 18, y: -10 }).setDepth(0);
+    ear.fillStyle(dark).fillTriangle(-2, -12, 6, -16, 2, 2);
+    ear.fillStyle(0x6c7488).fillTriangle(-1, -11, 4, -13, 2, -2);
+    this._boltEarRest = 0; // resting ear angle
+
+    // stub tail (separate graphic so it can wag around its base at the rump)
+    const tail = this.add.graphics({ x: -20, y: -4 }).setDepth(0);
     tail.fillStyle(body).fillRoundedRect(-3, -16, 6, 18, 3);
     tail.fillStyle(ACCENT).fillCircle(0, -16, 3.5); // amber tail-tip light
     tail.setAngle(30);
-    this.tweens.add({ targets: tail, angle: { from: 18, to: 52 }, duration: 210, yoyo: true, repeat: -1, ease: "sine.inOut" });
+    const tailTween = this.tweens.add({ targets: tail, angle: { from: 18, to: 52 }, duration: 210, yoyo: true, repeat: -1, ease: "sine.inOut" });
+
+    c.add([g, ear, tail]);
+    // A11 Bolt state: pooled refs + the wag-excitement value (decays each frame).
+    this.bolt = { c, g, ear, tail, tailTween, baseY: cy, restY: cy, excite: 0, spinning: false };
+
+    // settle into a SIT a beat after the title arrives (cosmetic; held as the rest
+    // pose). The spin stands him up briefly and returns here.
+    this.time.delayedCall(900, () => this.boltSit());
+  }
+
+  // A11 SIT — ease into a seated pose: body drops a touch + a gentle squash, held as
+  // the resting transform. Cosmetic only (the container has no body).
+  boltSit() {
+    const b = this.bolt; if (!b || !b.c.active || b.spinning) return;
+    const S = MOTION.BOLT_SIT;
+    b.restY = b.baseY + S.drop;
+    this.tweens.add({
+      targets: b.c, y: b.restY, scaleX: 1 + S.squash, scaleY: 1 - S.squash,
+      duration: S.dur, ease: S.ease,
+    });
+  }
+
+  // A11 EAR PERK — a quick lift + tilt-back of the ear when the selection moves,
+  // easing back to rest. Reuses the one ear graphic (one-shot tween on the event).
+  boltPerk() {
+    const b = this.bolt; if (!b || !b.ear.active) return;
+    const P = MOTION.BOLT_PERK;
+    this.tweens.killTweensOf(b.ear);
+    b.ear.setAngle(this._boltEarRest).setPosition(18, -10);
+    this.tweens.add({
+      targets: b.ear, angle: this._boltEarRest - P.tilt, y: -10 - P.rise,
+      duration: P.dur, ease: P.ease, yoyo: true,
+      onComplete: () => b.ear.active && b.ear.setAngle(this._boltEarRest).setPosition(18, -10),
+    });
+  }
+
+  // A11 EXCITED SPIN — a full 360 spin + a little hop on NEW GAME activation, then a
+  // clean return to the sit rest pose. Fire-and-forget; never gates the activation.
+  boltSpin() {
+    const b = this.bolt; if (!b || !b.c.active || b.spinning) return;
+    const S = MOTION.BOLT_SPIN;
+    b.spinning = true;
+    b.excite = 1; // whip the tail up too
+    b.c.setAngle(0);
+    this.tweens.add({ targets: b.c, angle: 360, duration: S.dur, ease: S.ease,
+      onComplete: () => { if (b.c.active) { b.c.setAngle(0); b.spinning = false; } } });
+    this.tweens.add({ targets: b.c, y: b.restY - S.hop, duration: S.dur / 2, ease: "quad.out", yoyo: true });
   }
 
   buildStory(W, cy) {
@@ -407,6 +486,7 @@ export default class TitleScene extends Phaser.Scene {
     this.resetErase();
     this.updateMenu();
     this.glanceAtSelection();
+    this.boltMenuReact(); // A11: ear perk + tail-wag speed-up (cosmetic, never gates nav)
   }
 
   selectIndex(i) {
@@ -415,6 +495,14 @@ export default class TitleScene extends Phaser.Scene {
     this.resetErase();
     this.updateMenu();
     this.glanceAtSelection();
+    this.boltMenuReact();
+  }
+
+  // A11: Bolt reacts to menu movement — the ear perks and the tail-wag EXCITEMENT
+  // is topped up (it decays back to idle in update()). Cosmetic + skippable.
+  boltMenuReact() {
+    if (this.bolt) this.bolt.excite = 1;
+    this.boltPerk();
   }
 
   resetErase() {
@@ -447,6 +535,7 @@ export default class TitleScene extends Phaser.Scene {
         // BEFORE the hub. (A save that already exists skips this entirely: the
         // erase-confirm branch below still fades straight to the hub.)
         sfx.menuSelect();
+        this.boltSpin(); // A11: excited spin on NEW GAME activation (fire-and-forget)
         if (this.leaving) return;
         this.leaving = true;
         this.cameras.main.fadeOut(250, 4, 6, 20);
@@ -466,6 +555,7 @@ export default class TitleScene extends Phaser.Scene {
       } else {
         // second press: wipe and start fresh
         sfx.menuSelect();
+        this.boltSpin(); // A11: excited spin on NEW GAME activation (fire-and-forget)
         this.resetErase();
         storeSave({ unlocked: 1, cores: {} });
         this.gotoHub();
@@ -608,9 +698,48 @@ export default class TitleScene extends Phaser.Scene {
     };
     this.time.delayedCall(1200 + Math.random() * 1500, blink);
 
+    // A11: a RARE bored eye-roll idle — the iris rolls a full lazy loop (KOBI is
+    // unimpressed you haven't picked yet). Keeps the P1 glance-at-selection intact;
+    // this only fires while idle (not mid-glance) on a long, jittered cadence.
+    this._eyeRoll = { a: 0 };
+    const E = MOTION.EYE_ROLL;
+    const scheduleRoll = () => {
+      this.eyeRollTimer = this.time.delayedCall(E.minGap + Math.random() * E.jitter, () => {
+        if (this.kobiIris && !this.kobiGlancing) this.boredEyeRoll();
+        scheduleRoll();
+      });
+    };
+    scheduleRoll();
+
     this.add.text(ex - 40, ey - 40, "K.O.B.I.\nKeeper Of\nBuilding Integrity", {
       fontFamily: FONT, fontSize: FS.tiny, fontStyle: "italic", color: "#c98fd9", align: "right",
     }).setOrigin(1, 0.5);
+  }
+
+  // A11: bored eye-roll — the iris sweeps one lazy full circle inside the sclera,
+  // then settles back to centre and resumes wandering. Blocks the wander/glance for
+  // its duration via kobiGlancing (cosmetic; never touches menu logic).
+  boredEyeRoll() {
+    if (!this.kobiIris) return;
+    const E = MOTION.EYE_ROLL;
+    this.kobiGlancing = true;
+    this.tweens.killTweensOf(this.kobiIris);
+    this._eyeRoll.a = -Math.PI / 2; // start at the top
+    this.tweens.add({
+      targets: this._eyeRoll, a: -Math.PI / 2 + Math.PI * 2, duration: E.dur, ease: E.ease,
+      onUpdate: () => {
+        if (!this.kobiIris) return;
+        this.kobiIris.x = Math.cos(this._eyeRoll.a) * E.r;
+        this.kobiIris.y = Math.sin(this._eyeRoll.a) * E.r;
+      },
+      onComplete: () => {
+        if (!this.kobiIris) return;
+        this.tweens.add({
+          targets: this.kobiIris, x: 0, y: 0, duration: 220, ease: "sine.inOut",
+          onComplete: () => this.time.delayedCall(300, () => { this.kobiGlancing = false; }),
+        });
+      },
+    });
   }
 
   // Snap the iris toward a world point for a beat, then resume wandering.

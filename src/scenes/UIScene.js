@@ -5,6 +5,7 @@ import { sfx, installMute, duckMusic } from "../audio.js";
 import { uxTextSpeed } from "../ux.js";
 import { pads } from "../pad.js";
 import { drawIris, irisMaxR } from "../ui/kit.js";
+import { MOTION } from "../anim/motion.js";
 
 
 const SKILL_ICON = { grapple: "icon_grapple", heavy: "icon_heavy", phase: "icon_phase", tiny: "icon_tiny" };
@@ -540,12 +541,28 @@ export default class UIScene extends Phaser.Scene {
     this.avLid.fillStyle(0x180b13, 0.97).fillPoints(lidPts, true);
     this.avLid.lineStyle(2, 0x2a1420, 1).lineBetween(ax - 17, ay, ax + 17, ay);
 
+    // A11 KOBI AVATAR MOOD SET — pooled overlays that ANIMATE the avatar to match the
+    // SAME mood value applyKobiMood already receives (no change to the blip queue/text/
+    // timing). gloat SQUINT (a smug top+bottom lid slit), angry SHAKE + red ring FLARE,
+    // defeated DROOP (avLid, above) + a SLOW BLINK. Drawn once; toggled/tweened per mood.
+    this.avSquint = this.add.graphics().setVisible(false); // smug narrow-slit lids
+    this.avSquint.fillStyle(0x1a1020, 1);
+    this.avSquint.fillRect(ax - 17, ay - 17, 34, 15); // top lid (down to ay-2)
+    this.avSquint.fillRect(ax - 17, ay + 3, 34, 14);  // bottom lid (up to ay+3) -> ~5px slit
+    this.avFlare = this.add.graphics().setVisible(false).setAlpha(0); // angry red ring flare
+    this.avFlare.lineStyle(4, KOBI_RING.angry, 1).strokeCircle(ax, ay, 22);
+    if (this.game.renderer.type === Phaser.WEBGL) this.avFlare.setBlendMode(Phaser.BlendModes.ADD);
+    this.avBlink = this.add.graphics().setVisible(false).setAlpha(0); // defeated slow-blink cap
+    this.avBlink.fillStyle(0x180b13, 1).fillCircle(ax, ay, 17);
+    this._avShakeX = 0;      // angry shake offset folded into the iris each frame
+    this._avBlinkTween = null; // defeated slow-blink loop (started/stopped by mood)
+
     const name = this.add.text(x0 + 72, y0 + 7, "KOBI", { fontFamily: FONT, fontSize: FS.mini, fontStyle: "bold", color: "#ff8ae0" });
     this.blipText = this.add.text(x0 + 72, y0 + 26, "", {
       fontFamily: FONT, fontSize: FS.large, color: "#ffd7f4", wordWrap: { width: 806 },
     });
 
-    this.blipBar.add([this.blipGlow, bg, avBase, this.avRing, this.avIris, this.avLid, name, this.blipText]);
+    this.blipBar.add([this.blipGlow, bg, avBase, this.avRing, this.avIris, this.avSquint, this.avFlare, this.avBlink, this.avLid, name, this.blipText]);
 
     this.blipGlowTween = this.tweens.add({
       targets: this.blipGlow, alpha: { from: 0.15, to: 0.85 },
@@ -570,6 +587,51 @@ export default class UIScene extends Phaser.Scene {
       this.tweens.killTweensOf(this.avLid);
       this.avLid.setAlpha(0);
       this.tweens.add({ targets: this.avLid, alpha: 1, duration: 220, ease: "sine.out" });
+    }
+    this.animateKobiMood(mood); // A11: play the matching avatar mood animation
+  }
+
+  // A11: animate the avatar to match KOBI's mood — driven off the SAME `mood` value
+  // applyKobiMood already has. gloat SQUINT (smug slit), angry SHAKE + ring FLARE,
+  // defeated SLOW BLINK (over the existing droop). Idempotent per call: it clears the
+  // other moods' persistent state so switching moods never leaves a stuck overlay.
+  // Cosmetic overlays + tweens only — nothing here touches the blip queue/text/timing.
+  animateKobiMood(mood) {
+    const G = MOTION.KOBI_GLOAT, A = MOTION.KOBI_ANGRY, D = MOTION.KOBI_DEFEAT;
+    // --- GLOAT: fade the smug narrow-slit lids in (out for any other mood) --------
+    this.tweens.killTweensOf(this.avSquint);
+    if (mood === "gloating") {
+      this.avSquint.setVisible(true);
+      this.tweens.add({ targets: this.avSquint, alpha: { from: this.avSquint.alpha, to: 1 }, duration: G.dur, ease: G.ease });
+    } else if (this.avSquint.visible) {
+      this.tweens.add({ targets: this.avSquint, alpha: 0, duration: G.dur, ease: G.ease, onComplete: () => this.avSquint.setVisible(false) });
+    }
+    // --- ANGRY: a short horizontal shake + a red ring flare (one-shot on entry) ---
+    this.tweens.killTweensOf(this.avFlare);
+    this.tweens.killTweensOf(this._avShakeState || (this._avShakeState = { x: 0 }));
+    if (mood === "angry") {
+      this._avShakeState.x = 0;
+      this.tweens.add({
+        targets: this._avShakeState, x: A.amp, duration: A.dur / (A.shakes * 2),
+        yoyo: true, repeat: A.shakes * 2 - 1, ease: "sine.inOut",
+        onUpdate: () => { this._avShakeX = this._avShakeState.x; },
+        onComplete: () => { this._avShakeX = 0; this._avShakeState.x = 0; },
+      });
+      this.avFlare.setVisible(true).setAlpha(0);
+      this.tweens.add({ targets: this.avFlare, alpha: { from: A.flare, to: 0 }, duration: A.dur, ease: "cubic.out", repeat: 1, onComplete: () => this.avFlare.setVisible(false) });
+    } else {
+      this._avShakeX = 0;
+    }
+    // --- DEFEATED: a slow full blink loop over the drooped lid --------------------
+    if (this._avBlinkTween) { this._avBlinkTween.remove(); this._avBlinkTween = null; }
+    if (mood === "defeated") {
+      this.avBlink.setVisible(true).setAlpha(0);
+      this._avBlinkTween = this.tweens.add({
+        targets: this.avBlink, alpha: { from: 0, to: 0.95 }, duration: 300,
+        hold: D.lidHold, yoyo: true, repeat: -1, repeatDelay: D.blink, ease: "sine.inOut",
+      });
+    } else {
+      this.avBlink.setVisible(false).setAlpha(0);
     }
   }
 
@@ -622,7 +684,9 @@ export default class UIScene extends Phaser.Scene {
       const k = typing ? 0.35 : 0.12;
       this.irisPos.x += (tx - this.irisPos.x) * k;
       this.irisPos.y += (ty - this.irisPos.y) * k;
-      this.avIris.setPosition(this.irisPos.x, this.irisPos.y);
+      // A11: fold the angry-shake offset (0 unless the angry mood is mid-shake) into
+      // the iris placement so the eye twitches without a competing per-frame tween.
+      this.avIris.setPosition(this.irisPos.x + this._avShakeX, this.irisPos.y);
     }
     if (b) {
       if (b.shown < b.text.length) {

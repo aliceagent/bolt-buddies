@@ -141,6 +141,27 @@ export const MOTION = Object.freeze({
   ESCORT_SPARK: Object.freeze({ range: 78, gap: 85, count: 2, life: 620, maxAlive: 10 }), // hand-hold spark drifting between escorting buddies inside shimmer
   CARRY_WAVE: Object.freeze({ after: 2000, period: 640, antAmp: 5, lookAmp: 2.0, ease: 10 }), // carried buddy waves at the camera after 2s
   RESPAWN_NOTICE: Object.freeze({ dur: 750, range: 3.2, ease: 9 }), // surviving partner's pupils track the respawn beam
+
+  // --- Bolt & KOBI cameo animation (A11) -----------------------------------
+  // Menu polish (#1-#4) extends the existing Title/Hub/UI scene code directly; the
+  // in-level cameo (#5) is a pure display-list BACKDROP with NO body/collision/timing
+  // effect, gated behind the rig A/B switch (byte-identical under ?animoff=1).
+  //
+  // TITLE BOLT (extends the existing buildBolt body-sway + tail-wag tweens):
+  BOLT_TAIL: Object.freeze({ slow: 300, fast: 120, decay: 2600 }), // wag period: idle(slow ms)->excited(fast ms), eased back over decay ms after menu moves
+  BOLT_PERK: Object.freeze({ dur: 260, ease: "back.out", rise: 5, tilt: 10 }), // ear perk (px lift + deg) when the selection moves
+  BOLT_SIT: Object.freeze({ dur: 420, ease: "back.out", drop: 4, squash: 0.08 }), // settle into a sit pose (cosmetic body drop + squash)
+  BOLT_SPIN: Object.freeze({ dur: 620, ease: "cubic.inOut", hop: 14 }), // excited 360 spin + hop on NEW GAME activation
+  // TITLE CORNER EYE (keeps glanceAtSelection from P1; adds a rare bored roll):
+  EYE_ROLL: Object.freeze({ dur: 900, ease: "sine.inOut", r: 7, minGap: 9000, jitter: 8000 }), // rare bored eye-roll idle (full loop of the iris)
+  // HUB TICKER EYE (pupil follows the selected node):
+  HUB_EYE: Object.freeze({ ease: 10, range: 4.5 }), // fps-independent pupil-follow lerp rate + max offset (px)
+  // KOBI AVATAR MOOD SET (pairs with U9; driven off the SAME existing mood value):
+  KOBI_GLOAT: Object.freeze({ dur: 240, ease: "sine.inOut", squint: 0.42 }), // gloat squint (avatar sclera scaleY pinch)
+  KOBI_ANGRY: Object.freeze({ dur: 360, shakes: 5, amp: 2.4, flare: 0.5 }), // angry shake (px) + red ring flare (extra alpha pulse)
+  KOBI_DEFEAT: Object.freeze({ blink: 1700, lidHold: 260 }), // defeated slow-blink period (ms) over the drooped eyelid
+  // IN-LEVEL CAMEO (#5) — pure backdrop, NO body, NO collision, NO gameplay effect:
+  CAMEO: Object.freeze({ yFrac: 0.16, dur: 1600, gap: 40, bob: 3.2, gallop: 8.5, droneBob: 4, minDelay: 7000, rollGap: 5000, chance: 0.14, scale: 0.7 }),
 });
 
 // Idle-tier + fidget-scheduler timing (ms). Kept beside the motion tokens so the

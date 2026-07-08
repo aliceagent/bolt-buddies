@@ -22,6 +22,7 @@ import { installWardenAnim } from "./warden_anim.js";
 import { installCraneAnim } from "./crane_anim.js";
 import { installDeviceAnim } from "./device_anim.js";
 import { installSocialAnim } from "./social_anim.js";
+import { installCameoAnim } from "./cameo_anim.js";
 import { TIMING } from "./motion.js";
 import { DEPTH } from "../constants.js";
 import { sfx } from "../audio.js";
@@ -74,6 +75,11 @@ export class AnimSystem {
     // in registerLevel() once the players + rigs exist; a pure overlay on the SACRED
     // co-op logic, updated LAST + gated by `enabled` (byte-identical when off).
     this.social = null;
+    // A11: the in-level Bolt cameo (once-per-level RARE backdrop — Bolt dashes across
+    // chased by a tiny KOBI drone). A PURE display-list backdrop with NO body/collision/
+    // timing effect; created in registerLevel(), updated LAST of all + gated by `enabled`
+    // (under ?animoff=1 update() never runs, so the cameo never spawns and reads nothing).
+    this.cameo = null;
     // rig-off A/B switch. ?animoff=1 boots disabled; the probe flips this live.
     this.enabled = !new URLSearchParams(location.search).has("animoff");
   }
@@ -176,6 +182,8 @@ export class AnimSystem {
     this.device = installDeviceAnim(s);
     // A10: wire the social & co-op moment overlays now that both player rigs exist.
     this.social = installSocialAnim(s, this);
+    // A11: wire the in-level Bolt cameo backdrop (pooled, hidden until it dashes).
+    this.cameo = installCameoAnim(s);
   }
 
   // One frame. Runs AFTER all game logic. When disabled (A/B rig-off) it returns
@@ -190,6 +198,9 @@ export class AnimSystem {
     // A10: drive the social & co-op moment overlays last of all (after the rigs, so
     // the cosmetic pupil/antenna offsets ride cleanly on top of this frame's placement).
     if (this.social) this.social.update(time, delta);
+    // A11: drive the in-level Bolt cameo backdrop LAST — it reads nothing from gameplay
+    // (only the viewport size + clock) and writes only to its own screen-fixed sprite.
+    if (this.cameo) this.cameo.update(time, delta);
   }
 
   // A3 PARTNER-AWARE moment: when BOTH players have been idle within 6 tiles of
@@ -229,5 +240,6 @@ export class AnimSystem {
     if (this.deathScatter) this.deathScatter.destroy();
     if (this.device) { this.device.destroy(); this.device = null; }
     if (this.social) { this.social.destroy(); this.social = null; }
+    if (this.cameo) { this.cameo.destroy(); this.cameo = null; }
   }
 }

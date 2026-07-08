@@ -8,6 +8,7 @@ import { initAudio, sfx, installMute, playTrack, playJingle } from "../audio.js"
 import { pads, showPadToast } from "../pad.js";
 import { drawWorldIcon } from "../worldIcons.js";
 import { drawIris, irisMaxR } from "../ui/kit.js";
+import { MOTION } from "../anim/motion.js";
 
 
 // Facility map: 4 wings x 3 chambers. Navigate with either player's keys.
@@ -187,12 +188,13 @@ export default class HubScene extends Phaser.Scene {
 
   // U7: pad1 navigates the sector map 1:1 with the keyboard handler — d-pad/stick
   // left/right = adjacent chamber, up/down = wing, A = enter, B = back to Title.
-  update(time) {
+  update(time, delta) {
     pads.poll(time);
     const p = pads.p(0);
     if (pads.anyButtonJust()) initAudio();
     const conn = pads.consumeConnected();
     if (conn) conn.forEach((idx) => showPadToast(this, idx));
+    this.updateHubEye(delta || 16); // A11: ticker eye follows the selected node
     if (this.entering) return;
     if (p.leftJust) this.move(-1);
     else if (p.rightJust) this.move(1);
@@ -202,6 +204,27 @@ export default class HubScene extends Phaser.Scene {
     else if (p.backJust) this.scene.start("Title");
   }
 
+  // A11: the KOBI ticker eye's pupil follows the currently selected node as the
+  // player moves across the sector map. Frame-rate-independent lerp toward the
+  // node's screen direction (FL-013 form), clamped to a small offset inside the
+  // sclera. Cosmetic; never touches selection/navigation.
+  updateHubEye(delta) {
+    if (!this.hubPupil || !this.nodes || !this.nodes.length) return;
+    const E = MOTION.HUB_EYE;
+    const n = this.nodes[this.sel];
+    let tx = 0, ty = 0;
+    if (n) {
+      const dx = n.x - this.hubEye.cx, dy = n.y - this.hubEye.cy;
+      const d = Math.hypot(dx, dy) || 1;
+      tx = (dx / d) * E.range;
+      ty = (dy / d) * E.range;
+    }
+    const lerp = 1 - Math.pow(1 - E.ease / 60, (delta / 1000) * 60);
+    this.hubPupilOff.x += (tx - this.hubPupilOff.x) * lerp;
+    this.hubPupilOff.y += (ty - this.hubPupilOff.y) * lerp;
+    this.hubPupil.setPosition(this.hubEye.cx + this.hubPupilOff.x, this.hubEye.cy + this.hubPupilOff.y);
+  }
+
   buildTicker(W, H) {
     // low silhouette skyline sits behind the whole bottom band
     this.buildSkyline(W, H);
@@ -209,9 +232,16 @@ export default class HubScene extends Phaser.Scene {
     // fixed KOBI eye prefix at the left
     const eye = this.add.graphics().setDepth(6);
     eye.fillStyle(COLORS.dark, 1).fillRect(0, y - 12, 40, 24);
-    eye.fillStyle(0xffffff, 0.9).fillCircle(18, y, 9);
-    eye.fillStyle(COLORS.magenta, 1).fillCircle(20, y, 5);
-    eye.fillStyle(0x2a0a1e, 1).fillCircle(21, y, 2.5);
+    eye.fillStyle(0xffffff, 0.9).fillCircle(18, y, 9); // sclera
+    // A11: the magenta iris/pupil is its OWN object so it can FOLLOW the selected
+    // node as the player moves across the sector map (pupil-follow lerp in update()).
+    // Drawn at local origin, positioned at the sclera centre + a followed offset.
+    const pupil = this.add.graphics().setDepth(6);
+    pupil.fillStyle(COLORS.magenta, 1).fillCircle(0, 0, 5);
+    pupil.fillStyle(0x2a0a1e, 1).fillCircle(0.8, 0, 2.5);
+    this.hubPupil = pupil;
+    this.hubEye = { cx: 18, cy: y };
+    this.hubPupilOff = { x: 0, y: 0 }; // smoothed follow offset (px)
     // occasional pooled blink — an eyelid (matches the dark backing) drops over
     // the eye and lifts. Single repeating tween, no per-frame allocation.
     const lid = this.add.graphics({ x: 18, y: y - 12 }).setDepth(6);
