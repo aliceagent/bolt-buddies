@@ -3956,6 +3956,10 @@ export default class GameScene extends Phaser.Scene {
           if (l && l.on) {
             l.on = false;
             if (l.handle) this.tweens.add({ targets: l.handle, angle: -6, duration: 200 });
+            // W3W4 L32: a re-armed TIMED magswitch pops visibly back out (its
+            // coil lamp was flipped lit by pullLever; without this reset a
+            // re-flippable mag lever reads permanently "on" — 3-2's baffle 2).
+            if (l.mag && l.img) l.img.setTexture("magswitch");
           }
         });
       }

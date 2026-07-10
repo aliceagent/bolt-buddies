@@ -23,7 +23,7 @@ export const now = () => Date.now();
 
 // level id -> registry index (mirrors beat runner; tutorial is appended LAST = 12)
 export const LEVEL_INDEX = {
-  "1-1": 0, "1-2": 1, "1-3": 2, "2-1": 3, "2-2": 4, "2-3": 5, "3-1": 6, tut: 12,
+  "1-1": 0, "1-2": 1, "1-3": 2, "2-1": 3, "2-2": 4, "2-3": 5, "3-1": 6, "3-2": 7, tut: 12,
 };
 
 // Assignment A: P1 takes the first (grapple/phase/magnet) pedestal. Roles are

@@ -5,6 +5,7 @@ import level2_1 from "./level2_1.js";
 import level2_2 from "./level2_2.js";
 import level2_3 from "./level2_3.js";
 import level3_1 from "./level3_1.js";
+import level3_2 from "./level3_2.js";
 import tutorial from "./tutorial.js";
 
 export const WORLD_INFO = [
@@ -23,7 +24,7 @@ export const LEVELS = [
   level2_2,
   level2_3,
   level3_1,
-  { id: "3-2", name: "The Flooded Tank", world: 3, wip: true },
+  level3_2,
   { id: "3-3", name: "The Scrap Storm", world: 3, wip: true },
   { id: "4-1", name: "Lights Out", world: 4, wip: true },
   { id: "4-2", name: "The Laser Garden", world: 4, wip: true },

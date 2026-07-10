@@ -640,6 +640,63 @@ const TRACKS = {
     ],
   },
 
+  // w3l2 — 3-2 "The Flooded Tank" (W3W4 L32): the submerged tank track. Stays
+  // in the W3 C-minor family but sinks it: 88 BPM, everything through a LOW
+  // 1400 Hz cut (the same lowpass TECHNIQUE as the SL7 sad treatment — a fresh
+  // composition, not the sad hook), long detuned pads like pressure, a slow
+  // two-note "pump" bass, a sine sonar lead that only pings in B/A', and a
+  // sparse triangle arp that reads as rising bubbles. Drums are soft kicks and
+  // off-beat hats — machinery heard through water. 36 bars (intro/A/B/A'/deep).
+  w3l2: {
+    bpm: 88, root: 48, scale: [0, 3, 5, 7, 10],
+    leadType: "sine", leadVol: 0.032, leadLen: 1.1,
+    arpType: "triangle", arpVol: 0.014, arpLen: 1.8,
+    bassType: "sine", bassVol: 0.1, bassLen: 5.5,
+    kickVol: 0.06, snareVol: 0.02, hatVol: 0.011, padVol: 0.032, padCut: 1400,
+    sections: [
+      {
+        name: "intro", bars: 4,
+        pads: [pad(CH.CmLo), pad(CH.CmLo), pad(CH.AbLo), pad(CH.GLo)],
+        bass: [b2(36, 43), b2(36, 43), b2(32, 39), b2(31, 38)],
+        arp: [row({ 4: 60 }), row({ 4: 60, 12: 63 }), row({ 4: 56 }), row({ 4: 58, 12: 62 })],
+        drums: [D.none, D.offhat, D.none, D.offhat],
+      },
+      {
+        name: "A", bars: 8,
+        pads: [pad(CH.CmLo), pad(CH.Eb), pad(CH.AbLo), pad(CH.GLo)],
+        bass: [b2(36, 43), b2(39, 46), b2(32, 39), b2(31, 38)],
+        arp: [row({ 0: 60, 6: 63, 12: 67 }), row({ 0: 63, 6: 67, 12: 70 }),
+          row({ 0: 56, 6: 60, 12: 63 }), row({ 0: 55, 6: 58, 12: 62 })],
+        drums: [D.softKick, D.none, D.softKick, D.offhat],
+      },
+      {
+        name: "B", bars: 8,
+        pads: [pad(CH.Fm), pad(CH.AbLo), pad(CH.CmLo), pad(CH.Bb)],
+        bass: [b2(41, 48), b2(32, 39), b2(36, 43), b2(34, 41)],
+        lead: [row({ 2: 72 }), row({ 8: 68 }), row({ 2: 75, 10: 72 }), row({ 8: 70 })],
+        arp: [row({ 0: 60, 8: 65 }), row({ 0: 60, 8: 63 }), row({ 0: 60, 8: 67 }), row({ 0: 58, 8: 65 })],
+        drums: [D.softKick, D.offhat, D.softKick, D.tick],
+      },
+      {
+        name: "A'", bars: 8,
+        pads: [pad(CH.CmLo), pad(CH.Eb), pad(CH.AbLo), pad(CH.GLo)],
+        bass: [b2(36, 48), b2(39, 51), b2(32, 44), b2(31, 43)],
+        lead: [row({ 8: 79 }), row({ 4: 75 }), row({ 8: 72 }), row({ 4: 70, 12: 67 })],
+        arp: [row({ 0: 60, 5: 63, 10: 67, 14: 72 }), row({ 0: 63, 5: 67, 10: 70 }),
+          row({ 0: 56, 5: 60, 10: 63, 14: 68 }), row({ 0: 55, 5: 58, 10: 62 })],
+        drums: [D.softKick, D.offhat, D.kickHat, D.offhat],
+      },
+      {
+        name: "deep", bars: 8,
+        pads: [pad(CH.AbLo), pad(CH.Fm), pad(CH.CmLo), pad(CH.CmLo)],
+        bass: [b2(32, 39), b2(29, 36), b2(36, 43), b2(24, 36)],
+        lead: [row({ 6: 68 }), row({ 10: 65 }), row({ 6: 63 }), row({})],
+        arp: [row({ 0: 56, 8: 60 }), row({ 0: 53, 8: 56 }), row({ 0: 60, 8: 63 }), row({ 4: 60 })],
+        drums: [D.none, D.softKick, D.none, D.offhat],
+      },
+    ],
+  },
+
   // w4 — reserve (World 4, dark ambient): very slow A-phrygian drift, 70 BPM,
   // long detuned pads, a lone low bass and rare soft percussion. 32 bars.
   w4: {
@@ -695,9 +752,9 @@ const LEVEL_TRACK = {
   "tut": "hub",
   "1-1": "w1l1", "1-2": "w1l2", "1-3": "w1l3",
   "2-1": "w2l1", "2-2": "w2l2", "2-3": "w2l3",
-  // W3W4 L31: 3-1 gets its own composed chamber track; 3-2/3-3 stay on the w3
-  // reserve until their sprints land.
-  "3-1": "w3l1", "3-2": "w3", "3-3": "w3",
+  // W3W4 L31/L32: 3-1 and 3-2 get their own composed chamber tracks; 3-3
+  // stays on the w3 reserve until its sprint lands.
+  "3-1": "w3l1", "3-2": "w3l2", "3-3": "w3",
   "4-1": "w4", "4-2": "w4", "4-3": "w4",
   // W3W4 M3: the dev-only World-3 mechanics sandbox reuses the w3 track (the
   // "wire the LEVEL music registry for world 3" entry — 3-1..3-3 above were
