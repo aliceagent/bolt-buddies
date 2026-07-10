@@ -167,6 +167,25 @@ progression and zero page errors. Failures triage per the beat-failure
 protocol; fix; rerun; loop until two consecutive fully-clean campaigns, and
 re-run after any subsequent change.
 
+**Shipped (`npm run campaign`).** `tools/campaign.mjs` drives ONE continuous
+Canvas browser context (title → NEW GAME → KOBI onboarding SKIP → hub → 1-1…2-3
+via real hub navigation + SPACE-to-enter → the reused Beat-Kit routes to beat
+each level → clear-overlay CONTINUE back to the hub → TUTORIAL from the Title
+menu). Real Playwright keys only advance play; `evaluate()` is used solely to
+READ state (scene id, save, ux records, hub cursor) and to zero the SL2/SL3
+session peaks — exactly like the beat runner. Per level it asserts the save
+`unlocked` count advanced in order (fresh → 2…7), the cores array + a ux-v1
+best-time record persisted, and `__bbWatchdogPeakTier` (SL2) + `__bbSoftlockPeak`
+(SL3) both stayed **0** (a real playthrough never trips the softlock guards —
+the no-un-signalled-softlock proof). The tutorial asserts it returns to TITLE
+and writes NO unlock. Canvas sidesteps the WebGL-context wedge that forces
+`tools/gallery.mjs` to use a fresh browser per chunk, so a whole campaign runs
+in one session with true save/unlock continuity; a level that fails to complete
+is retried in place (ESC-ESC to the map, re-enter) to absorb the documented
+2-2/1-3 thermal env flake, and only first-try passes count toward the two
+consecutive CLEAN campaigns. Verified: two consecutive CLEAN campaigns, 0
+flake-retries, 0 JS page errors, SL2/SL3 peak 0 on every level.
+
 ## A12 audit findings
 
 The final sprint hardened the motion system: a token sweep, a scripted
