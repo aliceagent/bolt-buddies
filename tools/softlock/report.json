@@ -1,5 +1,5 @@
 {
-  "when": "2026-07-08T11:25:43.127Z",
+  "when": "2026-07-10T09:06:16.967Z",
   "url": "http://localhost:5173/?canvas=1",
   "results": [
     {
@@ -7,14 +7,15 @@
       "level": "tut",
       "category": "A",
       "candidate": "Station-4 grapple pit — BOTH robots fall in (safe pit, no death escape)",
-      "durationMs": 22046,
+      "durationMs": 26372,
       "deaths": 0,
+      "softlockPeak": 0,
       "classification": "RECOVERABLE",
       "stuck": {
         "bothInPit": true,
         "players": [
           {
-            "tx": 36.15,
+            "tx": 36.37,
             "ty": 17.5,
             "dead": false,
             "skill": "grapple",
@@ -23,7 +24,7 @@
             "carriedBy": false
           },
           {
-            "tx": 36.94,
+            "tx": 36.69,
             "ty": 17.42,
             "dead": false,
             "skill": "heavy",
@@ -53,14 +54,15 @@
       "level": "tut",
       "category": "A",
       "candidate": "Station-4 grapple pit — heavy falls in, grapple free on the rim",
-      "durationMs": 24112,
+      "durationMs": 29919,
       "deaths": 0,
+      "softlockPeak": 0,
       "classification": "RECOVERABLE",
       "stuck": {
         "heavyInPit": true,
         "players": [
           {
-            "tx": 33.74,
+            "tx": 33.7,
             "ty": 13.52,
             "dead": false,
             "skill": "grapple",
@@ -69,7 +71,7 @@
             "carriedBy": false
           },
           {
-            "tx": 36.86,
+            "tx": 36.79,
             "ty": 17.39,
             "dead": false,
             "skill": "heavy",
@@ -99,8 +101,9 @@
       "level": "1-1",
       "category": "A",
       "candidate": "x14-19 electric pit — a robot falls in before learning the belt-gap zip",
-      "durationMs": 7376,
+      "durationMs": 7424,
       "deaths": 0,
+      "softlockPeak": 0,
       "classification": "RECOVERABLE",
       "stuck": {
         "note": "grapple entered the electric pit (hazard)"
@@ -124,8 +127,9 @@
       "level": "1-2",
       "category": "B/C",
       "candidate": "Heavy holds plate plA (opens sky-door b1) — who frees the holder?",
-      "durationMs": 18590,
+      "durationMs": 13209,
       "deaths": 0,
+      "softlockPeak": 0,
       "classification": "RECOVERABLE",
       "stuck": {
         "plateWasHeld": true,
@@ -136,7 +140,7 @@
         {
           "name": "holder frees ITSELF: heavy steps off the momentary plate and walks on (crusher-immune)",
           "ok": true,
-          "note": "heavy walked off to tx=26.62 (b1 auto-closed=true)"
+          "note": "heavy walked off to tx=26.46 (b1 auto-closed=true)"
         }
       ],
       "repro": [
@@ -152,25 +156,26 @@
       "level": "1-2",
       "category": "C",
       "candidate": "Reel-across electric chasm — grapple crosses, heavy stranded on the near side",
-      "durationMs": 41303,
+      "durationMs": 38459,
       "deaths": 0,
-      "classification": "RECOVERABLE",
+      "softlockPeak": 0,
+      "classification": "UNVERIFIED",
       "stuck": {
         "note": "heavy on the near chasm edge; grapple across",
-        "bothAcross": true
+        "bothAcross": false
       },
       "recoveries": [
         {
           "name": "grapple anchor-reel pulls the stranded heavy across the chasm (DOWN+ACTION); zip-back available via the same anchors",
-          "ok": true,
-          "note": "route complete=true"
+          "ok": false,
+          "note": "route complete=false err:waitFor timed out: H reeled onto the pillar"
         }
       ],
       "repro": [
         "full 1-2 traversal: at the chasm (x40-52) grapple zips the anchor chain to the pillar/far floor and REELS heavy across (DOWN+ACTION)",
         "the reel is the recovery for a stranded partner; anchors on both sides also allow a grapple zip-BACK retrace"
       ],
-      "verdict": "RECOVERABLE — the anchor-reel that completes the crossing IS the un-strand: a partner left on the near side is reeled over. Grapple can also zip BACK across the anchors to retrace.",
+      "verdict": "UNVERIFIED (env flake at 'chasm relay: G crosses on the anchors, reels H over the pillar': waitFor timed out: H reeled onto the pillar) — the reel is a known thermally-sensitive step; re-run to confirm.",
       "expectedUnverified": true,
       "notes": "Anchors at 43/46/52 straddle the pillar so grapple can reel the buddy across OR zip back. And since checkpoints are global, a stranded heavy that steps into the electric chasm respawns at the shared checkpoint (x54 once grapple activates it) — death can also reunite the team across the gap."
     },
@@ -179,15 +184,16 @@
       "level": "1-3",
       "category": "C",
       "candidate": "Tower reel-up — heavy falls, grapple at top must re-descend; + is the crane unwinnable?",
-      "durationMs": 65246,
+      "durationMs": 65548,
       "deaths": 0,
+      "softlockPeak": 0,
       "classification": "RECOVERABLE",
       "stuck": {
         "note": "heavy at the tower base, grapple up a ledge",
         "players": [
           {
-            "tx": 52.75,
-            "ty": 2.48,
+            "tx": 52.74,
+            "ty": 2.49,
             "dead": false,
             "skill": "grapple",
             "grounded": true,
@@ -195,7 +201,7 @@
             "carriedBy": false
           },
           {
-            "tx": 54.19,
+            "tx": 54.13,
             "ty": 2.42,
             "dead": false,
             "skill": "heavy",
@@ -230,14 +236,15 @@
       "level": "1-1",
       "category": "D",
       "candidate": "Co-op lift (needs both, threshold 3) death-loop + x50 landing-pit respawn-strand",
-      "durationMs": 47459,
+      "durationMs": 48663,
       "deaths": 0,
+      "softlockPeak": 0,
       "classification": "RECOVERABLE",
       "stuck": {
         "note": "team at the lift / x50 landing",
         "players": [
           {
-            "tx": 57.89,
+            "tx": 57.83,
             "ty": 9.47,
             "dead": false,
             "skill": "grapple",
@@ -246,7 +253,7 @@
             "carriedBy": false
           },
           {
-            "tx": 58.58,
+            "tx": 58.65,
             "ty": 9.41,
             "dead": false,
             "skill": "heavy",
@@ -281,8 +288,9 @@
       "level": "2-1",
       "category": "C",
       "candidate": "Roller yard — solo Tiny walled by shimmer pillars without a Phase escort",
-      "durationMs": 40857,
-      "deaths": 2,
+      "durationMs": 37682,
+      "deaths": 1,
+      "softlockPeak": 0,
       "classification": "RECOVERABLE",
       "stuck": {
         "soloTinyStalledAtTx": 49.83,
@@ -309,8 +317,9 @@
       "level": "2-3",
       "category": "B",
       "candidate": "HIGHEST RISK — cross-lane timed doors (6.5s): can a team be SEALED between two closed doors?",
-      "durationMs": 24068,
+      "durationMs": 23880,
       "deaths": 0,
+      "softlockPeak": 0,
       "classification": "RECOVERABLE",
       "stuck": {
         "oneTimedDoorPerLane": true,
@@ -347,15 +356,16 @@
       "level": "2-3",
       "category": "C",
       "candidate": "Finale throw-across gap — Phase throws Tiny; a miss respawns Tiny near-side",
-      "durationMs": 29157,
+      "durationMs": 28443,
       "deaths": 0,
+      "softlockPeak": 0,
       "classification": "RECOVERABLE",
       "stuck": {
         "note": "Phase carrying Tiny at the finale gap",
         "players": [
           {
-            "tx": 61.89,
-            "ty": 13.46,
+            "tx": 61.74,
+            "ty": 13.48,
             "dead": false,
             "skill": "phase",
             "grounded": true,
@@ -363,7 +373,7 @@
             "carriedBy": false
           },
           {
-            "tx": 61.59,
+            "tx": 61.54,
             "ty": 13.73,
             "dead": false,
             "skill": "tiny",
@@ -393,15 +403,16 @@
       "level": "2-2",
       "category": "C",
       "candidate": "Cross-lane separation; fan-ride required for Tiny (thermally non-deterministic)",
-      "durationMs": 53358,
+      "durationMs": 40010,
       "deaths": 0,
+      "softlockPeak": 0,
       "classification": "RECOVERABLE",
       "stuck": {
         "note": "cross-lane fan/steam section",
         "players": [
           {
-            "tx": 54.72,
-            "ty": 13.5,
+            "tx": 54.91,
+            "ty": 13.47,
             "dead": false,
             "skill": "phase",
             "grounded": true,
@@ -409,7 +420,7 @@
             "carriedBy": false
           },
           {
-            "tx": 56.15,
+            "tx": 56.26,
             "ty": 13.74,
             "dead": false,
             "skill": "tiny",

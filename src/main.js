@@ -47,6 +47,21 @@ game.events.once("ready", () => {
   game.scene.bringToTop("Mute");
 });
 
+// W3W4 M3: dev-only sandbox loader — `?devlevel=w3` swaps straight into the
+// World-3 mechanics sandbox once boot lands on the Title screen. Guarded by the
+// query string (and again in GameScene.init), so normal play, the registry and
+// the hub are untouched without it.
+if (new URLSearchParams(location.search).get("devlevel") === "w3") {
+  const iv = setInterval(() => {
+    const m = game.scene;
+    if (m.isActive && m.isActive("Title")) {
+      clearInterval(iv);
+      ["Title", "Onboard"].forEach((k) => m.stop(k));
+      m.start("Game", { devLevel: "w3" });
+    }
+  }, 120);
+}
+
 // handle used by the automated playtest harness (tools/playtest.mjs)
 window.__BB = { game };
 // audio test surface (tools/playtest_audio.mjs): engine settings/state getter +

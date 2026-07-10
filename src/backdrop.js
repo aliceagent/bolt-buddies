@@ -57,7 +57,11 @@ export function addMotes(scene, tint) {
 // Per-world silhouette prop strip: one cached texture tiled horizontally at a
 // mild parallax. Its height matches the texture so it never repeats vertically.
 export function addPropStrip(scene, world) {
-  const key = world === 2 ? "propStrip2" : "propStrip1"; // unknown worlds inherit W1
+  // W3 (Magnet Works) gets its own foundry/scrapyard silhouette strip, baked
+  // lazily by GameScene.ensureW3Textures() before buildBackground runs (so the
+  // shipped W1/W2 boot path bakes nothing new). Unknown worlds inherit W1.
+  const key = world === 3 && scene.textures.exists("propStrip3") ? "propStrip3"
+    : world === 2 ? "propStrip2" : "propStrip1";
   const W = scene.scale.width;
   // Height clipped to the top band (0..560): the floor vats/gantry mostly hide
   // behind terrain anyway, and a shorter strip cuts the per-frame fill it costs

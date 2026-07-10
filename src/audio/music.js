@@ -636,6 +636,10 @@ const LEVEL_TRACK = {
   "2-1": "w2l1", "2-2": "w2l2", "2-3": "w2l3",
   "3-1": "w3", "3-2": "w3", "3-3": "w3",
   "4-1": "w4", "4-2": "w4", "4-3": "w4",
+  // W3W4 M3: the dev-only World-3 mechanics sandbox reuses the w3 track (the
+  // "wire the LEVEL music registry for world 3" entry — 3-1..3-3 above were
+  // already mapped; this makes the sandbox exercise the same reuse path).
+  "dev-w3": "w3",
 };
 export function trackForLevel(id) {
   return LEVEL_TRACK[id] || "w1l1";

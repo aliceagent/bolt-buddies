@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { PHYS, DEPTH, SKILL_INFO } from "../constants.js";
+import { PHYS, DEPTH, SKILL_INFO, TILE } from "../constants.js";
 import { sfx } from "../audio.js";
 import { MOTION } from "../anim/motion.js";
 
@@ -37,6 +37,17 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.lastVy = 0;
     this.standingOn = null;
     this.badge = null;
+
+    // --- W3W4 M3: World-3 skill/terrain state -------------------------------
+    // ALL of these rest at 0/null in shipped levels (only W3 skills/ents set
+    // them), so every branch that reads them is inert outside World 3.
+    this.bubbleT = 0;      // ms of bubble-shield remaining (0 = not bubbled)
+    this.bubbleCd = 0;     // ms until the bubble may be blown again
+    this.bubbleShell = null; // pooled shell image, created by GameScene on W3 levels
+    this.magCrate = null;  // metal crate currently drag-latched to this magnet
+    this.magCling = null;  // { railY } while hanging from a steel rail
+    this.inWater = null;   // the water volume overlapping this robot (set per frame)
+    this.airMs = 0;        // un-bubbled submerged time toward PHYS.waterAirMs
 
     // --- presentation state (Sprint 3) -------------------------------------
     this.baseKey = idx === 0 ? "robot_b" : "robot_o";
@@ -311,9 +322,58 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.setVelocity(this.body.velocity.x * 0.3, 980);
   }
 
+  // --- W3W4 M3: steel-rail cling (MAGNET GLOVE) ------------------------------
+  // Mirrors the zip-hang state pattern: gravity off + a scripted movement branch
+  // in preUpdate, released by fresh jump input. The body is snapped just under
+  // the rail underside; traverse is plain velocity (collisions still apply).
+  startMagCling(railRow) {
+    this.clearStates();
+    const undersideY = (railRow + 1) * TILE;
+    this.magCling = { railY: railRow * TILE + 24 }; // probe y inside the rail row
+    this.body.setAllowGravity(false);
+    this.setVelocity(0, 0);
+    this.body.reset(this.x, undersideY + this.displayHeight / 2 - 2);
+    sfx.railCling();
+  }
+
+  endMagCling() {
+    if (!this.magCling) return;
+    this.magCling = null;
+    this.body.setAllowGravity(true);
+  }
+
+  updateMagCling(delta) {
+    const K = this.keys;
+    const P = this.pad;
+    const body = this.body;
+    body.velocity.y = 0;
+    let vx = 0;
+    if (K.left.isDown || (P && P.left.isDown)) {
+      vx = -PHYS.clingSpeed;
+      this.facing = -1;
+      this.setFlipX(true);
+    } else if (K.right.isDown || (P && P.right.isDown)) {
+      vx = PHYS.clingSpeed;
+      this.facing = 1;
+      this.setFlipX(false);
+    }
+    // edge stop: only traverse while a rail tile continues overhead ahead
+    if (vx !== 0 && this.scene.tileAt) {
+      const ahead = this.scene.tileAt(this.x + Math.sign(vx) * (body.halfWidth + 8), this.magCling.railY);
+      if (ahead !== "=") vx = 0;
+    }
+    body.velocity.x = vx;
+    // drop on jump (fresh input releases — mirrors the zip-hang release chord)
+    if (Phaser.Input.Keyboard.JustDown(K.jump) || (P && P.jumpJust)) {
+      this.endMagCling();
+      sfx.railDrop();
+    }
+  }
+
   clearStates() {
     this.endZip();
     this.endReeled();
+    this.endMagCling(); // W3: a rail-clinger grabbed/killed/reeled lets go
     this.stomping = false;
     this.standingOn = null;
   }
@@ -379,6 +439,11 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       return;
     }
     if (this.reeled) return; // GameScene drives us toward the reeler
+    if (this.magCling) {
+      // W3: hanging from a steel rail — scripted traverse branch (like zip)
+      this.updateMagCling(delta);
+      return;
+    }
 
     const body = this.body;
     let speed = (this.skill === "heavy" ? PHYS.heavySpeed : this.skill === "tiny" ? 285 : PHYS.speed) * (this.carrying ? 0.85 : 1);
@@ -405,6 +470,12 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       if (this.skill === "heavy" && (this.stomping || this.lastVy > 700)) this.scene.heavyImpact(this, this.stomping);
       else if (this.lastVy > 480) sfx.land(this.x, this.y);
       if (this.lastVy > 260) this.landSquash(); // squash on any real landing
+      // W3 bubble: bouncy landings — inert unless bubbled (bubbleT is only ever
+      // set by the BUBBLE SHIELD skill, which no shipped level spawns).
+      if (this.bubbleT > 0 && this.lastVy > 300 && !this.inWater) {
+        body.velocity.y = -Math.min(540, this.lastVy * 0.62);
+        sfx.bubbleBounce(this.x, this.y);
+      }
       this.stomping = false;
     }
     this.wasGround = onGround;
@@ -424,6 +495,40 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     }
     // variable jump height (cut only when NEITHER keyboard nor pad jump is held)
     if (!K.jump.isDown && !(P && P.jump.isDown) && body.velocity.y < -260) body.velocity.y = -260;
+
+    // --- W3 water volumes: buoyant slow-sink / bubbled free-swim -------------
+    // `inWater` is only ever set by a W3 water volume (updateWorld3), so this
+    // whole branch is inert in shipped levels. Frame-rate independent eases
+    // (1-Math.pow(1-k, dt*60) — the FL-013 pattern).
+    if (this.inWater) {
+      // cancel this frame's gravity while immersed (the physics step adds
+      // grav*dt right after preUpdate; pre-subtracting it here makes the eases
+      // below the sole vertical authority — true buoyancy, not a gravity fight)
+      body.velocity.y -= PHYS.grav * (delta / 1000);
+      if (this.bubbleT > 0) {
+        // bubbled: free 4-direction swim — vertical from jump/down, damped idle
+        const f = 1 - Math.pow(1 - 0.28, (delta / 1000) * 60);
+        let vt = 0;
+        if (K.jump.isDown || (P && P.jump.isDown)) vt = -PHYS.swimSpeed;
+        else if (K.down.isDown || (P && P.down.isDown)) vt = PHYS.swimSpeed;
+        body.velocity.y = Phaser.Math.Linear(body.velocity.y, vt, f);
+      } else {
+        // normal robot: buoyancy eases vy toward a slow sink (gentle rate so a
+        // swim kick still rises ~a tile); a fresh jump press is that kick.
+        const fy = 1 - Math.pow(1 - 0.08, (delta / 1000) * 60);
+        const fx = 1 - Math.pow(1 - 0.2, (delta / 1000) * 60);
+        body.velocity.y = Phaser.Math.Linear(body.velocity.y, PHYS.waterSink, fy);
+        if (this.jumpBuf > 0) {
+          body.velocity.y = -260;
+          this.jumpBuf = 0;
+        }
+        // water drag caps horizontal speed
+        const cap = 130;
+        if (body.velocity.x > cap) body.velocity.x = Phaser.Math.Linear(body.velocity.x, cap, fx);
+        else if (body.velocity.x < -cap) body.velocity.x = Phaser.Math.Linear(body.velocity.x, -cap, fx);
+      }
+    }
+
     if (this.stomping) body.velocity.y = 980;
   }
 }

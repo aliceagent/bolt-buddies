@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { TILE, COLORS, PHYS, DEPTH, SKILL_INFO, WORLD_THEMES, FONT, FS, TEXT, PARTICLES } from "../constants.js";
 import { LEVELS } from "../levels/registry.js";
 import { makeGrid } from "../levels/builder.js";
+import devW3 from "../levels/dev_w3.js";
 import { completeLevel, loadSave } from "../save.js";
 import { initAudio, sfx, installMute, playTrack, setMusicLayer, playJingle, trackForLevel, setListener, clearListener, proximity, setLoop, stopLoops, pauseDuck, setSadMusic } from "../audio.js";
 import { addGradient, addMotes, addPropStrip, addFogBand, addDrips, addDustShafts, addVignette } from "../backdrop.js";
@@ -84,11 +85,18 @@ export default class GameScene extends Phaser.Scene {
     // so its clear overlay returns to the HUB (not Title). Menu-launched
     // tutorials leave it false and keep returning to Title.
     this.returnToHub = !!(data && data.returnToHub);
+    // W3W4 M3: dev-only sandbox hook. Honored ONLY when the page itself was
+    // loaded with ?devlevel=w3 — normal play/registry/hub can never reach it.
+    const devOk = typeof location !== "undefined" && /(?:\?|&)devlevel=w3(?:&|$)/.test(location.search);
+    this.devLevel = devOk && data && data.devLevel === "w3" ? "w3" : null;
   }
 
   create() {
-    const def = LEVELS[this.levelIndex];
+    const def = this.devLevel ? devW3 : LEVELS[this.levelIndex];
     this.def = def;
+    // W3W4 M3: bake the World-3 texture set lazily, the first time a W3 level
+    // actually loads (shipped W1/W2 boot path bakes nothing new — inert).
+    if (def.world === 3) this.ensureW3Textures();
     const gb = makeGrid(def.cols, def.rows);
     def.build(gb);
     this.grid = gb.g;
@@ -154,6 +162,20 @@ export default class GameScene extends Phaser.Scene {
     this._u9StreakCount = 0;   // total streak lines fired this scene
     this._u9LastStreak = null; // last streak line fired (cross-segment variety)
     this._u9AllCores = null;   // all-cores respect line fired at finishLevel
+
+    // W3W4 M3: World-3 mechanics state. Arrays are reset every create() like the
+    // rest of the level state; `_w3` flips true only when a W3 skill/ent/tile is
+    // actually present, and every new update path early-returns on it — so all
+    // of this is inert in the shipped W1/W2 levels.
+    this._w3 = false;
+    this.crates = [];    // metal crates: pushable/magnet-draggable physics boxes
+    this.updrafts = [];  // rising air columns (lift a BUBBLED robot)
+    this.waters = [];    // water volumes (buoyancy / air-timer / current)
+    this.jellies = [];   // zap-jelly floaters
+    this.sockets = [];   // jelly sockets (lock a knocked jelly in -> power a door)
+    this.chompers = [];  // junk-chompers (magnet yanks their teeth out)
+    this.w3Gfx = null;   // shared clear+redraw overlay (air rings, magnet link)
+    this._w3Rect = new Phaser.Geom.Rectangle(0, 0, 0, 0); // reused scratch (no per-frame alloc)
 
     this.crackies = this.physics.add.staticGroup();
     this.bridgeGroup = this.physics.add.staticGroup();
@@ -266,6 +288,35 @@ export default class GameScene extends Phaser.Scene {
     this.physics.add.collider(this.bugs, this.crackies);
     this.physics.add.collider(this.bugs, this.doorGroup);
     if (this.crushers.length) this.physics.add.collider(this.crushers.map((c) => c.img), this.solidObjs);
+
+    // W3W4 M3: World-3 physics wiring — only when W3 content is present.
+    if (this.crates.length) {
+      const crateImgs = this.crates.map((c) => c.img);
+      this.physics.add.collider(crateImgs, this.solidObjs);
+      this.physics.add.collider(crateImgs, crateImgs); // stackable stairs
+      this.physics.add.collider(crateImgs, this.doorGroup);
+      this.physics.add.collider(this.players, crateImgs, rideCb); // standable + rideable
+    }
+    if (this.chompers.length) this.physics.add.collider(this.chompers.map((c) => c.img), this.solidObjs);
+    if (this.jellies.length) {
+      const jellyImgs = this.jellies.map((j) => j.img);
+      this.physics.add.collider(jellyImgs, this.solidObjs);
+      this.physics.add.collider(jellyImgs, this.doorGroup); // a knocked jelly can't fly through a closed door
+    }
+    if (this._w3) {
+      // shared clear+redraw overlay (air-timer rings + the magnet drag link)
+      this.w3Gfx = this.add.graphics().setDepth(DEPTH.fx);
+      // pooled bubble shells, one per robot (additive on WebGL, solid-alpha art
+      // on Canvas — the texture bakes its own translucency).
+      const webglShell = this.game.renderer.type === Phaser.WEBGL;
+      if (this.textures.exists("bubbleshell")) {
+        this.players.forEach((p) => {
+          p.bubbleShell = this.add.image(p.x, p.y, "bubbleshell")
+            .setDepth(DEPTH.player + 2).setVisible(false);
+          if (webglShell) p.bubbleShell.setBlendMode(Phaser.BlendModes.ADD);
+        });
+      }
+    }
 
     // camera
     const cam = this.cameras.main;
@@ -519,7 +570,9 @@ export default class GameScene extends Phaser.Scene {
     // 1-3 starts with the `tension` layer ON by default (crane alive).
     playTrack(trackForLevel(def.id));
 
-    this.scene.launch("UI", { levelIndex: this.levelIndex });
+    // The dev sandbox points the HUD at the 3-1 registry placeholder (index 6)
+    // so the top plate/theme read as World 3; normal play is untouched.
+    this.scene.launch("UI", { levelIndex: this.devLevel ? 6 : this.levelIndex });
 
     // __BB.scene must be available synchronously — the beat runner + suites read
     // it right after scene.start, so nothing below may gate it.
@@ -717,6 +770,21 @@ export default class GameScene extends Phaser.Scene {
     for (let y = 0; y < this.def.rows; y++) {
       let runStart = -1;
       let hazStart = -1;
+      let railStart = -1; // W3: steel rail runs ('='), magnet-cling ceilings
+      // W3: flush a contiguous steel-rail run — solid like '#' but drawn as a
+      // powered I-beam whose underside a MAGNET GLOVE robot clings to.
+      const flushRail = (endX) => {
+        if (railStart < 0) return;
+        const w = (endX - railStart) * TILE;
+        const cx = railStart * TILE + w / 2;
+        const ts = this.add.tileSprite(cx, y * TILE + 24, w, TILE, "railtile").setDepth(DEPTH.terrain);
+        this.physics.add.existing(ts, true);
+        this.solidObjs.push(ts);
+        this._w3 = true;
+        // grip strip along the cling face (underside) — the "grab me" affordance
+        this.add.rectangle(cx, (y + 1) * TILE - 2, w, 4, 0xffb347, 0.5).setDepth(DEPTH.terrain + 1);
+        railStart = -1;
+      };
       const flush = (endX) => {
         if (runStart < 0) return;
         const w = (endX - runStart) * TILE;
@@ -769,11 +837,16 @@ export default class GameScene extends Phaser.Scene {
       for (let x = 0; x < this.def.cols; x++) {
         const c = g[y][x];
         if (c !== "^") flushHaz(x);
+        if (c !== "=") flushRail(x);
         if (c === "#") {
           if (runStart < 0) runStart = x;
           continue;
         }
         flush(x);
+        if (c === "=") {
+          if (railStart < 0) railStart = x;
+          continue;
+        }
         if (c === "%") {
           const img = this.crackies.create(x * TILE + 24, y * TILE + 24, "crack");
           img.setDepth(DEPTH.terrain);
@@ -819,6 +892,7 @@ export default class GameScene extends Phaser.Scene {
       }
       flush(this.def.cols);
       flushHaz(this.def.cols);
+      flushRail(this.def.cols);
     }
 
     // P4 pooled ambient emitters — WebGL tier ONLY (additive; the Canvas beat
@@ -882,7 +956,7 @@ export default class GameScene extends Phaser.Scene {
           const nx = x + dx, ny = y + dy;
           const cc = (ny < 0 || ny >= rows || nx < 0 || nx >= cols) ? "#" : g[ny][nx];
           if (cc === "#") solid++;
-          if ("^~d<>%".includes(cc)) special = true;
+          if ("^~d<>%=".includes(cc)) special = true;
         }
         if (special || solid < 2) continue; // interior of a sizeable run only
         cand.push({ x, y });
@@ -1018,7 +1092,8 @@ export default class GameScene extends Phaser.Scene {
   }
 
   isSolidChar(c) {
-    return c === "#" || c === "%" || c === "<" || c === ">";
+    // '=' is the W3 steel rail — solid terrain (never appears in W1/W2 grids)
+    return c === "#" || c === "%" || c === "<" || c === ">" || c === "=";
   }
 
   hasLOS(x1, y1, x2, y2) {
@@ -1113,6 +1188,8 @@ export default class GameScene extends Phaser.Scene {
         const ped = { x: px, y: py, skill: e.skill, taken: false, img, icon, orbit, beam, bands: [band1, band2].filter(Boolean), glyphEmit };
         this.buildItemCard(ped, px, cardY, info);
         this.pedestals.push(ped);
+        // W3W4 M3: a W3 skill pedestal arms the (otherwise inert) W3 update path
+        if (e.skill === "magnet" || e.skill === "bubble") this._w3 = true;
         break;
       }
       case "anchor": {
@@ -1587,6 +1664,105 @@ export default class GameScene extends Phaser.Scene {
         };
         break;
       }
+
+      // --- W3W4 M3: World-3 terrain devices & enemies -----------------------
+      case "crate": {
+        // metal crate: a real dynamic physics box — pushable, magnet-draggable,
+        // stackable into stairs, standable (players collide + ride it).
+        const img = this.add.image(px, py, "crate3").setDepth(DEPTH.entity);
+        this.physics.add.existing(img);
+        img.body.setSize(42, 42);
+        img.body.setDragX(420);
+        img.body.setMass(3);
+        img.body.setMaxVelocity(320, PHYS.maxFall);
+        this.crates.push({ img, heldBy: null });
+        this._w3 = true;
+        break;
+      }
+      case "magswitch": {
+        // magnetic switch: flipped ONLY by a magnet ACTION (remotely, like the
+        // grapple-lever). Registered as a lever with `mag: true` so the existing
+        // needs/latch/conduit plumbing drives its doors unchanged; the mag flag
+        // excludes it from hand-pulls and grapple targeting.
+        const img = this.add.image(px, py + 4, "magswitch").setDepth(DEPTH.entity);
+        this.addLightPool(px, py + 6, 0xff9e3d, { alpha: 0.22, scale: 0.8 });
+        this.levers.push({ id: e.id, x: px, y: py, on: false, img, handle: null, mag: true });
+        this._w3 = true;
+        break;
+      }
+      case "updraft": {
+        // vent updraft: a rising air column — lifts a BUBBLED robot, a gentle
+        // boost for everyone else. Drawn like the 2-2 fan family (W3 amber).
+        this.add.image(px, py + 13, "vent3").setDepth(DEPTH.entity);
+        let topRow = 0;
+        for (let ty = e.y - 1; ty >= 0; ty--) {
+          if (this.isSolidChar(this.grid[ty][e.x])) { topRow = ty + 1; break; }
+        }
+        const zone = new Phaser.Geom.Rectangle(e.x * TILE + 4, topRow * TILE, TILE - 8, (e.y - topRow) * TILE + 48);
+        const puffs = this.add.particles(px, py + 16, "px", {
+          speedY: { min: -300, max: -180 }, speedX: { min: -18, max: 18 },
+          scale: { start: 0.5, end: 0 }, lifespan: { min: 420, max: 900 },
+          quantity: 1, frequency: 100, tint: 0xffd9a0, alpha: 0.5,
+        }).setDepth(DEPTH.fx);
+        const col = this.add.rectangle(zone.centerX, zone.centerY, zone.width, zone.height, 0xffd9a0, 0.08)
+          .setBlendMode(Phaser.BlendModes.ADD).setDepth(DEPTH.fx - 3);
+        this.updrafts.push({ zone, puffs, col });
+        this._w3 = true;
+        break;
+      }
+      case "water": {
+        // water volume (rect, tile coords): buoyancy + slow-sink + air timer for
+        // normal robots, free swim for a BUBBLED one; optional horizontal current.
+        const rect = new Phaser.Geom.Rectangle(e.x * TILE, e.y * TILE, e.w * TILE, e.h * TILE);
+        this.add.rectangle(rect.centerX, rect.centerY, rect.width, rect.height, 0x123a5c, 0.6).setDepth(DEPTH.terrain - 1);
+        const over = this.add.rectangle(rect.centerX, rect.centerY, rect.width, rect.height, 0x39a7ff, 0.15).setDepth(DEPTH.player + 3);
+        const surf = this.add.rectangle(rect.centerX, rect.y + 2, rect.width, 4, 0xbfe8ff, 0.55).setDepth(DEPTH.player + 4);
+        this.tweens.add({ targets: surf, alpha: { from: 0.3, to: 0.65 }, duration: 1300, yoyo: true, repeat: -1, ease: "sine.inOut" });
+        this.waters.push({ rect, current: e.current || 0, over, surf });
+        this._w3 = true;
+        break;
+      }
+      case "jelly": {
+        // ZAP-JELLY: slow electric floater on a patrol path. Touch = zap; a
+        // BUBBLED robot bounces it away — knock it into a jelly socket.
+        const img = this.add.image(px, py, "jelly").setDepth(DEPTH.entity);
+        this.physics.add.existing(img);
+        img.body.setAllowGravity(false);
+        img.body.setSize(34, 28);
+        img.body.setBounce(0.7, 0.7);
+        img.body.setDrag(90, 90);
+        const glow = this.add.image(px, py, "jelly_glow").setDepth(DEPTH.entity - 1).setAlpha(0.5);
+        if (this.game.renderer.type === Phaser.WEBGL) glow.setBlendMode(Phaser.BlendModes.ADD);
+        this.jellies.push({
+          img, glow, state: "patrol", dir: 1, hitCd: 0,
+          minX: e.min * TILE, maxX: (e.max + 1) * TILE, baseY: py,
+          t: ((e.x * 31 + e.y * 17) % 100) * 10, // deterministic bob phase
+        });
+        this._w3 = true;
+        break;
+      }
+      case "socket": {
+        // jelly socket: a knocked jelly locks in here and POWERS a device via
+        // the standard lever-latch plumbing (a hidden `mag` lever with its id).
+        const img = this.add.image(px, py, "socket").setDepth(DEPTH.entity);
+        this.addLightPool(px, py + 6, 0x7ee0ff, { alpha: 0.2, scale: 0.8 });
+        this.sockets.push({ id: e.id, x: px, y: py, img, filled: false });
+        this.levers.push({ id: e.id, x: px, y: py, on: false, img: null, handle: null, mag: true });
+        this._w3 = true;
+        break;
+      }
+      case "chomper": {
+        // JUNK-CHOMPER: grounded magnetic mouth that lunges at nearby robots.
+        // Magnet ACTION yanks its metal teeth out — defanged, it's a harmless dozer.
+        const img = this.add.image(px, py + 4, "chomper").setDepth(DEPTH.entity);
+        this.physics.add.existing(img);
+        img.body.setSize(50, 32).setOffset(3, 6);
+        const dir = e.facing || 1;
+        img.setFlipX(dir === -1);
+        this.chompers.push({ img, state: "idle", timer: 0, dir, homeX: px, defanged: false });
+        this._w3 = true;
+        break;
+      }
     }
   }
 
@@ -1707,8 +1883,8 @@ export default class GameScene extends Phaser.Scene {
       }
       return;
     }
-    // adjacent lever (anyone can pull)
-    const lev = this.levers.find((l) => !l.on && Math.abs(l.x - p.x) < 54 && Math.abs(l.y - p.y) < 64);
+    // adjacent lever (anyone can pull; W3 `mag` switches/sockets are magnet-only)
+    const lev = this.levers.find((l) => !l.on && !l.mag && Math.abs(l.x - p.x) < 54 && Math.abs(l.y - p.y) < 64);
     if (lev) {
       this.pullLever(lev);
       return;
@@ -1763,6 +1939,50 @@ export default class GameScene extends Phaser.Scene {
     } else if (p.skill === "heavy" && !p.grounded && !p.zip) {
       sfx.stompLaunch(); // heavy winds up the dive
       p.startStomp();
+      return;
+    } else if (p.skill === "magnet") {
+      // W3W4 M3 — MAGNET GLOVE.
+      const padDownHeld = p.pad && p.pad.down.isDown;
+      if (p.keys.down.isDown || padDownHeld) {
+        // DOWN+ACTION = the standard buddy-reel chord. Same guards as the
+        // grapple rope (FL-001/FL-005), REUSING startReeled — the shared
+        // rope/reel path (drawRope + the reel resolver in update) does the rest.
+        const q = p.partner;
+        const d = q ? Math.hypot(q.x - p.x, q.y - p.y) : 0;
+        if (
+          q && !q.dead && !q.carriedBy && !q.zip && !q.reeled &&
+          d > 72 && d <= PHYS.grappleRange && (p.grounded || p.magCling) &&
+          (this.hasLOS(p.x, p.y, q.x, q.y) || this.hasLOS(p.x, p.y - 44, q.x, q.y - 24))
+        ) {
+          q.startReeled(p);
+          this.sparks.explode(this.fxBudget(6), p.x, p.y - 8); // winch sparks (P11)
+        } else {
+          sfx.denied();
+        }
+        return;
+      }
+      if (this.magnetAction(p)) return;
+      // nothing magnetic in reach — fall through to the buddy pickup below
+    } else if (p.skill === "bubble") {
+      // W3W4 M3 — BUBBLE SHIELD.
+      const padDownHeld = p.pad && p.pad.down.isDown;
+      if (p.keys.down.isDown || padDownHeld) {
+        // DOWN+ACTION = bubble the BUDDY (partner-protect, the co-op use)
+        const q = p.partner;
+        if (
+          q && !q.dead && p.bubbleCd <= 0 && q.bubbleT <= 0 &&
+          Math.hypot(q.x - p.x, q.y - p.y) <= PHYS.grappleRange &&
+          this.hasLOS(p.x, p.y, q.x, q.y)
+        ) {
+          this.grantBubble(q, p);
+        } else {
+          sfx.denied();
+        }
+        return;
+      }
+      if (p.bubbleT > 0) { this.popBubble(p, false); return; } // re-press = release early
+      if (p.bubbleCd <= 0) { this.grantBubble(p, p); return; }
+      sfx.denied();
       return;
     }
     // pick up partner
@@ -1835,6 +2055,11 @@ export default class GameScene extends Phaser.Scene {
       this.tweens.add({ targets: lev.handle, angle: 60, duration: 240, ease: "back.out" });
       this.sparks.explode(this.fxBudget(10), lev.handle.x, lev.y - 22); // spark burst at the knob
     }
+    // W3: a magnetic switch has no handle — its coil lamp flips lit instead
+    if (lev.mag && lev.img) {
+      lev.img.setTexture("magswitch_on");
+      this.sparks.explode(this.fxBudget(8), lev.x, lev.y);
+    }
     this.fireConduits("lever", lev.id); // P5: light the wire to its device (cosmetic)
     sfx.lever();
   }
@@ -1846,7 +2071,7 @@ export default class GameScene extends Phaser.Scene {
       cands.push({ kind: "anchor", x: a.x, y: a.y, obj: a, bias: 60 });
     }
     for (const l of this.levers) {
-      if (!l.on && Math.abs(l.x - p.x) >= 54) cands.push({ kind: "lever", x: l.x, y: l.y, obj: l, bias: 40 });
+      if (!l.on && !l.mag && Math.abs(l.x - p.x) >= 54) cands.push({ kind: "lever", x: l.x, y: l.y, obj: l, bias: 40 });
     }
     if (this.crane && this.crane.state === "rest") {
       for (const pl of this.crane.plates) {
@@ -2246,6 +2471,12 @@ export default class GameScene extends Phaser.Scene {
     }
     if (p.carrying) this.detachCarry(p, p.carrying, false);
     if (p.carriedBy) this.detachCarry(p.carriedBy, p, false);
+    // W3: a dying magnet drops its crate; a dying bubble pops silently. Both
+    // no-ops in shipped levels (magCrate/bubbleT only set by W3 skills).
+    if (p.magCrate) this.releaseMagCrate(p, true);
+    this.popBubble(p, false, true);
+    p.inWater = null;
+    p.airMs = 0;
     p.clearStates();
     p.dead = true;
     p.body.enable = false;
@@ -3218,7 +3449,9 @@ export default class GameScene extends Phaser.Scene {
     this.cameras.main.fadeOut(250, 4, 6, 20);
     this.cameras.main.once("camerafadeoutcomplete", () => {
       this.scene.stop("UI");
-      this.scene.restart({ levelIndex: this.levelIndex });
+      // devLevel rides along (null in normal play) so an R-restart of the W3
+      // sandbox reloads the sandbox, not registry index 0.
+      this.scene.restart({ levelIndex: this.levelIndex, devLevel: this.devLevel });
     });
   }
 
@@ -3559,9 +3792,10 @@ export default class GameScene extends Phaser.Scene {
         p.x += p.standingOn.body.deltaX();
       }
 
-      // hazards
+      // hazards (a W3-bubbled robot rolls right over hazard floors — bubbleT is
+      // only ever set by the BUBBLE SHIELD skill, so this guard is inert here)
       const rect = new Phaser.Geom.Rectangle(p.body.x, p.body.y, p.body.width, p.body.height);
-      if (p.invuln <= 0 && this.hazardZones.some((h) => Phaser.Geom.Rectangle.Overlaps(h, rect))) {
+      if (p.invuln <= 0 && p.bubbleT <= 0 && this.hazardZones.some((h) => Phaser.Geom.Rectangle.Overlaps(h, rect))) {
         this.killPlayer(p);
         continue;
       }
@@ -3902,7 +4136,10 @@ export default class GameScene extends Phaser.Scene {
                 stopped = true; // Heavy stands his ground
                 this.boom.explode(3, img.x, img.y + 26);
               } else if (p.invuln <= 0) {
-                this.killPlayer(p);
+                // W3: a crusher is a SHARP hit — it pops the bubble early
+                // (brief mercy invuln) instead of killing. Inert unless bubbled.
+                if (p.bubbleT > 0) this.popBubble(p, true);
+                else this.killPlayer(p);
               }
             }
           }
@@ -3978,6 +4215,7 @@ export default class GameScene extends Phaser.Scene {
 
     this.updateCrane(delta);
     this.updateWorld2(time, delta, dt);
+    this.updateWorld3(time, delta, dt); // W3W4 M3: early-returns unless W3 content is present
 
     // ropes: slight catenary sag, a hook head at the far end, and speed-lines
     // while the grappler is zipping. Reeling gets the same rope + pull dust.
@@ -4104,6 +4342,15 @@ export default class GameScene extends Phaser.Scene {
         if (inCol) { const q = proximity(f.zone.centerX, f.zone.centerY); if (q > prox) { prox = q; px = f.zone.centerX; } }
       }
       setLoop("fan", prox, px);
+    } else if (this.updrafts && this.updrafts.length) {
+      // W3 updrafts reuse the fan loop KIND (same air texture; no new loop node).
+      // Guarded to levels without W2 fans so setLoop("fan") is driven once.
+      let prox = 0, px = null;
+      for (const u of this.updrafts) {
+        const inCol = this.players.some((p) => !p.dead && !p.carriedBy && Phaser.Geom.Rectangle.Contains(u.zone, p.x, p.y));
+        if (inCol) { const q = proximity(u.zone.centerX, u.zone.centerY); if (q > prox) { prox = q; px = u.zone.centerX; } }
+      }
+      setLoop("fan", prox, px);
     }
     if (this.lifts.length) {
       let prox = 0, px = null;
@@ -4174,7 +4421,10 @@ export default class GameScene extends Phaser.Scene {
         if (!seen) r.state = "patrol";
         else if (r.timer <= 0) {
           sfx.rollerZap(img.x, img.y); // discharge crack
-          this.killPlayer(seen);
+          // W3: a laser-class zap POPS a bubble early instead of killing (inert
+          // in shipped levels — bubbleT is only set by the BUBBLE SHIELD skill).
+          if (seen.bubbleT > 0) this.popBubble(seen, true);
+          else this.killPlayer(seen);
           r.state = "cool";
           r.timer = 900;
         }
@@ -4360,6 +4610,658 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  // --- W3W4 M3: World-3 mechanics ----------------------------------------------
+  // Everything below only runs when `_w3` is armed (a W3 skill/ent/tile in the
+  // loaded level), so the shipped W1/W2 game never enters these paths.
+
+  // MAGNET GLOVE plain-ACTION resolver. Priority: release a held state, then
+  // crate drag-latch, chomper teeth-yank, steel-rail cling, remote mag-switch.
+  // Returns true if the press did something (else handleAction falls through
+  // to the buddy pickup / denied buzz).
+  magnetAction(p) {
+    // 1. clinging -> let go of the rail
+    if (p.magCling) {
+      p.endMagCling();
+      sfx.railDrop();
+      return true;
+    }
+    // 2. dragging -> release the crate
+    if (p.magCrate) {
+      this.releaseMagCrate(p, false);
+      return true;
+    }
+    // 3. metal crate within reach + LOS -> drag-latch
+    let best = null;
+    let bestD = PHYS.magGrabRange;
+    for (const c of this.crates) {
+      if (c.heldBy) continue;
+      const d = Math.hypot(c.img.x - p.x, c.img.y - p.y);
+      if (d < bestD && this.hasLOS(p.x, p.y - 8, c.img.x, c.img.y)) { best = c; bestD = d; }
+    }
+    if (best) {
+      this.latchMagCrate(p, best);
+      return true;
+    }
+    // 4. junk-chomper within reach -> yank its metal teeth out (its defeat)
+    for (const ch of this.chompers) {
+      if (ch.defanged) continue;
+      const d = Math.hypot(ch.img.x - p.x, ch.img.y - p.y);
+      if (d <= PHYS.magYankRange && this.hasLOS(p.x, p.y - 8, ch.img.x, ch.img.y - 8)) {
+        this.defangChomper(ch, p);
+        return true;
+      }
+    }
+    // 5. steel rail overhead -> cling + traverse (hang beneath the run)
+    for (let dy = 1; dy <= 3; dy++) {
+      if (this.tileAt(p.x, p.y - dy * TILE) === "=") {
+        p.startMagCling(Math.floor((p.y - dy * TILE) / TILE));
+        this.sparks.explode(this.fxBudget(5), p.x, p.y - 20);
+        this.w3ActionPose(p, "magnet");
+        return true;
+      }
+    }
+    // 6. magnetic switch within range + LOS -> flip it remotely (grapple-lever style)
+    const ms = this.levers.find((l) => l.mag && l.img && !l.on &&
+      Math.hypot(l.x - p.x, l.y - p.y) <= PHYS.magSwitchRange && this.hasLOS(p.x, p.y - 8, l.x, l.y));
+    if (ms) {
+      this.ropeFlashes.push({ x1: p.x, y1: p.y - 8, x2: ms.x, y2: ms.y, t: 200 });
+      this.pullLever(ms);
+      sfx.magFlip(ms.x, ms.y);
+      this.w3ActionPose(p, "magnet");
+      return true;
+    }
+    return false;
+  }
+
+  // Cosmetic A-series action overlay dispatch (body-invariant; rig-off = no-op).
+  w3ActionPose(p, kind) {
+    const rig = this.anim && this.anim.enabled && this.anim.rigFor(p);
+    if (rig && rig.startW3Action) rig.startW3Action(kind, p.facing);
+  }
+
+  latchMagCrate(p, c) {
+    c.heldBy = p;
+    p.magCrate = c;
+    c.img.body.setAllowGravity(false);
+    sfx.magnetOn();
+    this.sparks.explode(this.fxBudget(6), c.img.x, c.img.y);
+    this.w3ActionPose(p, "magnet");
+  }
+
+  releaseMagCrate(p, silent) {
+    const c = p.magCrate;
+    if (!c) return;
+    p.magCrate = null;
+    c.heldBy = null;
+    c.img.body.setAllowGravity(true);
+    if (!silent) sfx.magnetOff();
+  }
+
+  // Blow a bubble around `q` (self or buddy); `by` is the caster and owns the cooldown.
+  grantBubble(q, by) {
+    q.bubbleT = PHYS.bubbleMs;
+    by.bubbleCd = PHYS.bubbleCd;
+    sfx.bubbleOn();
+    if (q.bubbleShell) {
+      this.tweens.killTweensOf(q.bubbleShell);
+      q.bubbleShell.setVisible(true).setAlpha(0.85).setPosition(q.x, q.y - 2).setScale(0.3);
+      this.tweens.add({ targets: q.bubbleShell, scale: q.baseScaleX, duration: 220, ease: "back.out" });
+    }
+    this.w3ActionPose(by, "bubble");
+  }
+
+  // Pop a bubble. `sharp` = a crusher/laser-class hit (brief mercy invuln so the
+  // pop itself never chains straight into a kill); `silent` = death teardown.
+  popBubble(p, sharp, silent) {
+    if (p.bubbleT <= 0) return;
+    p.bubbleT = 0;
+    if (p.bubbleShell) {
+      this.tweens.killTweensOf(p.bubbleShell);
+      const sh = p.bubbleShell;
+      this.tweens.add({
+        targets: sh, scale: p.baseScaleX * 1.3, alpha: 0, duration: 160, ease: "quad.out",
+        onComplete: () => sh.setVisible(false),
+      });
+    }
+    this.phaseRipple(p.x, p.y - 2); // pooled ring — the pop wave
+    if (!silent) sfx.bubblePop();
+    if (sharp) p.invuln = Math.max(p.invuln, 900);
+  }
+
+  // A knocked jelly locks into a socket and POWERS its device (lever-latch plumbing).
+  socketJelly(j, sk) {
+    j.state = "socketed";
+    sk.filled = true;
+    j.img.body.reset(sk.x, sk.y - 8);
+    j.img.body.setAllowGravity(false);
+    j.img.body.setVelocity(0, 0);
+    j.img.setTexture("jelly_happy");
+    sk.img.setTexture("socket_on");
+    const lev = this.levers.find((l) => l.id === sk.id);
+    if (lev && !lev.on) this.pullLever(lev);
+    sfx.jellySocket(sk.x, sk.y);
+    this.starBurst.explode(this.fxBudget(8), sk.x, sk.y);
+    this.game.events.emit("bb:blip", "KOBI: The jelly is IN the socket. It is... powering my door. I am NOT crying.");
+  }
+
+  // Magnet teeth-yank: the chomper's defeat interaction (no stomping needed).
+  defangChomper(ch, p) {
+    ch.defanged = true;
+    ch.state = "dozer";
+    ch.img.setTexture("chomper_dozer");
+    ch.img.body.setVelocityX(0);
+    sfx.teethYank(ch.img.x, ch.img.y);
+    this.ropeFlashes.push({ x1: p.x, y1: p.y - 8, x2: ch.img.x, y2: ch.img.y - 6, t: 200 });
+    // the yanked teeth fly toward the magnet glove and scatter (one-shot, event-driven)
+    for (let i = 0; i < 4; i++) {
+      const t = this.add.image(ch.img.x - 9 + i * 6, ch.img.y - 2, "tooth").setDepth(DEPTH.fx);
+      this.tweens.add({
+        targets: t, x: p.x + (i - 1.5) * 20, y: p.y + 8 - Math.abs(i - 1.5) * 10,
+        angle: 320 + i * 80, alpha: 0, duration: 460 + i * 60, ease: "cubic.out",
+        onComplete: () => t.destroy(),
+      });
+    }
+    this.sparks.explode(this.fxBudget(10), ch.img.x, ch.img.y);
+    this.w3ActionPose(p, "magnet");
+    this.game.events.emit("bb:blip", "KOBI: You took its TEETH?! ...It does look happier now. DON'T tell it I said that.");
+  }
+
+  // One frame of every World-3 system. Early-returns unless W3 content is present.
+  updateWorld3(time, delta, dt) {
+    if (!this._w3) return;
+    const g = this.w3Gfx;
+    if (g) g.clear();
+    const fsc = uxFlashScale(); // U11 comfort: blink rates scale like every other flash
+
+    // --- players: bubble timers/shells, water, updrafts ----------------------
+    for (const p of this.players) {
+      if (p.bubbleCd > 0) p.bubbleCd -= delta;
+      if (p.bubbleT > 0) {
+        p.bubbleT -= delta;
+        if (p.bubbleT <= 0) {
+          p.bubbleT = 1; // keep the pop's own guard satisfied while it tears down
+          this.popBubble(p, false);
+        } else if (p.bubbleShell && !this.tweens.isTweening(p.bubbleShell)) {
+          // shell follows the robot; the last ~1.2s blinks a "running out" warning
+          const blink = p.bubbleT < 1200 ? (Math.floor(time / (140 / fsc)) % 2 ? 0.3 : 0.8) : 0.8;
+          p.bubbleShell.setVisible(p.visible && !p.dead)
+            .setPosition(p.x, p.y - 2)
+            .setAlpha(blink)
+            .setScale(p.baseScaleX * (1 + 0.04 * Math.sin(time / 180)));
+        }
+      } else if (p.bubbleShell && p.bubbleShell.visible && !this.tweens.isTweening(p.bubbleShell)) {
+        p.bubbleShell.setVisible(false);
+      }
+
+      if (p.dead || p.carriedBy) {
+        p.inWater = null;
+        p.airMs = 0;
+        continue;
+      }
+
+      // water volumes: membership + splash edges + current + the air timer
+      const wasIn = p.inWater;
+      let inw = null;
+      for (const wa of this.waters) {
+        if (Phaser.Geom.Rectangle.Contains(wa.rect, p.x, p.y)) { inw = wa; break; }
+      }
+      p.inWater = inw;
+      if (!!inw !== !!wasIn) {
+        sfx.splash(p.x, p.y);
+        const sy = (inw || wasIn).rect.y + 2;
+        this.dust.emitParticleAt(p.x, sy, this.fxBudget(7));
+      }
+      if (inw) {
+        // current field: ease vx toward the current speed (frame-rate independent;
+        // active swimming overpowers it — the keyed lerp in preUpdate is stronger)
+        if (inw.current && !p.zip && !p.reeled) {
+          const fc = 1 - Math.pow(1 - 0.06, dt * 60);
+          p.body.velocity.x += (inw.current - p.body.velocity.x) * fc;
+        }
+        if (p.bubbleT > 0) {
+          p.airMs = 0; // a bubbled robot breathes its bubble
+        } else {
+          const submerged = p.y - 14 > inw.rect.y; // head under the surface line
+          if (submerged) {
+            p.airMs += delta;
+            const remain = PHYS.waterAirMs - p.airMs;
+            if (g) {
+              const blink = remain < 1500 && Math.floor(time / (180 / fsc)) % 2 === 0;
+              this.drawDrainRing(g, p.x, p.y - p.displayHeight / 2 - 22, 12, remain / PHYS.waterAirMs, blink);
+            }
+            if (remain < 1500) sfx.airWarn();
+            if (p.airMs >= PHYS.waterAirMs) {
+              p.airMs = 0;
+              this.killPlayer(p); // drown = the standard hazard death/respawn
+              continue;
+            }
+          } else {
+            p.airMs = Math.max(0, p.airMs - delta * 2); // gulping air at the surface
+          }
+        }
+      } else {
+        p.airMs = 0;
+      }
+
+      // vent updrafts: strong lift for a BUBBLED robot, a gentle boost otherwise
+      for (const u of this.updrafts) {
+        if (!Phaser.Geom.Rectangle.Contains(u.zone, p.x, p.y)) continue;
+        if (p.bubbleT > 0 && !p.zip && !p.carriedBy) {
+          p.body.velocity.y = Math.max(p.body.velocity.y - 2400 * dt, -300);
+          // FL-010/FL-013 lesson from the 2-2 fan: gentle KEYLESS centering so
+          // riding the one-tile draft never demands pixel-perfect drift control.
+          // Steering keys always win; frame-rate independent ease.
+          if (!p.grounded && !p.keys.left.isDown && !p.keys.right.isDown &&
+              !(p.pad && (p.pad.left.isDown || p.pad.right.isDown))) {
+            const pull = Phaser.Math.Clamp((u.zone.centerX - p.x) * 3, -120, 120);
+            const t = 1 - Math.pow(1 - 0.12, dt * 60);
+            p.body.velocity.x = Phaser.Math.Linear(p.body.velocity.x, pull, t);
+          }
+        } else {
+          p.body.velocity.y -= 300 * dt;
+        }
+      }
+    }
+
+    // --- metal crates: drag-latch follow ("rope-ish range") ------------------
+    for (const c of this.crates) {
+      const p = c.heldBy;
+      if (!p) continue;
+      if (p.dead || p.skill !== "magnet") { this.releaseMagCrate(p, true); continue; }
+      const b = c.img.body;
+      if (Math.hypot(c.img.x - p.x, c.img.y - p.y) > PHYS.magDragMax) {
+        this.releaseMagCrate(p, false); // the magnetic tether snaps at range
+        continue;
+      }
+      // hover target beside the glove at HEAD height (a floating magnetic hold —
+      // it clears ground clutter and releases cleanly onto a crate below for
+      // stair-stacking): proportional velocity steering (frame-rate independent
+      // by construction — velocity from position error), collisions still fully
+      // apply, so a dragged crate never passes through terrain.
+      const tx = p.x + p.facing * 58;
+      const ty = p.y - 44;
+      b.setVelocity(
+        Phaser.Math.Clamp((tx - c.img.x) * 6, -PHYS.magDragSpeed, PHYS.magDragSpeed),
+        Phaser.Math.Clamp((ty - c.img.y) * 6, -PHYS.magDragSpeed, PHYS.magDragSpeed)
+      );
+      // magnetic link: a faint amber tether drawn into the shared overlay
+      if (g) {
+        g.lineStyle(2, 0xffb347, 0.5);
+        g.lineBetween(p.x + p.facing * 10, p.y - 8, c.img.x, c.img.y);
+      }
+    }
+
+    // --- zap-jellies: patrol / knocked / socketed ----------------------------
+    for (const j of this.jellies) {
+      const img = j.img;
+      const b = img.body;
+      if (j.hitCd > 0) j.hitCd -= delta;
+      if (j.state === "patrol") {
+        b.velocity.x = 42 * j.dir;
+        if (img.x < j.minX + 16) j.dir = 1;
+        else if (img.x > j.maxX - 16) j.dir = -1;
+        j.t += delta;
+        const targetY = j.baseY + Math.sin(j.t / 520) * 10;
+        b.velocity.y = (targetY - img.y) * 4;
+      } else if (j.state === "knocked") {
+        // drag decays the knock; a socket in the flight path captures it
+        for (const sk of this.sockets) {
+          // the socket mouth is a tall cradle: generous vertically so a jelly
+          // riding a little high off repeated boops still drops in
+          if (!sk.filled && Math.abs(img.x - sk.x) < 46 && Math.abs(img.y - sk.y) < 70) {
+            this.socketJelly(j, sk);
+            break;
+          }
+        }
+        if (j.state === "knocked" && Math.abs(b.velocity.x) < 26 && Math.abs(b.velocity.y) < 26) {
+          j.state = "patrol";
+          j.baseY = Phaser.Math.Clamp(img.y, 2 * TILE, this.worldH - 3 * TILE);
+        }
+      } else {
+        b.setVelocity(0, 0); // socketed: parked + harmless
+      }
+      j.glow.setPosition(img.x, img.y);
+      j.glow.setAlpha(j.state === "socketed" ? 0.3 : 0.4 + 0.18 * Math.sin(time / 160));
+      if (j.state === "socketed") continue;
+      // contact: zap — unless the toucher is BUBBLED, which boops the jelly away
+      for (const p of this.players) {
+        if (p.dead || p.carriedBy) continue;
+        if (Math.abs(p.x - img.x) >= 36 || Math.abs(p.y - img.y) >= 34 || j.hitCd > 0) continue;
+        if (p.bubbleT > 0) {
+          // the boop is HORIZONTAL, in the DIRECTION THE BOOPER IS MOVING (kid
+          // intuition: "I bounce it the way I'm going") — a raw contact angle
+          // made aiming at the socket too fumbly.
+          const dirX = Math.abs(p.body.velocity.x) > 40
+            ? Math.sign(p.body.velocity.x)
+            : (Math.sign(img.x - p.x) || p.facing);
+          b.setVelocity(dirX * 340, -20);
+          j.state = "knocked";
+          j.hitCd = 350;
+          p.body.velocity.x -= dirX * 60; // soft recoil on the bubble
+          sfx.jellyBounce(img.x, img.y);
+          this.sparks.explode(this.fxBudget(5), img.x, img.y);
+        } else if (p.invuln <= 0) {
+          sfx.jellyZap(img.x, img.y);
+          this.killPlayer(p);
+        }
+      }
+    }
+
+    // --- junk-chompers: idle -> telegraph -> lunge -> rest (or defanged dozer)
+    for (const ch of this.chompers) {
+      const img = ch.img;
+      const b = img.body;
+      if (ch.defanged) {
+        // harmless dozer: contented slow wander around home, nothing else
+        b.velocity.x = 26 * ch.dir;
+        if (img.x > ch.homeX + 2 * TILE || b.blocked.right) ch.dir = -1;
+        else if (img.x < ch.homeX - 2 * TILE || b.blocked.left) ch.dir = 1;
+        img.setFlipX(ch.dir === -1);
+        continue;
+      }
+      ch.timer -= delta;
+      if (ch.state === "idle") {
+        b.velocity.x = 0;
+        const near = this.players.find((p) => !p.dead && !p.carriedBy &&
+          Math.abs(p.x - img.x) < 190 && Math.abs(p.y - img.y) < 64);
+        if (near) {
+          ch.state = "tele";
+          ch.timer = 450;
+          ch.dir = near.x > img.x ? 1 : -1;
+          img.setFlipX(ch.dir === -1);
+          img.setTexture("chomper_alert"); // meaning-bearing telegraph (Canvas-safe swap)
+          sfx.chompTele(img.x, img.y);
+        }
+      } else if (ch.state === "tele") {
+        b.velocity.x = 0;
+        if (ch.timer <= 0) {
+          ch.state = "lunge";
+          ch.timer = 420;
+          sfx.chompLunge(img.x, img.y);
+        }
+      } else if (ch.state === "lunge") {
+        b.velocity.x = 400 * ch.dir;
+        for (const p of this.players) {
+          if (p.dead || p.carriedBy) continue;
+          if (Math.abs(p.x - img.x) >= 40 || Math.abs(p.y - img.y) >= 40) continue;
+          if (p.bubbleT > 0) {
+            // teeth are a SHARP hit: pop the bubble + shove, never a kill
+            this.popBubble(p, true);
+            p.setVelocity(ch.dir * 300, -200);
+          } else if (p.invuln <= 0) {
+            this.killPlayer(p);
+          }
+        }
+        if (ch.timer <= 0 || b.blocked.left || b.blocked.right) {
+          ch.state = "rest";
+          ch.timer = 900;
+          img.setTexture("chomper");
+        }
+      } else { // rest
+        b.velocity.x = 0;
+        if (ch.timer <= 0) ch.state = "idle";
+      }
+    }
+  }
+
+  // Bake the World-3 texture set ONCE, lazily, the first time a W3 level loads.
+  // Mirrors BootScene's `make` pattern (all drawn, Canvas-safe, no tint states);
+  // the shipped W1/W2 boot path never reaches this.
+  ensureW3Textures() {
+    if (this.textures.exists("crate3")) return;
+    const make = (key, w, h, draw) => {
+      const g = this.make.graphics({ add: false });
+      draw(g, w, h);
+      g.generateTexture(key, w, h);
+      g.destroy();
+    };
+    const shade = (hex, f) => {
+      const c = Phaser.Display.Color.IntegerToColor(hex);
+      const cl = (v) => Math.max(0, Math.min(255, Math.round(v)));
+      return Phaser.Display.Color.GetColor(cl(c.red * f), cl(c.green * f), cl(c.blue * f));
+    };
+
+    // steel rail tile ('='): a powered I-beam ceiling run — dark web, riveted
+    // flanges, amber underside pole strip (the magnet-cling face).
+    make("railtile", 48, 48, (g) => {
+      g.fillStyle(0x131a2c).fillRect(0, 0, 48, 48);
+      g.fillStyle(0x2a3350).fillRect(0, 0, 48, 8);   // top flange
+      g.fillStyle(0x2a3350).fillRect(0, 40, 48, 8);  // bottom flange
+      g.fillStyle(0x1c2742).fillRect(18, 8, 12, 32); // web
+      g.lineStyle(1, 0x39415e, 0.9);
+      g.strokeRect(0.5, 0.5, 47, 7);
+      g.strokeRect(0.5, 40.5, 47, 7);
+      g.fillStyle(0x5a6aa0);
+      [8, 24, 40].forEach((x) => { g.fillCircle(x, 4, 1.6); g.fillCircle(x, 44, 1.6); });
+      // amber polarity strip on the underside (the "cling here" face)
+      g.fillStyle(0xffb347, 0.85).fillRect(2, 45, 44, 2);
+      g.fillStyle(0xffe0a8, 0.9);
+      for (let x = 6; x < 48; x += 12) g.fillRect(x, 44.4, 3, 1.2);
+    });
+    // metal crate: plated box with an X cross-brace + magnet-dot corners.
+    make("crate3", 46, 46, (g) => {
+      g.fillStyle(0x39415e).fillRoundedRect(1, 1, 44, 44, 5);
+      g.lineStyle(2, 0x6b78a8).strokeRoundedRect(1, 1, 44, 44, 5);
+      g.fillStyle(0x2a3350).fillRect(5, 5, 36, 36);
+      g.lineStyle(3, 0x4a5578);
+      g.lineBetween(6, 6, 40, 40);
+      g.lineBetween(40, 6, 6, 40);
+      g.fillStyle(0xffb347, 0.9);
+      [[8, 8], [38, 8], [8, 38], [38, 38]].forEach(([x, y]) => g.fillCircle(x, y, 2.4));
+      g.fillStyle(0x8fa3d9, 0.5).fillRect(5, 5, 36, 3); // top sheen
+    });
+    // magnetic switch: bracket + horseshoe coil + status lamp (off/on states).
+    const magswitch = (on) => (g) => {
+      g.fillStyle(0x1c2742).fillRoundedRect(4, 28, 28, 12, 4);
+      g.lineStyle(1.5, 0x44548c).strokeRoundedRect(4, 28, 28, 12, 4);
+      // horseshoe magnet (open end up)
+      const body = on ? 0xffb347 : 0x8a6a3a;
+      g.lineStyle(7, body);
+      g.beginPath();
+      g.arc(18, 18, 9, Math.PI, Math.PI * 2, false);
+      g.strokePath();
+      g.lineBetween(9.5, 18, 9.5, 26);
+      g.lineBetween(26.5, 18, 26.5, 26);
+      g.fillStyle(0xeaf2ff, 0.95);
+      g.fillRect(6.5, 22, 6, 4); g.fillRect(23.5, 22, 6, 4); // pole shoes
+      // status lamp
+      g.fillStyle(on ? 0x59ff9c : 0xff5566, on ? 1 : 0.9).fillCircle(18, 34, 3.4);
+      g.fillStyle(0xffffff, 0.85).fillCircle(17, 33, 1.1);
+      if (on) { // energised arcs
+        g.lineStyle(1.5, 0xffe0a8, 0.9);
+        g.lineBetween(12, 12, 8, 6); g.lineBetween(18, 8, 18, 3); g.lineBetween(24, 12, 28, 6);
+      }
+    };
+    make("magswitch", 36, 44, magswitch(false));
+    make("magswitch_on", 36, 44, magswitch(true));
+    // vent updraft grille — the 2-2 fan family drawn in W3 amber.
+    make("vent3", 48, 22, (g) => {
+      g.fillStyle(0x2a3350).fillRect(0, 10, 48, 12);
+      g.lineStyle(2, 0xffb347, 0.9).strokeRect(1, 11, 46, 10);
+      g.fillStyle(0xffb347, 0.9).fillTriangle(24, 0, 16, 12, 32, 12);
+    });
+    // bubble shell: translucency baked in (Canvas-safe); ADD blend on WebGL.
+    make("bubbleshell", 76, 76, (g) => {
+      for (let r = 34; r > 26; r--) {
+        g.fillStyle(0x9fe0ff, 0.05 * (1 - (34 - r) / 8) + 0.03);
+        g.fillCircle(38, 38, r);
+      }
+      g.fillStyle(0xbfeaff, 0.1).fillCircle(38, 38, 30);
+      g.lineStyle(2.5, 0xcdeeff, 0.7).strokeCircle(38, 38, 33);
+      g.lineStyle(1.5, 0xffffff, 0.8);
+      g.beginPath(); g.arc(38, 38, 27, Math.PI * 1.15, Math.PI * 1.55); g.strokePath(); // glint arc
+      g.fillStyle(0xffffff, 0.85).fillCircle(27, 26, 2.2);
+    });
+    // zap-jelly: a friendly electric dome (base / happy socketed face) + glow.
+    const jelly = (happy) => (g) => {
+      g.fillStyle(happy ? 0x59d0a0 : 0x66c9e8, 0.95).fillEllipse(20, 14, 36, 24); // dome
+      g.fillStyle(happy ? 0x8fe8c4 : 0x9fe0ff, 0.6).fillEllipse(15, 10, 12, 6);   // sheen
+      g.lineStyle(2, happy ? 0x2f8f5c : 0x3a8fb0).strokeEllipse(20, 14, 36, 24);
+      g.fillStyle(0x0c1622);
+      if (happy) { // ^ ^ closed happy eyes
+        g.lineStyle(2, 0x0c1622);
+        g.beginPath(); g.arc(13, 14, 3, Math.PI, Math.PI * 2); g.strokePath();
+        g.beginPath(); g.arc(27, 14, 3, Math.PI, Math.PI * 2); g.strokePath();
+      } else {
+        g.fillCircle(13, 14, 2.6); g.fillCircle(27, 14, 2.6);
+        g.fillStyle(0xffffff, 0.9).fillCircle(12.2, 13.2, 0.9).fillCircle(26.2, 13.2, 0.9);
+      }
+      // electric fringe under the skirt
+      g.lineStyle(2, happy ? 0x8fe8c4 : 0xffe066, happy ? 0.5 : 0.9);
+      for (let x = 6; x <= 34; x += 7) g.lineBetween(x, 25, x + 3, 30);
+    };
+    make("jelly", 40, 34, jelly(false));
+    make("jelly_happy", 40, 34, jelly(true));
+    make("jelly_glow", 48, 40, (g) => {
+      for (let r = 20; r > 0; r -= 2) {
+        g.fillStyle(0xffe066, 0.05 * (1 - r / 20));
+        g.fillEllipse(24, 20, r * 2.2, r * 1.8);
+      }
+    });
+    // jelly tentacle (anim rig part): a soft dangling ribbon.
+    make("jelly_tent", 6, 16, (g) => {
+      g.fillStyle(0x4aa8c8, 0.9).fillRoundedRect(1.5, 0, 3, 14, 1.5);
+      g.fillStyle(0x9fe0ff, 0.9).fillCircle(3, 14, 2);
+    });
+    // jelly socket: a powered cradle (off/on states).
+    const socket = (on) => (g) => {
+      g.fillStyle(0x1c2742).fillRect(14, 30, 16, 12); // stem
+      g.fillStyle(0x2a3350).fillRoundedRect(4, 34, 36, 8, 3);
+      g.lineStyle(3, on ? 0x59ff9c : 0x44548c);
+      g.beginPath(); g.arc(22, 20, 15, Math.PI * 0.9, Math.PI * 2.1); g.strokePath(); // cradle ring
+      g.fillStyle(on ? 0x59ff9c : 0x39415e);
+      g.fillCircle(7.5, 22, 3); g.fillCircle(36.5, 22, 3); // contact studs
+      if (on) {
+        g.lineStyle(1.5, 0xd6ffe6, 0.9);
+        g.lineBetween(10, 12, 6, 6); g.lineBetween(34, 12, 38, 6);
+      } else {
+        g.fillStyle(0xffe066, 0.5).fillCircle(22, 6, 2); // "feed me" pilot dot
+      }
+    };
+    make("socket", 44, 42, socket(false));
+    make("socket_on", 44, 42, socket(true));
+    // junk-chomper: a magnetic mouth on treads (base / alert / defanged dozer).
+    const chomper = (mode) => (g) => {
+      const bodyCol = mode === "alert" ? 0xa8402e : 0x6a4a3a;
+      const edgeCol = mode === "alert" ? 0xff6a52 : 0x9a6a4a;
+      // treads
+      g.fillStyle(0x14100c).fillRect(4, 30, 48, 8);
+      g.fillStyle(0x2a2018);
+      [10, 20, 30, 40, 46].forEach((x) => g.fillCircle(x, 34, 3.2));
+      // body / snout
+      g.fillStyle(bodyCol).fillRoundedRect(2, 6, 52, 26, 8);
+      g.lineStyle(2, edgeCol).strokeRoundedRect(2, 6, 52, 26, 8);
+      // single greedy eye
+      g.fillStyle(0xf2eefc).fillCircle(16, 13, 5.5);
+      g.fillStyle(0x0c1622).fillCircle(mode === "dozer" ? 15 : 18, 13, 2.4);
+      if (mode === "dozer") { // relaxed lid
+        g.lineStyle(2, edgeCol).lineBetween(10, 10, 22, 10);
+      }
+      // mouth slot
+      g.fillStyle(0x120a08).fillRect(8, 20, 44, 10);
+      if (mode === "dozer") {
+        // toothless happy grin
+        g.lineStyle(2, 0xffd9a0, 0.9);
+        g.beginPath(); g.arc(30, 22, 12, Math.PI * 0.1, Math.PI * 0.9); g.strokePath();
+      } else {
+        // metal teeth (the magnet-yank target)
+        g.fillStyle(0xdfe8ff);
+        for (let x = 12; x < 50; x += 9) g.fillTriangle(x, 20, x + 6, 20, x + 3, 27);
+        g.fillStyle(0xaebadf);
+        for (let x = 15; x < 50; x += 9) g.fillTriangle(x, 30, x + 6, 30, x + 3, 24);
+      }
+      if (mode === "alert") { // angry brow
+        g.lineStyle(2.5, 0x7c2a20).lineBetween(9, 6, 22, 9);
+      }
+    };
+    make("chomper", 56, 38, chomper("base"));
+    make("chomper_alert", 56, 38, chomper("alert"));
+    make("chomper_dozer", 56, 38, chomper("dozer"));
+    // yanked tooth (defang scatter) + jaw overlay (anim rig part).
+    make("tooth", 10, 12, (g) => {
+      g.fillStyle(0xdfe8ff).fillTriangle(1, 1, 9, 1, 5, 11);
+      g.fillStyle(0xaebadf).fillTriangle(3, 2, 7, 2, 5, 8);
+    });
+    make("chomper_jaw", 48, 12, (g) => {
+      g.fillStyle(0x5a3e30).fillRoundedRect(0, 2, 48, 9, 3);
+      g.lineStyle(1.5, 0x8a5f48).strokeRoundedRect(0, 2, 48, 9, 3);
+      g.fillStyle(0xdfe8ff);
+      for (let x = 4; x < 44; x += 9) g.fillTriangle(x, 3, x + 6, 3, x + 3, -2 + 3);
+    });
+    // skill icons (badges + pedestal floaters + item cards).
+    make("icon_magnet", 26, 26, (g) => {
+      g.lineStyle(6, 0xff9e3d);
+      g.beginPath(); g.arc(13, 12, 7, Math.PI, Math.PI * 2, false); g.strokePath();
+      g.lineBetween(6.5, 12, 6.5, 19);
+      g.lineBetween(19.5, 12, 19.5, 19);
+      g.fillStyle(0xeaf2ff).fillRect(4, 17, 5, 4).fillRect(17, 17, 5, 4);
+      g.lineStyle(1.5, 0xffe0a8, 0.9);
+      g.lineBetween(8, 24, 10, 22); g.lineBetween(13, 25, 13, 22); g.lineBetween(18, 24, 16, 22);
+    });
+    make("icon_bubble", 26, 26, (g) => {
+      g.lineStyle(2.5, 0x7ee0ff).strokeCircle(13, 13, 9.5);
+      g.fillStyle(0x7ee0ff, 0.22).fillCircle(13, 13, 9.5);
+      g.lineStyle(1.5, 0xffffff, 0.9);
+      g.beginPath(); g.arc(13, 13, 6.5, Math.PI * 1.1, Math.PI * 1.5); g.strokePath();
+      g.fillStyle(0xffffff, 0.9).fillCircle(9, 8.5, 1.4);
+    });
+    // W3 backdrop identity: foundry/scrapyard silhouette strip (crane rails,
+    // hanging scrap hooks + chains, coil stacks) in the amber-orange accent.
+    // Deterministic (seeded), matching propStrip1/2 conventions (512x864).
+    const seeded = (s) => () => {
+      s |= 0; s = (s + 0x6d2b79f5) | 0;
+      let t = Math.imul(s ^ (s >>> 15), 1 | s);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    make("propStrip3", 512, 864, (g) => {
+      const tone = shade(0xffb347, 0.32); // W3 amber-orange darkened to silhouette
+      const edge = shade(0xffb347, 0.5);
+      const rnd = seeded(303);
+      // overhead crane rail spanning the strip + a trolley block
+      const railY = 130;
+      g.fillStyle(tone, 1).fillRect(0, railY, 512, 12);
+      g.fillStyle(edge, 1).fillRect(0, railY, 512, 3);
+      g.fillStyle(edge, 1).fillRect(196, railY + 10, 44, 16); // trolley
+      // hanging scrap hooks: chain links down to a hook + a scrap chunk
+      [60, 240, 340, 470].forEach((x) => {
+        const len = railY + 90 + Math.floor(rnd() * 130);
+        g.lineStyle(4, tone, 1);
+        for (let cy = railY + 12; cy < len; cy += 14) g.strokeCircle(x, cy + 6, 5); // chain links
+        g.lineStyle(6, edge, 1);
+        g.beginPath(); g.arc(x, len + 16, 10, Math.PI * 0.1, Math.PI * 0.95, false); g.strokePath(); // hook
+        if (rnd() < 0.7) { // scrap chunk snagged on the hook
+          g.fillStyle(tone, 1);
+          g.fillTriangle(x - 16, len + 34, x + 14, len + 26, x + 4, len + 52);
+          g.fillRect(x - 10, len + 30, 20, 12);
+        }
+      });
+      // polarity coil stacks along the floor band
+      [40, 150, 420].forEach((x, i) => {
+        const w = 54 + i * 8;
+        const topY = 600 + i * 14;
+        g.fillStyle(tone, 1).fillRect(x, topY, w, 864 - topY);
+        g.fillStyle(edge, 1);
+        for (let cy = topY + 8; cy < 864 - 8; cy += 18) g.fillRect(x - 4, cy, w + 8, 6); // coil windings
+        g.fillStyle(edge, 1).fillRect(x + w / 2 - 3, topY - 26, 6, 26); // core stub
+        g.fillStyle(tone, 1).fillCircle(x + w / 2, topY - 30, 8);
+      });
+      // scrap heap silhouette between the coils
+      g.fillStyle(tone, 1);
+      g.fillTriangle(230, 864, 300, 700, 385, 864);
+      g.fillTriangle(280, 864, 330, 740, 420, 864);
+      g.fillStyle(edge, 1).fillRect(296, 712, 10, 4); // a glinting plate edge
+      g.fillStyle(edge, 1).fillCircle(340, 764, 5);
+      // a big gantry frame on legs mid-strip
+      const beamY = 560;
+      g.fillStyle(tone, 1).fillRect(120, beamY, 260, 14);
+      g.fillStyle(tone, 1).fillRect(130, beamY, 10, 864 - beamY);
+      g.fillStyle(tone, 1).fillRect(360, beamY, 10, 864 - beamY);
+      g.fillStyle(edge, 1);
+      for (let x = 145; x < 360; x += 30) g.fillRect(x, beamY + 14, 6, 12 + Math.floor(rnd() * 12));
+    });
+  }
+
   showExitWaiting(idx) {
     const c = this.exitLabel;
     if (idx < 0 || c.waitIdx === idx) return;
@@ -4401,7 +5303,10 @@ export default class GameScene extends Phaser.Scene {
     // Sprint 10: the tutorial NEVER touches the save (no unlock/core writes) — its
     // clear overlay reads "ORIENTATION COMPLETE!" and continue returns to Title.
     let newlyUnlocked = false;
-    if (!this.def.tutorial) {
+    if (this.def.dev) {
+      // W3W4 M3: the dev sandbox NEVER touches the save or the ux record —
+      // it is not a real chamber (only reachable behind ?devlevel=w3).
+    } else if (!this.def.tutorial) {
       const before = loadSave().unlocked;
       completeLevel(this.levelIndex, this.def.id, this.coresGot);
       newlyUnlocked = loadSave().unlocked > before;
@@ -4419,7 +5324,7 @@ export default class GameScene extends Phaser.Scene {
     const deaths = this._deaths;
     const coresCount = this.coresGot.filter(Boolean).length;
     let rec = null;
-    if (!this.def.tutorial) rec = saveRecord(this.def.id, timeMs, deaths);
+    if (!this.def.tutorial && !this.def.dev) rec = saveRecord(this.def.id, timeMs, deaths);
     const stats = {
       timeMs, timeStr: fmtTime(timeMs), deaths, coresCount,
       grade: this.gradeLine(deaths, rec),

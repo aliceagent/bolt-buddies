@@ -448,6 +448,43 @@ export const sfx = {
   podCrunch: (x, y) => { const v = pv(x, y); if (v > 0) { const p = panForX(x); tone(300, 0.1, "square", 0.05 * v, -180, p); noise(0.1, { type: "lowpass", freq: 1200, vol: 0.04 * v, pan: p }); } },
   craneDefeat: (x, y) => { const v = pv(x, y); if (v > 0) { const p = panForX(x); slide(700, 90, 0.9, "sawtooth", 0.06 * v, p); [0, 120, 260, 400, 560].forEach((d) => setTimeout(() => noise(0.08, { type: "highpass", freq: 3000, vol: 0.025 * v, pan: p }), d)); } },
 
+  // --- W3W4 M3: World-3 skills, terrain & enemies ---------------------------
+  // Mix rationale mirrors the S5 table: player-driven skill cues sit centred at
+  // 0.03-0.045; positional world/enemy voices ride proximity; repeatable ones
+  // are rate-limited. Nothing here fires unless a W3 skill/ent is in the level.
+  //   magnetOn      0.040   –   crate latch: rising hum + metal click
+  //   magnetOff     0.035   –   latch release: falling hum
+  //   railCling     0.040   –   clunk onto the steel rail
+  //   railDrop      0.030   –   drop off the rail
+  //   magFlip       0.045   y   remote magnetic switch flip (zappy two-note)
+  //   bubbleOn      0.040   –   bubble inflates (airy rising sweep)
+  //   bubblePop     0.045   –   pop! (bright blip + noise tick)
+  //   bubbleBounce  0.040   y   boingy bubble landing (rate-limited)
+  //   splash        0.045   y   water entry/exit plunge
+  //   airWarn       0.030   –   air-timer warning tick (last 1.5s, rate-limited)
+  //   jellyBounce   0.045   y   bubbled robot boops a zap-jelly away
+  //   jellySocket   0.050   y   jelly locks into its socket + powers up
+  //   jellyZap      0.045   y   electric touch discharge
+  //   chompTele     0.035   y   chomper wind-up snarl (rate-limited)
+  //   chompLunge    0.045   y   chomper lunge whoosh + snap
+  //   teethYank     0.050   y   magnet yanks the teeth out (screech + rattle)
+  magnetOn: () => { slide(180, 460, 0.14, "sawtooth", 0.03); setTimeout(() => tone(820, 0.05, "square", 0.04), 90); },
+  magnetOff: () => slide(460, 170, 0.12, "sawtooth", 0.035),
+  railCling: () => { tone(240, 0.06, "square", 0.04, -60); setTimeout(() => tone(620, 0.04, "square", 0.032), 55); },
+  railDrop: () => tone(300, 0.08, "triangle", 0.03, -140),
+  magFlip: (x, y) => { const v = pv(x, y); if (v > 0) { const p = panForX(x); slide(300, 900, 0.1, "sawtooth", 0.04 * v, p); setTimeout(() => tone(660, 0.09, "square", 0.045 * v, 120, p), 90); } },
+  bubbleOn: () => { slide(320, 760, 0.2, "sine", 0.04); noise(0.12, { type: "bandpass", freq: 1800, q: 1.4, vol: 0.018 }); },
+  bubblePop: () => { tone(980, 0.05, "square", 0.045, 260); noise(0.05, { type: "highpass", freq: 2400, vol: 0.03 }); },
+  bubbleBounce: (x, y) => { if (!rateLimit("bubbleBounce", 150)) return; const v = 0.04 * pv(x, y); if (v > 0) tone(260, 0.12, "sine", v, 300, panForX(x)); },
+  splash: (x, y) => { if (!rateLimit("splash", 160)) return; const v = pv(x, y); if (v > 0) { const p = panForX(x); noise(0.18, { type: "lowpass", freq: 900, q: 1.2, vol: 0.045 * v, pan: p }); slide(360, 130, 0.14, "sine", 0.025 * v, p); } },
+  airWarn: () => { if (!rateLimit("airWarn", 420)) return; tone(880, 0.05, "square", 0.03, -80); },
+  jellyBounce: (x, y) => { if (!rateLimit("jellyBounce", 140)) return; const v = pv(x, y); if (v > 0) { const p = panForX(x); tone(420, 0.1, "sine", 0.045 * v, 320, p); noise(0.05, { type: "highpass", freq: 3000, vol: 0.015 * v, pan: p }); } },
+  jellySocket: (x, y) => { const v = pv(x, y); if (v > 0) { const p = panForX(x); [523, 659, 784].forEach((f, i) => setTimeout(() => tone(f, 0.1, "square", 0.05 * v, 0, p), i * 70)); setTimeout(() => noise(0.12, { type: "bandpass", freq: 2200, q: 2, vol: 0.02 * v, pan: p }), 210); } },
+  jellyZap: (x, y) => { const v = pv(x, y); if (v > 0) { const p = panForX(x); tone(760, 0.12, "sawtooth", 0.045 * v, -500, p); noise(0.08, { type: "highpass", freq: 2600, vol: 0.03 * v, pan: p }); } },
+  chompTele: (x, y) => { if (!rateLimit("chompTele", 500)) return; const v = 0.035 * pv(x, y); if (v > 0) slide(140, 320, 0.22, "sawtooth", v, panForX(x)); },
+  chompLunge: (x, y) => { const v = pv(x, y); if (v > 0) { const p = panForX(x); noise(0.1, { type: "bandpass", freq: 700, q: 1.5, vol: 0.03 * v, pan: p }); setTimeout(() => tone(180, 0.08, "square", 0.045 * v, -60, p), 90); } },
+  teethYank: (x, y) => { const v = pv(x, y); if (v > 0) { const p = panForX(x); slide(1100, 260, 0.24, "sawtooth", 0.05 * v, p); [90, 180, 270].forEach((d) => setTimeout(() => tone(340 + d, 0.04, "square", 0.03 * v, -120, p), d)); } },
+
   // --- UI / meta -----------------------------------------------------------
   menuMove: () => tone(660, 0.04, "square", 0.03),
   menuSelect: () => { tone(523, 0.07, "square", 0.04); setTimeout(() => tone(784, 0.1, "square", 0.04), 60); },

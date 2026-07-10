@@ -1,5 +1,7 @@
 // Terrain grids are built with ops instead of ASCII art — less error-prone to author.
-// Chars: '.' empty, '#' solid, '%' cracked (heavy-breakable), '<' '>' conveyor, '^' hazard.
+// Chars: '.' empty, '#' solid, '%' cracked (heavy-breakable), '<' '>' conveyor, '^' hazard,
+// '~' phase-wall, 'd' duct lip (W2), '=' steel rail (W3: solid run a MAGNET GLOVE
+// robot clings to and traverses hanging beneath).
 export function makeGrid(cols, rows) {
   const g = Array.from({ length: rows }, () => Array(cols).fill("."));
   const api = {

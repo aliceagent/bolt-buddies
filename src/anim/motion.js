@@ -166,6 +166,22 @@ export const MOTION = Object.freeze({
   CARRY_WAVE: Object.freeze({ after: 2000, period: 640, antAmp: 5, lookAmp: 2.0, ease: 10 }), // carried buddy waves at the camera after 2s
   RESPAWN_NOTICE: Object.freeze({ dur: 750, range: 3.2, ease: 9 }), // surviving partner's pupils track the respawn beam
 
+  // --- W3W4 M3: World-3 skill action overlays + enemy sets -------------------
+  // Every one is a pure VISUAL overlay on the SACRED W3 logic (magnet latch/
+  // cling/flip, bubble grant/pop, jelly patrol/knock/socket, chomper state
+  // machine — all owned by GameScene and byte-identical with the rig off).
+  MAG_ACT: tok(360, "cubic.out"),    // magnet glove action flash (arc pulse at the hand)
+  BUBBLE_ACT: tok(340, "cubic.out"), // bubble blow ring at the mouth
+  JELLY_SWAY: Object.freeze({ dur: 900, ease: "sine.inOut", amp: 0.32 }),  // tentacle wave period + rad amplitude
+  JELLY_KNOCK: Object.freeze({ freqMul: 2.6, ampMul: 1.7 }),               // frantic tentacles while knocked
+  JELLY_SOCK: Object.freeze({ ampMul: 0.35 }),                             // relaxed tentacles once socketed
+  JELLY_WOBBLE: Object.freeze({ dur: 700, ease: "sine.inOut", amp: 0.06 }), // gentle patrol dome wobble (host rotation)
+  CHOMP_IDLE: Object.freeze({ dur: 1200, ease: "sine.inOut", open: 0.22 }), // lazy idle chomp cycle (jaw rad)
+  CHOMP_TELE: Object.freeze({ open: 0.6, quiver: 0.05, freq: 34 }),         // telegraph: jaw agape + quiver
+  CHOMP_LUNGE: Object.freeze({ dur: 130, ease: "quad.out", open: 0.75 }),   // snapping fast during the lunge
+  CHOMP_DOZER: Object.freeze({ dur: 1700, ease: "sine.inOut", open: 0.3 }), // defanged contented panting
+  CHOMP_TILT: Object.freeze({ amp: 0.09 }),                                 // anticipation/lunge body tilt (rad)
+
   // --- Bolt & KOBI cameo animation (A11) -----------------------------------
   // Menu polish (#1-#4) extends the existing Title/Hub/UI scene code directly; the
   // in-level cameo (#5) is a pure display-list BACKDROP with NO body/collision/timing

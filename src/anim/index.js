@@ -20,6 +20,9 @@ import { installBugAnim } from "./bug_anim.js";
 import { installRollerAnim } from "./roller_anim.js";
 import { installWardenAnim } from "./warden_anim.js";
 import { installCraneAnim } from "./crane_anim.js";
+import { installJellyAnim } from "./jelly_anim.js";
+import { installChomperAnim } from "./chomper_anim.js";
+import { installW3SkillAnim } from "./w3skills_anim.js";
 import { installDeviceAnim } from "./device_anim.js";
 import { installSocialAnim } from "./social_anim.js";
 import { installCameoAnim } from "./cameo_anim.js";
@@ -98,6 +101,47 @@ export class AnimSystem {
     const rig = this._add(p, { kind: "player", probe: probePlayer, depth: DEPTH.player + 2 });
     // A2: hang the visible locomotion set (tread/pupils/antenna parts + pose hooks)
     installPlayerAnim(rig, this.scene);
+    // W3W4 M3: layer the magnet/bubble action-pose overlay ONLY on levels whose
+    // skill pair includes a W3 skill (wraps the A2-A4 hook; shipped levels never
+    // install it, so the player rig stays byte-identical there).
+    const sk = this.scene.def && this.scene.def.skills;
+    if (sk && (sk.includes("magnet") || sk.includes("bubble"))) installW3SkillAnim(rig, this.scene);
+    return rig;
+  }
+
+  // W3W4 M3: the zap-jelly rig (tentacle wave + dome wobble + knock spin).
+  registerJelly(j) {
+    const rig = this._add(j.img, {
+      kind: "jelly", depth: DEPTH.entity + 2,
+      probe: (h, out) => {
+        const b = h.body;
+        out.dead = false; out.hurt = false; out.carrying = false;
+        out.airborne = true;
+        out.vx = b ? b.velocity.x : 0;
+        out.vy = b ? b.velocity.y : 0;
+        out.face = j.dir || 1;
+        out.input = false;
+      },
+    });
+    installJellyAnim(rig, this.scene, j);
+    return rig;
+  }
+
+  // W3W4 M3: the junk-chomper rig (jaw chomp + telegraph/lunge body tilt).
+  registerChomper(c) {
+    const rig = this._add(c.img, {
+      kind: "chomper", depth: DEPTH.entity + 2,
+      probe: (h, out) => {
+        const b = h.body;
+        out.dead = !!c.defanged; out.hurt = false; out.carrying = false;
+        out.airborne = false;
+        out.vx = b ? b.velocity.x : 0;
+        out.vy = 0;
+        out.face = c.dir || 1;
+        out.input = false;
+      },
+    });
+    installChomperAnim(rig, this.scene, c);
     return rig;
   }
 
@@ -178,6 +222,9 @@ export class AnimSystem {
     if (s.rollers) s.rollers.forEach((r) => this.registerRoller(r));
     if (s.wardens) s.wardens.forEach((w) => this.registerWarden(w));
     if (s.crane) this.registerCrane(s.crane);
+    // W3W4 M3: the World-3 enemy cast (empty arrays in every shipped level)
+    if (s.jellies) s.jellies.forEach((j) => this.registerJelly(j));
+    if (s.chompers) s.chompers.forEach((c) => this.registerChomper(c));
     // A9: wire the device-personality overlays now that every device record exists.
     this.device = installDeviceAnim(s);
     // A10: wire the social & co-op moment overlays now that both player rigs exist.

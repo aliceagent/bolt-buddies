@@ -100,6 +100,20 @@ export const PHYS = {
   grappleRange: 380, // FL-007: 360 left range margins thinner than a robot body at 1-2's far reel
   zipSpeed: 760,
   reelSpeed: 640,
+  // --- W3W4 M3: World-3 mechanics tuning ----------------------------------
+  // All read ONLY by the W3 code paths (magnet/bubble skills + W3 ents), which
+  // are inert unless a W3 level actually spawns them — shipped levels untouched.
+  magGrabRange: 150,   // magnet ACTION latch reach to a metal crate (px)
+  magYankRange: 210,   // magnet ACTION teeth-yank reach to a junk-chomper (px)
+  magSwitchRange: 320, // magnet ACTION remote flip reach to a magnetic switch (px)
+  magDragMax: 300,     // drag-latch auto-release distance ("rope-ish range", px)
+  magDragSpeed: 260,   // crate follow speed cap while latched (px/s)
+  clingSpeed: 150,     // rail-cling traverse speed (px/s)
+  bubbleMs: 6000,      // self/buddy bubble duration (ms)
+  bubbleCd: 2200,      // re-bubble cooldown after a pop (ms)
+  waterAirMs: 6000,    // un-bubbled underwater air supply before drowning (ms)
+  waterSink: 55,       // slow-sink terminal velocity for a normal robot (px/s)
+  swimSpeed: 170,      // bubbled free-swim speed underwater (px/s)
 };
 
 export const DEPTH = {
@@ -140,5 +154,18 @@ export const SKILL_INFO = {
     color: 0x9dffc4,
     card: "Small, quick, and squeezable — fit\nwhere no robot has fit before!",
     hint: "Crawl through vents and under enemy\neyes. You fly FAR when thrown!",
+  },
+  // --- W3W4 M3: World-3 skill pair (GAME_DESIGN §4 card copy, kid voice) ----
+  magnet: {
+    name: "MAGNET GLOVE",
+    color: 0xff9e3d,
+    card: "Pull metal things to you — or pull\nyourself to metal things!",
+    hint: "ACTION: grab crates, cling to steel\nrails, flip magnet switches.\nDOWN+ACTION: reel your buddy!",
+  },
+  bubble: {
+    name: "BUBBLE SHIELD",
+    color: 0x7ee0ff,
+    card: "Blow a big safe bubble around you —\nor around your buddy!",
+    hint: "ACTION: bubble up! Float on vents,\nroll over sparks, swim free.\nDOWN+ACTION: bubble your BUDDY!",
   },
 };
