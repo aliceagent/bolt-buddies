@@ -4,6 +4,7 @@ import level1_3 from "./level1_3.js";
 import level2_1 from "./level2_1.js";
 import level2_2 from "./level2_2.js";
 import level2_3 from "./level2_3.js";
+import level3_1 from "./level3_1.js";
 import tutorial from "./tutorial.js";
 
 export const WORLD_INFO = [
@@ -13,7 +14,7 @@ export const WORLD_INFO = [
   { name: "The Dark Core", emoji: "🌑", skills: "Time-Freeze + Light-Beam" },
 ];
 
-// Linear unlock order. Worlds 2-4 are designed (see GAME_DESIGN.md) but not built yet.
+// Linear unlock order. 3-2..4-3 are designed (see GAME_DESIGN.md) but not built yet.
 export const LEVELS = [
   level1_1,
   level1_2,
@@ -21,7 +22,7 @@ export const LEVELS = [
   level2_1,
   level2_2,
   level2_3,
-  { id: "3-1", name: "Attract Mode", world: 3, wip: true },
+  level3_1,
   { id: "3-2", name: "The Flooded Tank", world: 3, wip: true },
   { id: "3-3", name: "The Scrap Storm", world: 3, wip: true },
   { id: "4-1", name: "Lights Out", world: 4, wip: true },

@@ -100,6 +100,10 @@ export class Driver {
         invuln: p.invuln, facing: p.facing,
         zip: p.zip ? { arrived: !!p.zip.arrived, x: p.zip.x, y: p.zip.y } : null,
         reeled: !!p.reeled, carrying: !!p.carrying, carriedBy: !!p.carriedBy,
+        // W3W4 L31: magnet/bubble state (0/false on W1-W2 levels — pure reads)
+        bubbleT: p.bubbleT || 0, bubbleCd: p.bubbleCd || 0,
+        magCling: !!p.magCling, magCrate: !!p.magCrate,
+        inWater: !!p.inWater, airMs: p.airMs || 0,
         blocked: {
           left: p.body.blocked.left, right: p.body.blocked.right,
           down: p.body.blocked.down, up: p.body.blocked.up,
@@ -132,6 +136,11 @@ export class Driver {
           : null,
         pods: s.pods ? s.pods.filter((p) => p.active).map((p) => ({ x: p.x, y: p.y })) : [],
         plates: s.plates.map((p) => ({ id: p.id, active: p.active })),
+        // W3W4 L31: world-3 entity reads (empty arrays on W1-W2 levels)
+        crates: (s.crates || []).map((c) => ({ x: c.img.x, y: c.img.y, tx: c.img.x / T, held: !!c.heldBy })),
+        jellies: (s.jellies || []).map((j) => ({ x: j.img.x, y: j.img.y, tx: j.img.x / T, state: j.state })),
+        sockets: (s.sockets || []).map((k) => ({ id: k.id, filled: k.filled })),
+        chompers: (s.chompers || []).map((c) => ({ x: c.img.x, tx: c.img.x / T, state: c.state, defanged: c.defanged })),
       };
     });
   }

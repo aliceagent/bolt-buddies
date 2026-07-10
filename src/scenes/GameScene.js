@@ -4615,7 +4615,7 @@ export default class GameScene extends Phaser.Scene {
   // loaded level), so the shipped W1/W2 game never enters these paths.
 
   // MAGNET GLOVE plain-ACTION resolver. Priority: release a held state, then
-  // crate drag-latch, chomper teeth-yank, steel-rail cling, remote mag-switch.
+  // chomper teeth-yank, crate drag-latch, steel-rail cling, remote mag-switch.
   // Returns true if the press did something (else handleAction falls through
   // to the buddy pickup / denied buzz).
   magnetAction(p) {
@@ -4630,7 +4630,21 @@ export default class GameScene extends Phaser.Scene {
       this.releaseMagCrate(p, false);
       return true;
     }
-    // 3. metal crate within reach + LOS -> drag-latch
+    // 3. junk-chomper within reach -> yank its metal teeth out (its defeat).
+    // W3W4 L31: the yank now OUTRANKS the crate latch — 3-1's crate yard is
+    // patrolled by a chomper (the designed "stair build under a patrol"), and
+    // with the old order an ACTION aimed at the snapping enemy grabbed a
+    // nearby crate instead (danger must win the press). Verified inert for
+    // the M3 sandbox (its crate yard and chomper are 60+ tiles apart).
+    for (const ch of this.chompers) {
+      if (ch.defanged) continue;
+      const d = Math.hypot(ch.img.x - p.x, ch.img.y - p.y);
+      if (d <= PHYS.magYankRange && this.hasLOS(p.x, p.y - 8, ch.img.x, ch.img.y - 8)) {
+        this.defangChomper(ch, p);
+        return true;
+      }
+    }
+    // 4. metal crate within reach + LOS -> drag-latch
     let best = null;
     let bestD = PHYS.magGrabRange;
     for (const c of this.crates) {
@@ -4641,15 +4655,6 @@ export default class GameScene extends Phaser.Scene {
     if (best) {
       this.latchMagCrate(p, best);
       return true;
-    }
-    // 4. junk-chomper within reach -> yank its metal teeth out (its defeat)
-    for (const ch of this.chompers) {
-      if (ch.defanged) continue;
-      const d = Math.hypot(ch.img.x - p.x, ch.img.y - p.y);
-      if (d <= PHYS.magYankRange && this.hasLOS(p.x, p.y - 8, ch.img.x, ch.img.y - 8)) {
-        this.defangChomper(ch, p);
-        return true;
-      }
     }
     // 5. steel rail overhead -> cling + traverse (hang beneath the run)
     for (let dy = 1; dy <= 3; dy++) {

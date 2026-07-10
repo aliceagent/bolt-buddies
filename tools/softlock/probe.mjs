@@ -23,14 +23,15 @@ export const now = () => Date.now();
 
 // level id -> registry index (mirrors beat runner; tutorial is appended LAST = 12)
 export const LEVEL_INDEX = {
-  "1-1": 0, "1-2": 1, "1-3": 2, "2-1": 3, "2-2": 4, "2-3": 5, tut: 12,
+  "1-1": 0, "1-2": 1, "1-3": 2, "2-1": 3, "2-2": 4, "2-3": 5, "3-1": 6, tut: 12,
 };
 
-// Assignment A: P1 takes the first (grapple/phase) pedestal. Roles are abstract;
-// the softlock escapes we test are role-symmetric where it matters (the grapple/
-// phase robot is always the one that must zip/escort), so one assignment suffices
-// and each scenario notes if the other assignment would change the verdict.
-export const ROLES_A = { G: 0, H: 1, P: 0, T: 1 };
+// Assignment A: P1 takes the first (grapple/phase/magnet) pedestal. Roles are
+// abstract; the softlock escapes we test are role-symmetric where it matters
+// (the grapple/phase/magnet robot is always the one that must zip/escort/cling),
+// so one assignment suffices and each scenario notes if the other assignment
+// would change the verdict.
+export const ROLES_A = { G: 0, H: 1, P: 0, T: 1, M: 0, B: 1 };
 
 export async function startLevel(page, levelIndex) {
   await page.evaluate((i) => {

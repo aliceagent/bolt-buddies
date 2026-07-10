@@ -579,6 +579,67 @@ const TRACKS = {
     ],
   },
 
+  // w3l1 — 3-1 "Attract Mode" (W3W4 L31): the Magnet Works floor track. Extends
+  // the w3 electro-funk identity (same C-minor-pentatonic root/scale family) but
+  // a distinct mix per the S2 per-level conventions: brighter 116 BPM, a snappy
+  // triangle "polarity" bass, clav pulse offbeats, and a workshop-whistle square
+  // lead that only sings in B/A' — reads as "the same wing, its first chamber".
+  // 36 bars (intro/A/B/A'/tag), sectioned so it never loops a single 4-bar cell.
+  w3l1: {
+    bpm: 116, root: 48, scale: [0, 3, 5, 6, 7, 10],
+    leadType: "square", leadVol: 0.024, leadLen: 0.5,
+    arpType: "pulse", arpVol: 0.019, bassType: "triangle", bassVol: 0.095,
+    kickVol: 0.095, hatVol: 0.02, padVol: 0.03, padCut: 2600,
+    sections: [
+      {
+        name: "intro", bars: 4,
+        pads: [pad(CH.CmLo), pad(CH.CmLo), pad(CH.AbLo), pad(CH.GLo)],
+        bass: [b2(36, 43), b2(36, 43), b2(32, 39), b2(31, 38)],
+        arp: [row({ 2: 72, 6: 75, 10: 79 }), row({ 2: 72, 6: 75, 10: 79 }),
+          row({ 2: 68, 6: 72, 10: 75 }), row({ 2: 67, 6: 70, 10: 74 })],
+        drums: [D.offhat, D.kickHat, D.offhat, D.kickHat],
+      },
+      {
+        name: "A", bars: 8,
+        pads: [pad(CH.CmLo), pad(CH.Eb), pad(CH.AbLo), pad(CH.Bb)],
+        bass: [e8([36, 48, 36, 43, 36, 46, 43, 36]), e8([39, 51, 39, 46, 39, 43, 46, 39]),
+          e8([32, 44, 32, 39, 32, 43, 39, 32]), e8([34, 46, 34, 41, 34, 44, 41, 34])],
+        arp: [row({ 2: 75, 6: 79, 10: 72, 14: 75 }), row({ 2: 79, 6: 82, 10: 75, 14: 79 }),
+          row({ 2: 72, 6: 75, 10: 68, 14: 72 }), row({ 2: 74, 6: 77, 10: 70, 14: 74 })],
+        drums: [D.bounce, D.back, D.bounce, D.drive],
+      },
+      {
+        name: "B", bars: 8,
+        pads: [pad(CH.Fm), pad(CH.AbLo), pad(CH.CmLo), pad(CH.GLo)],
+        bass: [e8([41, 53, 41, 48, 41, 46, 48, 41]), e8([32, 44, 32, 39, 32, 43, 39, 32]),
+          e8([36, 48, 36, 43, 36, 46, 43, 36]), e8([31, 43, 31, 38, 31, 41, 38, 31])],
+        arp: [q(77, 80, 84, 80), q(72, 75, 80, 75), q(72, 75, 79, 75), q(70, 74, 79, 74)],
+        lead: [row({ 0: 84, 4: 87, 10: 82 }), row({ 2: 80, 8: 75 }),
+          row({ 0: 79, 4: 84, 10: 75 }), row({ 2: 74, 8: 70, 12: 67 })],
+        drums: [D.drive, D.back, D.drive, D.back],
+      },
+      {
+        name: "A'", bars: 8,
+        pads: [pad(CH.CmLo), pad(CH.Eb), pad(CH.AbLo), pad(CH.Bb)],
+        bass: [e8([36, 48, 36, 43, 36, 46, 43, 36]), e8([39, 51, 39, 46, 39, 43, 46, 39]),
+          e8([32, 44, 32, 39, 32, 43, 39, 32]), e8([34, 46, 34, 41, 34, 44, 41, 34])],
+        arp: [s16([72, 75, 79, 75, 72, 75, 79, 75, 72, 75, 79, 82, 79, 75, 72, 75]),
+          s16([75, 79, 82, 79, 75, 79, 82, 79, 75, 79, 82, 87, 82, 79, 75, 79]),
+          s16([68, 72, 75, 72, 68, 72, 75, 72, 68, 72, 75, 80, 75, 72, 68, 72]),
+          s16([70, 74, 77, 74, 70, 74, 77, 74, 70, 74, 77, 82, 77, 74, 70, 74])],
+        lead: [row({ 8: 84 }), row({ 4: 87, 12: 82 }), row({ 8: 80 }), row({ 4: 77, 12: 74 })],
+        drums: [D.drive, D.drive, D.back, D.drive],
+      },
+      {
+        name: "tag", bars: 8,
+        pads: [pad(CH.AbLo), pad(CH.Bb), pad(CH.CmLo), pad(CH.CmLo)],
+        bass: [b2(32, 44), b2(34, 46), e8([36, 48, 36, 43, 36, 46, 43, 36]), b2(36, 48)],
+        arp: [row({ 2: 68, 8: 72 }), row({ 2: 70, 8: 74 }), q(72, 75, 79, 75), row({ 0: 72, 8: 84 })],
+        drums: [D.kickHat, D.offhat, D.bounce, D.tick],
+      },
+    ],
+  },
+
   // w4 — reserve (World 4, dark ambient): very slow A-phrygian drift, 70 BPM,
   // long detuned pads, a lone low bass and rare soft percussion. 32 bars.
   w4: {
@@ -634,7 +695,9 @@ const LEVEL_TRACK = {
   "tut": "hub",
   "1-1": "w1l1", "1-2": "w1l2", "1-3": "w1l3",
   "2-1": "w2l1", "2-2": "w2l2", "2-3": "w2l3",
-  "3-1": "w3", "3-2": "w3", "3-3": "w3",
+  // W3W4 L31: 3-1 gets its own composed chamber track; 3-2/3-3 stay on the w3
+  // reserve until their sprints land.
+  "3-1": "w3l1", "3-2": "w3", "3-3": "w3",
   "4-1": "w4", "4-2": "w4", "4-3": "w4",
   // W3W4 M3: the dev-only World-3 mechanics sandbox reuses the w3 track (the
   // "wire the LEVEL music registry for world 3" entry — 3-1..3-3 above were

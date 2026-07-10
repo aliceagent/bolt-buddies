@@ -22,16 +22,17 @@ const CHROMIUM = process.env.BB_CHROMIUM || "/opt/pw-browsers/chromium";
 const RUN_BUDGET_MS = 4 * 60 * 1000; // 4 minutes per run
 
 // level id -> registry index
-const LEVEL_INDEX = { "1-1": 0, "1-2": 1, "1-3": 2, "2-1": 3, "2-2": 4, "2-3": 5 };
-const DEFAULT_LEVELS = ["1-1", "1-2", "1-3", "2-1", "2-2", "2-3"]; // full 12-run matrix
+const LEVEL_INDEX = { "1-1": 0, "1-2": 1, "1-3": 2, "2-1": 3, "2-2": 4, "2-3": 5, "3-1": 6 };
+const DEFAULT_LEVELS = ["1-1", "1-2", "1-3", "2-1", "2-2", "2-3", "3-1"]; // full 14-run matrix
 
 // Both role assignments. Roles are abstract (G=grapple, H=heavy); the runner maps
 // each to a player index. "A" = P1 takes the first (grapple) pedestal; "B" swaps.
-// W1 routes use G(rapple)/H(eavy); W2 routes use P(hase)/T(iny). Both alias
-// the same idea: the first-listed role takes the FIRST pedestal.
+// W1 routes use G(rapple)/H(eavy); W2 routes use P(hase)/T(iny); W3 routes use
+// M(agnet)/B(ubble). All alias the same idea: the first-listed role takes the
+// FIRST pedestal.
 const ASSIGNMENTS = [
-  { name: "A:P1=G", roles: { G: 0, H: 1, P: 0, T: 1 } },
-  { name: "B:P1=H", roles: { G: 1, H: 0, P: 1, T: 0 } },
+  { name: "A:P1=G", roles: { G: 0, H: 1, P: 0, T: 1, M: 0, B: 1 } },
+  { name: "B:P1=H", roles: { G: 1, H: 0, P: 1, T: 0, M: 1, B: 0 } },
 ];
 
 const argv = process.argv.slice(2);
