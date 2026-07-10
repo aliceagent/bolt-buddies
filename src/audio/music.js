@@ -697,6 +697,83 @@ const TRACKS = {
     ],
   },
 
+  // w3l3 — 3-3 "The Scrap Storm" (W3W4 L33): the polarity-storm track. Stays in
+  // the W3 C-minor-pentatonic family but WHIPS it up per the S2 per-level
+  // conventions: 128 BPM (the wing's fastest), a driving square "polarity" bass
+  // riding relentless eighths, gusting pulse-arp squalls, a siren-call square
+  // lead that only cuts through in B/peak, and drums that never sit still —
+  // D.drive/bounce with fourfloor gusts at the peak. Reads as "the same wing,
+  // gone feral". 40 bars (intro/A/B/A'/peak/tag) so no 4-bar cell ever loops.
+  w3l3: {
+    bpm: 128, root: 48, scale: [0, 3, 5, 6, 7, 10],
+    leadType: "square", leadVol: 0.026, leadLen: 0.45,
+    arpType: "pulse", arpVol: 0.02, bassType: "square", bassVol: 0.075,
+    kickVol: 0.1, snareVol: 0.045, hatVol: 0.022, padVol: 0.026, padCut: 2400,
+    sections: [
+      {
+        name: "intro", bars: 4,
+        pads: [pad(CH.CmLo), pad(CH.AbLo), pad(CH.CmLo), pad(CH.Bb)],
+        bass: [e8([36, 36, 48, 36, 36, 46, 36, 43]), e8([32, 32, 44, 32, 32, 43, 32, 39]),
+          e8([36, 36, 48, 36, 36, 46, 36, 43]), e8([34, 34, 46, 34, 34, 44, 34, 41])],
+        arp: [row({ 2: 72, 10: 75 }), row({ 2: 68, 10: 72 }), row({ 2: 72, 10: 79 }), row({ 2: 70, 10: 74 })],
+        drums: [D.kickHat, D.bounce, D.kickHat, D.drive],
+      },
+      {
+        name: "A", bars: 8,
+        pads: [pad(CH.CmLo), pad(CH.Eb), pad(CH.AbLo), pad(CH.Bb)],
+        bass: [e8([36, 48, 36, 46, 36, 48, 43, 36]), e8([39, 51, 39, 46, 39, 51, 46, 39]),
+          e8([32, 44, 32, 43, 32, 44, 39, 32]), e8([34, 46, 34, 44, 34, 46, 41, 34])],
+        arp: [s16([72, 75, 79, 75, 72, 75, 79, 82, 72, 75, 79, 75, 72, 75, 78, 79]),
+          s16([75, 79, 82, 79, 75, 79, 82, 87, 75, 79, 82, 79, 75, 79, 82, 84]),
+          s16([68, 72, 75, 72, 68, 72, 75, 80, 68, 72, 75, 72, 68, 72, 74, 75]),
+          s16([70, 74, 77, 74, 70, 74, 77, 82, 70, 74, 77, 74, 70, 74, 77, 79])],
+        drums: [D.drive, D.bounce, D.drive, D.back],
+      },
+      {
+        name: "B", bars: 8,
+        pads: [pad(CH.Fm), pad(CH.AbLo), pad(CH.CmLo), pad(CH.GLo)],
+        bass: [e8([41, 53, 41, 51, 41, 53, 48, 41]), e8([32, 44, 32, 43, 32, 44, 39, 32]),
+          e8([36, 48, 36, 46, 36, 48, 43, 36]), e8([31, 43, 31, 41, 31, 43, 38, 31])],
+        arp: [q(77, 80, 84, 80), q(72, 75, 80, 75), q(72, 75, 79, 75), q(70, 74, 79, 74)],
+        lead: [row({ 0: 84, 4: 87, 8: 84, 12: 82 }), row({ 2: 80, 8: 75, 12: 72 }),
+          row({ 0: 84, 4: 90, 10: 87 }), row({ 2: 79, 8: 74, 12: 70 })],
+        drums: [D.drive, D.drive, D.bounce, D.drive],
+      },
+      {
+        name: "A'", bars: 8,
+        pads: [pad(CH.CmLo), pad(CH.Eb), pad(CH.AbLo), pad(CH.Bb)],
+        bass: [e8([36, 48, 36, 46, 36, 48, 43, 36]), e8([39, 51, 39, 46, 39, 51, 46, 39]),
+          e8([32, 44, 32, 43, 32, 44, 39, 32]), e8([34, 46, 34, 44, 34, 46, 41, 34])],
+        arp: [s16([72, 75, 79, 82, 79, 75, 72, 75, 72, 75, 79, 82, 84, 82, 79, 75]),
+          s16([75, 79, 82, 87, 82, 79, 75, 79, 75, 79, 82, 87, 90, 87, 82, 79]),
+          s16([68, 72, 75, 80, 75, 72, 68, 72, 68, 72, 75, 80, 82, 80, 75, 72]),
+          s16([70, 74, 77, 82, 77, 74, 70, 74, 70, 74, 77, 82, 86, 82, 77, 74])],
+        lead: [row({ 8: 87 }), row({ 4: 84, 12: 82 }), row({ 8: 80 }), row({ 4: 79, 12: 75 })],
+        drums: [D.drive, D.back, D.drive, D.bounce],
+      },
+      {
+        name: "peak", bars: 8,
+        pads: [pad(CH.AbLo), pad(CH.Bb), pad(CH.CmLo), pad(CH.GLo)],
+        bass: [e8([32, 44, 32, 44, 32, 43, 32, 39]), e8([34, 46, 34, 46, 34, 44, 34, 41]),
+          e8([36, 48, 36, 48, 36, 46, 36, 43]), e8([31, 43, 31, 43, 31, 41, 31, 38])],
+        arp: [s16([80, 75, 72, 75, 80, 75, 72, 75, 80, 75, 72, 75, 80, 82, 80, 75]),
+          s16([82, 77, 74, 77, 82, 77, 74, 77, 82, 77, 74, 77, 82, 84, 82, 77]),
+          s16([84, 79, 75, 79, 84, 79, 75, 79, 84, 79, 75, 79, 84, 87, 84, 79]),
+          s16([79, 74, 70, 74, 79, 74, 70, 74, 79, 74, 70, 74, 79, 82, 79, 74])],
+        lead: [row({ 0: 87, 6: 84, 12: 87 }), row({ 2: 86, 10: 82 }),
+          row({ 0: 91, 6: 87, 12: 84 }), row({ 2: 82, 10: 79 })],
+        drums: [D.fourfloor, D.drive, D.fourfloor, D.drive],
+      },
+      {
+        name: "tag", bars: 4,
+        pads: [pad(CH.AbLo), pad(CH.Bb), pad(CH.CmLo), pad(CH.CmLo)],
+        bass: [b2(32, 44), b2(34, 46), e8([36, 48, 36, 46, 36, 48, 43, 36]), b2(36, 48)],
+        arp: [row({ 2: 68, 8: 72 }), row({ 2: 70, 8: 74 }), q(72, 75, 79, 75), row({ 0: 72, 8: 84 })],
+        drums: [D.bounce, D.kickHat, D.drive, D.tick],
+      },
+    ],
+  },
+
   // w4 — reserve (World 4, dark ambient): very slow A-phrygian drift, 70 BPM,
   // long detuned pads, a lone low bass and rare soft percussion. 32 bars.
   w4: {
@@ -752,9 +829,8 @@ const LEVEL_TRACK = {
   "tut": "hub",
   "1-1": "w1l1", "1-2": "w1l2", "1-3": "w1l3",
   "2-1": "w2l1", "2-2": "w2l2", "2-3": "w2l3",
-  // W3W4 L31/L32: 3-1 and 3-2 get their own composed chamber tracks; 3-3
-  // stays on the w3 reserve until its sprint lands.
-  "3-1": "w3l1", "3-2": "w3l2", "3-3": "w3",
+  // W3W4 L31/L32/L33: all three Magnet Works chambers have composed tracks.
+  "3-1": "w3l1", "3-2": "w3l2", "3-3": "w3l3",
   "4-1": "w4", "4-2": "w4", "4-3": "w4",
   // W3W4 M3: the dev-only World-3 mechanics sandbox reuses the w3 track (the
   // "wire the LEVEL music registry for world 3" entry — 3-1..3-3 above were

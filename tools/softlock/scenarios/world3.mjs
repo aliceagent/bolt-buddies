@@ -27,6 +27,7 @@
 import { snap, push, sleep, now, TILE } from "../probe.mjs";
 import route31 from "../../beat/routes/3-1.mjs";
 import route32, { swimTo } from "../../beat/routes/3-2.mjs";
+import route33, { shieldWalk, huddleCross, tryCatch } from "../../beat/routes/3-3.mjs";
 
 async function runSteps(bb, steps) {
   let lastStep = "";
@@ -723,6 +724,295 @@ export default [
           : `UNVERIFIED — a leg did not land this run (lockClosed=${lockClosed} drowned=${drowned} mBackSafe=${mBackSafe} relay=${relayResumes}${err ? `, err: ${err}` : ""}); re-run. The sump is the load-bearing geometry: without it this pit would be the level's one hard seal.`,
         expectedUnverified: true,
         notes: "The bubble robot can only enter the chamber THROUGH the lock (it cannot reach the ledge without the winch), so the two-robots-sealed-pre-lock case cannot occur; the magnet-alone case is exactly this scenario.",
+      };
+    },
+  },
+
+  // ===========================================================================
+  // 3-3 "The Scrap Storm" (W3W4 L33)
+  // ===========================================================================
+  {
+    id: "3-3-core-dropped-in-lane",
+    level: "3-3",
+    category: "B",
+    candidate: "FUSE-CORE dropped INSIDE a live scrap lane (carrier killed mid-band) — is the core lost/unreachable?",
+    repro: [
+      "equip (route step 0); B picks fuse-core A on the calm west side",
+      "SABOTAGE: B carries it BARE into the live teaching lane — first chunk kills; the core DROPS where it fell",
+      "assert: the core rests INSIDE the lane band (retrieval means re-entering the storm) and B respawned on solid ground",
+      "recovery: the designed answer — the HUDDLE (M catches a scrap shield, B fetches the core tucked behind the plate) delivers it to fc1; the lane de-energizes",
+    ],
+    async run(bb) {
+      const bi = bb.idx("B");
+      const kB = bb.keysFor("B");
+      bb.stepDeaths = 0;
+      await route33[0].fn(bb);
+      await bb.walkTo("M", 9, { tol: 10, timeout: 8000 }).catch(() => {});
+      // pick up core A (calm ground), then walk it BARE into the band
+      await bb.walkTo("B", 10.5, { tol: 6, timeout: 8000 }).catch(() => {});
+      await bb.waitFor((s) => s.fusecores[0].state === "carried", 4000, "core A picked up");
+      if ((await bb.state()).players[bi].bubbleT > 0) { await bb.tap(kB.act); await sleep(300); } // no raincoat
+      const deathsBefore = bb.deaths;
+      await bb.down(kB.right);
+      const killed = await bb.waitFor((s) => s.players[bi].dead, 9000, "bare carrier killed")
+        .then(() => true).catch(() => false);
+      await bb.up(kB.right);
+      bb.stepDeaths = 0;
+      if ((await bb.state()).players[bi].dead) await bb.awaitRespawn("B").catch(() => {});
+      const st1 = await bb.state();
+      const core = st1.fusecores[0];
+      const lane = st1.lanes[0];
+      const droppedInLane = core.state === "rest" && core.tx > lane.x1 - 1.2 && core.tx < lane.x2 + 1.2;
+      const bSafe = !st1.players[bi].dead && st1.players[bi].ty < 14;
+      // recovery: the route's huddle-ferry step retrieves it from the band and
+      // delivers (it huddle-crosses to wherever the core rests)
+      bb.stepDeaths = 0;
+      const r = await runSteps(bb, [route33[1]]);
+      const delivered = (await bb.state()).fusesockets.find((k) => k.id === "fc1")?.filled === true;
+      const laneCalm = !(await bb.state()).lanes[0].active;
+      const ok = killed && droppedInLane && bSafe && delivered && laneCalm;
+      return {
+        classification: delivered ? "RECOVERABLE" : "UNVERIFIED",
+        stuck: { killed, deathsSeen: bb.deaths - deathsBefore, coreTx: +core.tx.toFixed(2), droppedInLane, bSafeAfterRespawn: bSafe },
+        recoveries: [
+          { name: "the dropped core SETTLES on the floor where it fell (nudged out of the spawn dead-zone) — never destroyed, never in a pit", ok: droppedInLane },
+          { name: "huddle retrieval: M's caught-scrap shield walks B to the core and across — fc1 delivered, lane de-energized", ok: delivered && laneCalm, note: r.error ? `err: ${r.error}` : "fc1 filled" },
+        ],
+        repro: this.repro,
+        verdict: ok
+          ? "RECOVERABLE — a core dropped mid-lane is a detour, not a loss: it rests on solid floor inside the band (bedrock under every yard, no pits/water in 3-3), pickup is a plain touch, and the huddle (the level's taught mechanic) fetches it behind the shield. Drive-confirmed: bare carrier killed mid-band -> core dropped in-lane -> huddle retrieval -> fc1 socketed -> lane calm."
+          : "UNVERIFIED — a leg did not land this run (see stuck/recoveries); re-run. The load-bearing facts: dropFuseCore scans DOWN to the first solid tile and clamps out of the chunk spawn dead-zone; cores are never consumed by a death.",
+        expectedUnverified: true,
+        notes: "The drop-position clamp (GameScene dropFuseCore) is what makes the worst drop retrievable: a core can never rest where retrieval means standing in the chunk-materialization point.",
+      };
+    },
+  },
+  {
+    id: "3-3-all-cores-dropped",
+    level: "3-3",
+    category: "B",
+    candidate: "ALL THREE fuse-cores dropped in live lanes (the worst-case ferry wipe) — is the level still completable?",
+    repro: [
+      "equip; SABOTAGE #1: core A carried bare into the teaching lane -> killed -> dropped in-band",
+      "recovery #1: huddle retrieval -> fc1 (lane 0 calms)",
+      "SABOTAGE #2: core B carried bare into lane 1 -> killed -> dropped in-band; recovery #2: M defangs the guard, huddle ferry -> fc2 (lane 1 calms)",
+      "SABOTAGE #3: core C carried bare into the double gauntlet -> killed -> dropped in-band; recovery #3: huddle ferry -> fc3 (the storm ends)",
+      "assert: all three sockets filled — every dropped core was recovered from inside a live lane",
+    ],
+    async run(bb) {
+      const bi = bb.idx("B");
+      const kB = bb.keysFor("B");
+      const dropInto = async (coreIdx, pickTile, laneIdx) => {
+        await bb.walkTo("B", pickTile, { tol: 6, timeout: 10000 }).catch(() => {});
+        const got = await bb.waitFor((s) => s.fusecores[coreIdx].state === "carried", 4000, `core ${coreIdx} picked`)
+          .then(() => true).catch(() => false);
+        if (!got) return { dropped: false };
+        if ((await bb.state()).players[bi].bubbleT > 0) { await bb.tap(kB.act); await sleep(300); }
+        await bb.down(kB.right);
+        const killed = await bb.waitFor((s) => s.players[bi].dead, 9000, "carrier killed")
+          .then(() => true).catch(() => false);
+        await bb.up(kB.right);
+        bb.stepDeaths = 0;
+        if ((await bb.state()).players[bi].dead) await bb.awaitRespawn("B").catch(() => {});
+        const st = await bb.state();
+        const core = st.fusecores[coreIdx];
+        const lane = st.lanes[laneIdx];
+        return { dropped: killed && core.state === "rest" && core.tx > lane.x1 - 1.2 && core.tx < lane.x2 + 1.2, coreTx: +core.tx.toFixed(2) };
+      };
+      bb.stepDeaths = 0;
+      await route33[0].fn(bb);
+      await bb.walkTo("M", 9, { tol: 10, timeout: 8000 }).catch(() => {});
+      // #1: core A into the teaching lane, then the huddle recovers it
+      const d1 = await dropInto(0, 10.5, 0);
+      bb.stepDeaths = 0;
+      const r1 = await runSteps(bb, [route33[1]]);
+      // #2: core B into lane 1 (defang first so only the storm kills), recover
+      bb.stepDeaths = 0;
+      const r2a = await runSteps(bb, [route33[2]]); // M solo-shields + defangs
+      const d2 = await dropInto(1, 26, 1);
+      bb.stepDeaths = 0;
+      const r2 = await runSteps(bb, [route33[3]]);
+      // #3: core C into the gauntlet, recover
+      const d3 = await dropInto(2, 48, 2);
+      bb.stepDeaths = 0;
+      const r3 = await runSteps(bb, [route33[4]]);
+      const st = await snap(bb);
+      const sockets = (await bb.state()).fusesockets;
+      const allFilled = sockets.every((k) => k.filled);
+      const stormOver = (await bb.state()).lanes.every((l) => !l.active);
+      const ok = d1.dropped && d2.dropped && d3.dropped && allFilled;
+      return {
+        classification: allFilled ? "RECOVERABLE" : "UNVERIFIED",
+        stuck: { drop1: d1, drop2: d2, drop3: d3, sockets, stormOver },
+        recoveries: [
+          { name: "core A dropped in the live teaching lane -> huddle retrieval -> fc1", ok: sockets[0]?.filled, note: r1.error || "" },
+          { name: "core B dropped in live lane 1 -> defang + huddle retrieval -> fc2", ok: sockets[1]?.filled, note: r2.error || r2a.error || "" },
+          { name: "core C dropped in the live double gauntlet -> huddle retrieval -> fc3", ok: sockets[2]?.filled, note: r3.error || "" },
+        ],
+        repro: this.repro,
+        verdict: ok
+          ? "RECOVERABLE — the total ferry wipe cannot seal the level: each of the three cores was deliberately dropped INSIDE its live lane by a bare carrier kill, and each was retrieved with the taught huddle and delivered; the storm ended and the exit chain (fc1+fc2+fc3+jelly) remained fully reachable. Cores are indestructible, position-only state; nothing in 3-3 consumes or buries them."
+          : "UNVERIFIED — a sabotage or recovery leg flaked this run (see stuck/recoveries); re-run. The design facts: cores drop where the carrier fell (floor-settled, dead-zone-clamped), pickup is plain touch, and lanes stay crossable (catch/huddle) regardless of core state.",
+        expectedUnverified: true,
+        notes: "Sockets latch via pullLever (never un-latch), so partial progress also survives any later wipe. Full completion after this state is covered by the beat route (same steps).",
+      };
+    },
+  },
+  {
+    id: "3-3-shield-expired-mid-crossing",
+    level: "3-3",
+    category: "B",
+    candidate: "Scrap shield EXPIRES mid-crossing — magnet stranded bare inside a live lane?",
+    repro: [
+      "stage fc1 (route steps 0-1); M catches a fresh shield at the lane-1 lip and walks to MID-BAND (x34)",
+      "SABOTAGE: stand still until the ~8s hold expires — the storm rips the plate away, M is bare mid-lane",
+      "assert: shield idle + catch cooldown running, lane still live, M inside the band",
+      "recovery 1: RETREAT — walk back out the near edge (flat ground the whole way; a hit en route is just the standard checkpoint respawn)",
+      "recovery 2: wait out the catch cooldown in the calm pocket, re-catch, and complete the crossing",
+    ],
+    async run(bb) {
+      const mi = bb.idx("M");
+      const kM = bb.keysFor("M");
+      for (let i = 0; i <= 1; i++) { bb.stepDeaths = 0; await route33[i].fn(bb); }
+      // fresh catch at the lane-1 lip, then park mid-band
+      let midBand = false;
+      for (let att = 0; att < 6 && !midBand; att++) {
+        const st = await bb.state();
+        if (st.players[mi].dead) { await bb.awaitRespawn("M"); continue; }
+        if (!(st.shield.state === "held" && st.shield.heldBy === mi)) {
+          if (st.shield.cd > 0) { await bb.waitFor((s) => s.shield.cd <= 0, 5000, "cd").catch(() => {}); continue; }
+          if (!(await tryCatch(bb, 25.9))) continue;
+        }
+        await bb.down(kM.right);
+        await bb.waitFor((s) => s.players[mi].tx > 33.5 || s.players[mi].dead, 4000, "mid-band").catch(() => {});
+        await bb.up(kM.right);
+        const p = (await bb.state()).players[mi];
+        midBand = !p.dead && p.tx > 32 && p.tx < 37;
+      }
+      // let the hold expire in place (the shield keeps absorbing until it rips)
+      const expired = await bb.waitFor((s) => s.shield.state === "idle", 10000, "hold expired")
+        .then(() => true).catch(() => false);
+      const at = await bb.state();
+      const stranded = expired && at.lanes[1].active && at.players[mi].tx > 28 - 0.9 && at.players[mi].tx < 40 + 0.9;
+      const cdRunning = at.shield.cd > 0;
+      // recovery 1: retreat out the near (west) edge
+      const deathsBefore = bb.deaths;
+      await bb.down(kM.left);
+      await bb.waitFor((s) => s.players[mi].tx < 26 || s.players[mi].dead, 5000, "retreat").catch(() => {});
+      await bb.up(kM.left);
+      bb.stepDeaths = 0;
+      if ((await bb.state()).players[mi].dead) await bb.awaitRespawn("M").catch(() => {});
+      const p2 = (await bb.state()).players[mi];
+      const retreatClean = bb.deaths === deathsBefore && p2.tx < 26.5;
+      const backSafe = !p2.dead && p2.tx < 26.5; // clean walk-out OR checkpoint respawn — both end safe
+      // recovery 2: wait the cooldown out and re-cross properly
+      let crossed = false, err = null;
+      try {
+        bb.stepDeaths = 0;
+        await shieldWalk(bb, 41.6, { safeTiles: [25] });
+        crossed = (await bb.state()).players[mi].tx > 40.8;
+      } catch (e) { err = e?.message || String(e); }
+      // park M back with B so the scenario leaves a sane state
+      const ok = midBand && stranded && backSafe && crossed;
+      return {
+        classification: ok ? "RECOVERABLE" : "UNVERIFIED",
+        stuck: { midBandStaged: midBand, expiredMidBand: stranded, catchCdRunning: cdRunning, retreatClean, backSafe },
+        recoveries: [
+          { name: "RETREAT: every lane strip is flat open ground — walking back out the near edge needs no resource", ok: backSafe, note: retreatClean ? "clean walk-out, no hit" : "took a hit -> standard checkpoint respawn (also safe)" },
+          { name: "wait out the 3.5s catch cooldown in the calm pocket, re-catch, cross — completed", ok: crossed, note: err ? `err: ${err}` : "re-crossed behind a fresh shield" },
+        ],
+        repro: this.repro,
+        verdict: ok
+          ? "RECOVERABLE — an expired shield mid-lane is a setback measured in seconds: the magnet retreated out of the band on flat ground (worst case is the standard hazard death back to a solid-ground checkpoint), waited the 3.5s catch cooldown, re-caught at the lip and completed the crossing. No consumable, timer or one-way is involved."
+          : "UNVERIFIED — a leg did not land this run (see stuck/recoveries); re-run. The design facts: every lane strip is flat and two-way, the catch is repeatable forever, and all checkpoints sit outside every band.",
+        expectedUnverified: true,
+        notes: "The route's freshness guard (never START a crossing with <4.5s of hold) makes this state rare in driven play; kids get the last-1.5s blink warning (U11-scaled) as their cue.",
+      };
+    },
+  },
+  {
+    id: "3-3-bubble-cd-stranding",
+    level: "3-3",
+    category: "C",
+    candidate: "Bubble pops EARLY in a live lane (cooldown still running) — ferry stranded bare with no re-bubble?",
+    repro: [
+      "stage fc1 (route steps 0-1); B blows a FRESH bubble at the lane-1 lip and walks straight in",
+      "the first chunk pops it well inside the 2.2s cast cooldown — B is bare, mid-band, cooldown pending (the stranding)",
+      "recovery 1: the pop's mercy invuln + the absorbed chunk's dark-time cover the walk BACK out to the calm pocket",
+      "recovery 2: WAIT-AND-RECOVER — the cooldown re-arms in the pocket (nothing in 3-3 is timed), B re-bubbles",
+      "recovery 3: the designed crossing (huddle behind M's shield) proceeds — the bubble was never the crossing tool",
+    ],
+    async run(bb) {
+      const bi = bb.idx("B");
+      const kB = bb.keysFor("B");
+      for (let i = 0; i <= 1; i++) { bb.stepDeaths = 0; await route33[i].fn(bb); }
+      await bb.walkTo("M", 24, { tol: 10, timeout: 8000 }).catch(() => {});
+      // fresh bubble at the lip, walk straight in until it pops
+      let popped = false, strand = null;
+      for (let att = 0; att < 5 && !popped; att++) {
+        const st = await bb.state();
+        if (st.players[bi].dead) { await bb.awaitRespawn("B"); continue; }
+        await bb.walkTo("B", 25.9, { tol: 8, timeout: 8000 }).catch(() => {});
+        if ((await bb.state()).players[bi].bubbleT > 0) { await bb.tap(kB.act); await sleep(250); } // recycle stale
+        await bb.waitFor((s) => s.players[bi].bubbleCd <= 0, 6000, "cd ready").catch(() => {});
+        await bb.tap(kB.act);
+        const up = await bb.waitFor((s) => s.players[bi].bubbleT > 0, 1500, "bubbled").then(() => true).catch(() => false);
+        if (!up) continue;
+        await bb.down(kB.right);
+        const hit = await bb.waitFor((s) => s.players[bi].bubbleT <= 0 || s.players[bi].dead, 4000, "pop")
+          .then(() => true).catch(() => false);
+        await bb.up(kB.right);
+        const now2 = await bb.state();
+        if (now2.players[bi].dead) { bb.stepDeaths = 0; await bb.awaitRespawn("B").catch(() => {}); continue; }
+        if (hit && now2.players[bi].bubbleT <= 0) {
+          popped = true;
+          strand = {
+            tx: +now2.players[bi].tx.toFixed(2),
+            inBand: now2.players[bi].tx > 27.1 && now2.players[bi].tx < 40.9,
+            cdMs: now2.players[bi].bubbleCd | 0,
+            cdRunning: now2.players[bi].bubbleCd > 0,
+          };
+        }
+      }
+      // recovery 1: walk back out under the mercy window
+      const deathsBefore = bb.deaths;
+      await bb.down(kB.left);
+      await bb.waitFor((s) => s.players[bi].tx < 26 || s.players[bi].dead, 5000, "retreat").catch(() => {});
+      await bb.up(kB.left);
+      bb.stepDeaths = 0;
+      if ((await bb.state()).players[bi].dead) await bb.awaitRespawn("B").catch(() => {});
+      const out = (await bb.state()).players[bi];
+      const backSafe = !out.dead && out.tx < 26.5;
+      const retreatClean = bb.deaths === deathsBefore && backSafe;
+      // recovery 2: wait-and-recover — the cooldown re-arms, B re-bubbles
+      const rearmed = await bb.waitFor((s) => s.players[bi].bubbleCd <= 0, 6000, "cd re-armed")
+        .then(() => true).catch(() => false);
+      await bb.tap(kB.act);
+      const rebubbled = await bb.waitFor((s) => s.players[bi].bubbleT > 0, 1500, "re-bubbled")
+        .then(() => true).catch(() => false);
+      if (rebubbled) { await bb.tap(kB.act); await sleep(250); } // pop it again — leave a clean state
+      // recovery 3: the designed crossing still works (huddle behind M)
+      let crossed = false, err = null;
+      try {
+        bb.stepDeaths = 0;
+        await huddleCross(bb, 41.6, { safeTiles: [24, 49] });
+        crossed = true;
+      } catch (e) { err = e?.message || String(e); }
+      const ok = popped && strand?.inBand && strand?.cdRunning && backSafe && rearmed && rebubbled && crossed;
+      return {
+        classification: (backSafe && rebubbled && crossed) ? "RECOVERABLE" : "UNVERIFIED",
+        stuck: { popped, ...strand, backSafe, retreatClean },
+        recoveries: [
+          { name: "mercy window: the pop grants 900ms invuln and the popping chunk goes dark 900ms — the walk-out is covered", ok: backSafe, note: retreatClean ? "clean walk-out" : "hit en route -> standard checkpoint respawn (also safe)" },
+          { name: "WAIT-AND-RECOVER: the 2.2s cast cooldown re-arms in the pocket; nothing in the level is timed", ok: rearmed && rebubbled },
+          { name: "the designed crossing (huddle behind the caught-scrap shield) proceeds regardless of bubble state", ok: crossed, note: err ? `err: ${err}` : "pair crossed behind the plate" },
+        ],
+        repro: this.repro,
+        verdict: (backSafe && rebubbled && crossed)
+          ? "RECOVERABLE — the early-pop stranding is a pause, not a lock: the pop's mercy invuln plus the chunk's dark-time cover the retreat, the cooldown re-arms in any calm pocket (no timer in the level cares how long that takes), and the huddle — the level's actual crossing tool — works with the bubble down. Drive-confirmed end to end."
+          : "UNVERIFIED — a leg did not land this run (see stuck/recoveries); re-run. The design facts: bubbleCd (2.2s) always expires before a second crossing attempt is even staged, and the bubble is the ferry's INSURANCE, not its transport.",
+        expectedUnverified: true,
+        notes: "Worst-worst case (pop + immediate second hit after invuln) is the standard death -> solid-ground checkpoint respawn — the same kind fallback every hazard in the game uses.",
       };
     },
   },

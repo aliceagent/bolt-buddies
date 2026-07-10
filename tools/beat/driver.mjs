@@ -141,6 +141,23 @@ export class Driver {
         jellies: (s.jellies || []).map((j) => ({ x: j.img.x, y: j.img.y, tx: j.img.x / T, state: j.state })),
         sockets: (s.sockets || []).map((k) => ({ id: k.id, filled: k.filled })),
         chompers: (s.chompers || []).map((c) => ({ x: c.img.x, tx: c.img.x / T, state: c.state, defanged: c.defanged })),
+        // W3W4 L33: scrap-storm reads (empty/null everywhere but 3-3 — pure reads)
+        fusecores: (s.fuseCores || []).map((c) => ({
+          x: c.img.x, y: c.img.y, tx: c.img.x / T, ty: c.img.y / T,
+          state: c.state, carrier: c.carrier ? c.carrier.idx : -1,
+        })),
+        fusesockets: (s.fuseSockets || []).map((k) => ({ id: k.id, filled: k.filled })),
+        shield: s.stormShield
+          ? {
+              state: s.stormShield.state, heldBy: s.stormShield.heldBy ? s.stormShield.heldBy.idx : -1,
+              cd: Math.max(0, s.stormShield.cd | 0), holdMs: Math.max(0, s.stormShield.holdMs | 0),
+              x: s.stormShield.img.x, y: s.stormShield.img.y, tx: s.stormShield.img.x / T,
+            }
+          : null,
+        lanes: (s.stormLanes || []).map((l) => ({
+          active: l.active, row: l.row, x1: l.x1 / T, x2: l.x2 / T, dir: l.dir, speed: l.speed,
+          chunks: l.chunks.map((c) => +(c.x / T).toFixed(2)),
+        })),
       };
     });
   }

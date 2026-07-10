@@ -1,5 +1,5 @@
 {
-  "when": "2026-07-10T09:06:16.967Z",
+  "when": "2026-07-10T18:06:25.282Z",
   "url": "http://localhost:5173/?canvas=1",
   "results": [
     {
@@ -7,7 +7,7 @@
       "level": "tut",
       "category": "A",
       "candidate": "Station-4 grapple pit — BOTH robots fall in (safe pit, no death escape)",
-      "durationMs": 26372,
+      "durationMs": 21896,
       "deaths": 0,
       "softlockPeak": 0,
       "classification": "RECOVERABLE",
@@ -15,7 +15,7 @@
         "bothInPit": true,
         "players": [
           {
-            "tx": 36.37,
+            "tx": 37.02,
             "ty": 17.5,
             "dead": false,
             "skill": "grapple",
@@ -24,7 +24,7 @@
             "carriedBy": false
           },
           {
-            "tx": 36.69,
+            "tx": 36.7,
             "ty": 17.42,
             "dead": false,
             "skill": "heavy",
@@ -54,7 +54,7 @@
       "level": "tut",
       "category": "A",
       "candidate": "Station-4 grapple pit — heavy falls in, grapple free on the rim",
-      "durationMs": 29919,
+      "durationMs": 31572,
       "deaths": 0,
       "softlockPeak": 0,
       "classification": "RECOVERABLE",
@@ -62,7 +62,7 @@
         "heavyInPit": true,
         "players": [
           {
-            "tx": 33.7,
+            "tx": 33.78,
             "ty": 13.52,
             "dead": false,
             "skill": "grapple",
@@ -71,7 +71,7 @@
             "carriedBy": false
           },
           {
-            "tx": 36.79,
+            "tx": 36.66,
             "ty": 17.39,
             "dead": false,
             "skill": "heavy",
@@ -101,7 +101,7 @@
       "level": "1-1",
       "category": "A",
       "candidate": "x14-19 electric pit — a robot falls in before learning the belt-gap zip",
-      "durationMs": 7424,
+      "durationMs": 7554,
       "deaths": 0,
       "softlockPeak": 0,
       "classification": "RECOVERABLE",
@@ -127,7 +127,7 @@
       "level": "1-2",
       "category": "B/C",
       "candidate": "Heavy holds plate plA (opens sky-door b1) — who frees the holder?",
-      "durationMs": 13209,
+      "durationMs": 13332,
       "deaths": 0,
       "softlockPeak": 0,
       "classification": "RECOVERABLE",
@@ -140,7 +140,7 @@
         {
           "name": "holder frees ITSELF: heavy steps off the momentary plate and walks on (crusher-immune)",
           "ok": true,
-          "note": "heavy walked off to tx=26.46 (b1 auto-closed=true)"
+          "note": "heavy walked off to tx=26.66 (b1 auto-closed=true)"
         }
       ],
       "repro": [
@@ -156,26 +156,26 @@
       "level": "1-2",
       "category": "C",
       "candidate": "Reel-across electric chasm — grapple crosses, heavy stranded on the near side",
-      "durationMs": 38459,
+      "durationMs": 40691,
       "deaths": 0,
       "softlockPeak": 0,
-      "classification": "UNVERIFIED",
+      "classification": "RECOVERABLE",
       "stuck": {
         "note": "heavy on the near chasm edge; grapple across",
-        "bothAcross": false
+        "bothAcross": true
       },
       "recoveries": [
         {
           "name": "grapple anchor-reel pulls the stranded heavy across the chasm (DOWN+ACTION); zip-back available via the same anchors",
-          "ok": false,
-          "note": "route complete=false err:waitFor timed out: H reeled onto the pillar"
+          "ok": true,
+          "note": "route complete=true"
         }
       ],
       "repro": [
         "full 1-2 traversal: at the chasm (x40-52) grapple zips the anchor chain to the pillar/far floor and REELS heavy across (DOWN+ACTION)",
         "the reel is the recovery for a stranded partner; anchors on both sides also allow a grapple zip-BACK retrace"
       ],
-      "verdict": "UNVERIFIED (env flake at 'chasm relay: G crosses on the anchors, reels H over the pillar': waitFor timed out: H reeled onto the pillar) — the reel is a known thermally-sensitive step; re-run to confirm.",
+      "verdict": "RECOVERABLE — the anchor-reel that completes the crossing IS the un-strand: a partner left on the near side is reeled over. Grapple can also zip BACK across the anchors to retrace.",
       "expectedUnverified": true,
       "notes": "Anchors at 43/46/52 straddle the pillar so grapple can reel the buddy across OR zip back. And since checkpoints are global, a stranded heavy that steps into the electric chasm respawns at the shared checkpoint (x54 once grapple activates it) — death can also reunite the team across the gap."
     },
@@ -184,7 +184,7 @@
       "level": "1-3",
       "category": "C",
       "candidate": "Tower reel-up — heavy falls, grapple at top must re-descend; + is the crane unwinnable?",
-      "durationMs": 65548,
+      "durationMs": 60717,
       "deaths": 0,
       "softlockPeak": 0,
       "classification": "RECOVERABLE",
@@ -192,8 +192,8 @@
         "note": "heavy at the tower base, grapple up a ledge",
         "players": [
           {
-            "tx": 52.74,
-            "ty": 2.49,
+            "tx": 52.83,
+            "ty": 2.47,
             "dead": false,
             "skill": "grapple",
             "grounded": true,
@@ -201,7 +201,7 @@
             "carriedBy": false
           },
           {
-            "tx": 54.13,
+            "tx": 54.17,
             "ty": 2.42,
             "dead": false,
             "skill": "heavy",
@@ -236,7 +236,7 @@
       "level": "1-1",
       "category": "D",
       "candidate": "Co-op lift (needs both, threshold 3) death-loop + x50 landing-pit respawn-strand",
-      "durationMs": 48663,
+      "durationMs": 49622,
       "deaths": 0,
       "softlockPeak": 0,
       "classification": "RECOVERABLE",
@@ -244,8 +244,8 @@
         "note": "team at the lift / x50 landing",
         "players": [
           {
-            "tx": 57.83,
-            "ty": 9.47,
+            "tx": 57.91,
+            "ty": 9.48,
             "dead": false,
             "skill": "grapple",
             "grounded": true,
@@ -253,7 +253,7 @@
             "carriedBy": false
           },
           {
-            "tx": 58.65,
+            "tx": 58.62,
             "ty": 9.41,
             "dead": false,
             "skill": "heavy",
@@ -288,8 +288,8 @@
       "level": "2-1",
       "category": "C",
       "candidate": "Roller yard — solo Tiny walled by shimmer pillars without a Phase escort",
-      "durationMs": 37682,
-      "deaths": 1,
+      "durationMs": 41338,
+      "deaths": 2,
       "softlockPeak": 0,
       "classification": "RECOVERABLE",
       "stuck": {
@@ -317,7 +317,7 @@
       "level": "2-3",
       "category": "B",
       "candidate": "HIGHEST RISK — cross-lane timed doors (6.5s): can a team be SEALED between two closed doors?",
-      "durationMs": 23880,
+      "durationMs": 24193,
       "deaths": 0,
       "softlockPeak": 0,
       "classification": "RECOVERABLE",
@@ -356,7 +356,7 @@
       "level": "2-3",
       "category": "C",
       "candidate": "Finale throw-across gap — Phase throws Tiny; a miss respawns Tiny near-side",
-      "durationMs": 28443,
+      "durationMs": 28611,
       "deaths": 0,
       "softlockPeak": 0,
       "classification": "RECOVERABLE",
@@ -364,8 +364,8 @@
         "note": "Phase carrying Tiny at the finale gap",
         "players": [
           {
-            "tx": 61.74,
-            "ty": 13.48,
+            "tx": 61.76,
+            "ty": 13.46,
             "dead": false,
             "skill": "phase",
             "grounded": true,
@@ -373,7 +373,7 @@
             "carriedBy": false
           },
           {
-            "tx": 61.54,
+            "tx": 61.77,
             "ty": 13.73,
             "dead": false,
             "skill": "tiny",
@@ -403,16 +403,16 @@
       "level": "2-2",
       "category": "C",
       "candidate": "Cross-lane separation; fan-ride required for Tiny (thermally non-deterministic)",
-      "durationMs": 40010,
+      "durationMs": 27161,
       "deaths": 0,
       "softlockPeak": 0,
-      "classification": "RECOVERABLE",
+      "classification": "UNVERIFIED",
       "stuck": {
         "note": "cross-lane fan/steam section",
         "players": [
           {
-            "tx": 54.91,
-            "ty": 13.47,
+            "tx": 40.21,
+            "ty": 13.48,
             "dead": false,
             "skill": "phase",
             "grounded": true,
@@ -420,8 +420,8 @@
             "carriedBy": false
           },
           {
-            "tx": 56.26,
-            "ty": 13.74,
+            "tx": 43.11,
+            "ty": 10.72,
             "dead": false,
             "skill": "tiny",
             "grounded": true,
@@ -433,17 +433,570 @@
       "recoveries": [
         {
           "name": "escort + fan-ride + valve (retrace to the escort wall reunites the lanes)",
-          "ok": true,
-          "note": "route complete=true (last: P holds plate pl1, T pulls lvF -> exit; both finish)"
+          "ok": false,
+          "note": "route complete=false err:waitFor timed out: T down in the yard (last: P takes the quiet corridor; T drops off the deck; both reach x39-40)"
         }
       ],
       "repro": [
         "full 2-2: Phase escorts Tiny through the entry wall; the FAN lifts Tiny to the high deck; the valve shuts the steam wall for Phase's corridor",
         "the fan-lift + timed steam jets are fps-sensitive (the known 2-2 thermal flake on this box)"
       ],
-      "verdict": "RECOVERABLE — the fan-ride/escort completes; the lanes rejoin at the reunion yard and either robot can retrace to the escort wall. Global checkpoints (x8, x17, x40) reunite on any death.",
+      "verdict": "UNVERIFIED — 2-2 fan/steam is the KNOWN environmental (thermal) flake on this box; it did not complete this run at 'P takes the quiet corridor; T drops off the deck; both reach x39-40' (waitFor timed out: T down in the yard). NOT a hard softlock — re-run standalone / on a cooler box to confirm. No geometry seals a lane: the escort wall is re-crossable and the checkpoints reunite the team.",
       "expectedUnverified": true,
       "notes": "Explicitly flagged non-deterministic per the verification protocol. Classification defers to a cleaner run; the mechanics (escort back through the wall, shared checkpoints) provide recovery."
+    },
+    {
+      "id": "3-1-crates-stranded-wall",
+      "level": "3-1",
+      "category": "B",
+      "candidate": "Crate stair unbuildable (crates displaced/stranded) — is the plate wall still passable both ways?",
+      "durationMs": 44741,
+      "deaths": 0,
+      "softlockPeak": 0,
+      "classification": "RECOVERABLE",
+      "stuck": {
+        "cratesDisplacedWest": true,
+        "wallUnjumpableBare": true
+      },
+      "recoveries": [
+        {
+          "name": "self-bubble + vent updraft over the plate wall (the bubble lane needs no crates)",
+          "ok": true,
+          "note": "B over=true"
+        },
+        {
+          "name": "far-face return steps: the wall is climbable BACK without crates (two-way)",
+          "ok": true,
+          "note": "B returned=true"
+        },
+        {
+          "name": "DOWN+ACTION buddy-bubble ferry: the partner bubbles the MAGNET into the draft",
+          "ok": true,
+          "note": "M ferried over=true"
+        }
+      ],
+      "repro": [
+        "equip; magnet defangs the yard chomper (route steps 0-1)",
+        "SABOTAGE: magnet drags BOTH crates back west (x10/x11) — no stair material at the wall",
+        "bubble robot self-bubbles on the x18 vent and floats OVER the wall (lands x22+, arms the far checkpoint)",
+        "bubble robot climbs BACK over the far-face return steps + wall top (the wall is two-way without crates)",
+        "recovery for the magnet robot: partner DOWN+ACTION buddy-bubble in the draft -> the magnet floats the wall too",
+        "both robots east of the wall with zero crates used"
+      ],
+      "verdict": "RECOVERABLE — no crate state can seal the team. With the crates displaced from the wall (staging attestations: cratesWest=true, wallUnjumpableBare=true), the vent updraft beside the wall crossed a self-bubbled robot, the far-face return steps brought it back, and the buddy-bubble chord ferried the magnet robot over. Crates on open floor also always stay re-draggable (150px latch, no pits in the yard), and once the far checkpoint is armed the electric floor gives a deliberate-death reunite.",
+      "expectedUnverified": true,
+      "notes": "The draft ride is airflow-timing sensitive on a hot box; each leg retries once. The load-bearing design facts: updraft + return steps make the wall passable both ways with zero crates, for either robot (buddy-bubble covers the magnet)."
+    },
+    {
+      "id": "3-1-split-electric-run",
+      "level": "3-1",
+      "category": "B",
+      "candidate": "Team split across the electric run / bubble robot stuck in the far pocket at closed gate g2",
+      "durationMs": 53326,
+      "deaths": 1,
+      "softlockPeak": 0,
+      "classification": "RECOVERABLE",
+      "stuck": {
+        "lvAOn": true,
+        "pocketedAtClosedG2": true,
+        "reunitedWestFirst": true
+      },
+      "recoveries": [
+        {
+          "name": "re-bubble + roll BACK west over the electric floor (no one-way: the lane re-crosses)",
+          "ok": true
+        },
+        {
+          "name": "magnet rail-cling across + remote magswitch flip -> g2 opens; both proceed",
+          "ok": true,
+          "note": "g2Open=true bothPast=true bReCrossed=true"
+        }
+      ],
+      "repro": [
+        "stage past the wall (route steps 0-2); B bubble-rolls the electric floor ALONE and rides the vent to the high lever (lvA)",
+        "B drops into the x36-42 pocket: g2 still CLOSED (msA not flipped), the electric floor behind — the 'past a one-way?' candidate",
+        "recovery 1: B re-bubbles and ROLLS BACK west across the floor (the lane is two-way) — team reunited",
+        "recovery 2: M rail-clings across and flips msA; g2 opens; both proceed"
+      ],
+      "verdict": "RECOVERABLE — the x36-42 pocket is never a seal. Drive-confirmed with the worst order (bubble robot alone past the floor, high lever pulled, g2 still closed): the bubble re-rolled BACK west (both hazard lanes are two-way), then the magnet crossed on the rail, flipped msA remotely, g2 opened and both reached the far checkpoint. A death in the pocket also just respawns at the shared active checkpoint (global reunite).",
+      "expectedUnverified": true,
+      "notes": "g2 needs BOTH msA (magnet-only, floor side) and lvA (high deck) — the co-op interleave. Neither pull is order-sensitive and no door in the level is timed."
+    },
+    {
+      "id": "3-1-chomper-camping-exit",
+      "level": "3-1",
+      "category": "C",
+      "candidate": "Doorstep chomper camping the exit approach — respawn death-loop at the x45 checkpoint?",
+      "durationMs": 62128,
+      "deaths": 2,
+      "softlockPeak": 0,
+      "classification": "RECOVERABLE",
+      "stuck": {
+        "bitten": true,
+        "respawnTx": 54.01,
+        "respawnSafe": false,
+        "respawnOutsideAggro": false
+      },
+      "recoveries": [
+        {
+          "name": "checkpoint x45 sits 14 tiles from the chomper (aggro 190px = 4 tiles) — no camp, no loop",
+          "ok": false
+        },
+        {
+          "name": "magnet teeth-yank from 210px (outside the lunge) defangs it for good; level completes",
+          "ok": true,
+          "note": "route finished"
+        }
+      ],
+      "repro": [
+        "stage to the exit yard (route steps 0-6); jelly socketed so the yard is walkable",
+        "M walks BARE into the doorstep chomper's yard and takes the lunge (deliberate death)",
+        "assert: respawn lands at the x45 checkpoint, OUTSIDE the chomper's 190px aggro — no death loop",
+        "recovery: defang from yank range (210px > lunge reach) and finish the level"
+      ],
+      "verdict": "RECOVERABLE — the doorstep chomper cannot camp a respawn: the x45 checkpoint is ~14 tiles from its home and its aggro is 4 tiles, so a bitten robot always comes back safe, and the defang (permanent, from outside the lunge) then clears the doorstep. Drive-confirmed through level completion.",
+      "expectedUnverified": true,
+      "notes": "Also covers the yard chomper by symmetry: its home (x16) is 6 tiles from the x10 checkpoint, same spacing rule."
+    },
+    {
+      "id": "3-1-jelly-booped-away",
+      "level": "3-1",
+      "category": "C",
+      "candidate": "Zap-jelly booped the WRONG way (away from the socket) — is the socket puzzle retryable?",
+      "durationMs": 61609,
+      "deaths": 1,
+      "softlockPeak": 0,
+      "classification": "RECOVERABLE",
+      "stuck": {
+        "wrongBooped": true,
+        "healedToPatrol": true,
+        "jellyTxAfterHeal": 38.94
+      },
+      "recoveries": [
+        {
+          "name": "knock decays -> the jelly self-returns to its patrol band (no stuck-in-a-corner state)",
+          "ok": true
+        },
+        {
+          "name": "re-boop toward the socket (boops are unlimited; the socket mouth is a generous cradle)",
+          "ok": true,
+          "note": "socketed + level completed"
+        }
+      ],
+      "repro": [
+        "stage to the exit yard checkpoint (route steps 0-5 minus the socketing) — instead: bubble robot deliberately boops the jelly WEST, away from the socket",
+        "assert: the knocked jelly decays back to PATROL (self-healing — it drifts back inside its x48-53 patrol band)",
+        "recovery: re-boop it EAST into the socket; exit powers open"
+      ],
+      "verdict": "RECOVERABLE — a wrong-way boop cannot lose the jelly: the knock decays, the patrol clamp walks it back inside x48-53, and re-boops are unlimited until the socket's in-flight capture takes it. Drive-confirmed: wrong boop -> self-heal -> correct boop -> exit powered -> level complete.",
+      "expectedUnverified": true,
+      "notes": "The bubbled boop is directional (the way the booper moves), so the wrong-way state is reachable by a kid; the socket only captures in-flight, so a parked jelly is never wedged anywhere it can't patrol out of."
+    },
+    {
+      "id": "3-2-key-carrier-drowns",
+      "level": "3-2",
+      "category": "B",
+      "candidate": "KEY CARRIER DROWNS mid-tank — is the key lost/reset sanely? (the water-softlock crux)",
+      "durationMs": 75579,
+      "deaths": 1,
+      "softlockPeak": 0,
+      "classification": "RECOVERABLE",
+      "stuck": {
+        "drowned": true,
+        "deathsSeen": 1,
+        "keysBefore": 1,
+        "keysAfter": 1,
+        "keyKept": true,
+        "bothSafeAfterRespawn": true,
+        "respawn": [
+          {
+            "tx": 37.58,
+            "ty": 6.48,
+            "dead": false,
+            "skill": "magnet",
+            "grounded": true,
+            "carrying": false,
+            "carriedBy": false
+          },
+          {
+            "tx": 34.79,
+            "ty": 6.5,
+            "dead": false,
+            "skill": "bubble",
+            "grounded": true,
+            "carrying": false,
+            "carriedBy": false
+          }
+        ]
+      },
+      "recoveries": [
+        {
+          "name": "the key is a TEAM counter (keysHeld) — a drowned carrier keeps it; nothing drops into the tank",
+          "ok": true
+        },
+        {
+          "name": "drown-respawn lands BOTH robots on solid ground at the shared checkpoint (deck, never underwater)",
+          "ok": true
+        },
+        {
+          "name": "re-dive + deliver: the lock's key/socket needs are position-free — level completed",
+          "ok": true,
+          "note": "level completed after the drown"
+        }
+      ],
+      "repro": [
+        "stage through the key dive (route steps 0-5): the swimmer carries the key, staged deep in section B",
+        "SABOTAGE: pop the bubble and give NO input — the carrier sinks and runs out the 6s air timer (drowns)",
+        "assert: keysHeld SURVIVES the death (the key is a team counter, never dropped into the water)",
+        "assert: the respawn puts BOTH robots on solid ground at the shared checkpoint (not underwater)",
+        "recovery: re-dive and finish the level — the lock still accepts the carried key"
+      ],
+      "verdict": "RECOVERABLE — the crux water strand cannot happen: the key lives on the team (keysHeld), so the carrier drowning mid-tank loses nothing; the respawn reunites both robots on the deck checkpoint, and the drive re-dove, delivered the key and finished the level.",
+      "expectedUnverified": true,
+      "notes": "Also covers the pre-pickup variant by construction: an uncollected key is a static bobbing item on the tank floor — death never moves it."
+    },
+    {
+      "id": "3-2-swimmer-behind-rearmed-baffle",
+      "level": "3-2",
+      "category": "B",
+      "candidate": "Swimmer trapped behind the RE-ARMED timed baffle 2 — is the leaf re-openable (both directions)?",
+      "durationMs": 65994,
+      "deaths": 0,
+      "softlockPeak": 0,
+      "classification": "RECOVERABLE",
+      "stuck": {
+        "rearmedClosed": true,
+        "leafIsAWall": true
+      },
+      "recoveries": [
+        {
+          "name": "the timed leaf pops its magswitch back OUT on re-arm — ms2 re-flips without limit",
+          "ok": true
+        },
+        {
+          "name": "swimmer re-crossed WEST through the re-opened leaf (no one-way pocket)",
+          "ok": true
+        },
+        {
+          "name": "swimmer returned EAST — the relay resumes exactly where it left off",
+          "ok": true
+        }
+      ],
+      "repro": [
+        "stage through the timed-baffle squeeze (route steps 0-7): the swimmer is EAST of baffle 2, the 7s window lapses",
+        "assert: the leaf re-arms CLOSED and magswitch ms2 pops back OUT (re-flippable)",
+        "attest: the swimmer pressing west against the closed leaf gets nowhere (it is a real wall)",
+        "recovery 1: the deck robot re-flips ms2 -> the swimmer crosses back WEST (no one-way)",
+        "recovery 2: re-flip again -> the swimmer returns EAST — unlimited re-opens, both directions"
+      ],
+      "verdict": "RECOVERABLE — the re-armed baffle is never a seal: the timed door pops ms2 back out (the L32 re-arm fix makes the coil lamp read 'out' too), the deck robot re-flips it without limit, and the swimmer drove back WEST and then EAST again through the re-opened leaf. The door also refuses to close on top of a body (the standard zone guard).",
+      "expectedUnverified": true,
+      "notes": "Worst order covered by the key-drown scenario: even a swimmer stuck east WITHOUT the key can be let back west this same way (or drown-respawn to the deck)."
+    },
+    {
+      "id": "3-2-deck-robot-in-the-tank",
+      "level": "3-2",
+      "category": "C",
+      "candidate": "Deck robot falls into the tank UN-BUBBLED (no dive suit) — stranded in the water?",
+      "durationMs": 40562,
+      "deaths": 1,
+      "softlockPeak": 0,
+      "classification": "RECOVERABLE",
+      "stuck": {
+        "splashedIn": true,
+        "airTimerRan": true,
+        "drowned": true,
+        "respawnOnDeck": true,
+        "bothSafe": true
+      },
+      "recoveries": [
+        {
+          "name": "un-bubbled water is a TIMED hazard, not a trap: the 6s air ring drowns into the standard respawn",
+          "ok": true
+        },
+        {
+          "name": "the shared checkpoint is on the deck — the respawn reunites both robots on solid ground",
+          "ok": true
+        },
+        {
+          "name": "the deck lane re-runs: back to the gap and re-jump (nothing was consumed)",
+          "ok": true
+        }
+      ],
+      "repro": [
+        "stage the relay start (route steps 0-4): magnet on the deck, baffle 1 open",
+        "SABOTAGE: the magnet walks straight into dive gap G2 — un-bubbled, it sinks (slow buoyant sink, no free swim)",
+        "assert: the air ring runs (airMs climbs) and the 6s timer drowns it — the standard hazard death",
+        "assert: respawn lands BOTH robots on solid ground at the shared deck checkpoint",
+        "recovery: the deck lane resumes — walk back and re-jump gap G2"
+      ],
+      "verdict": "RECOVERABLE — the tank cannot keep an un-bubbled robot: it sinks, the visible air ring runs out, the drown is the standard death->checkpoint respawn (drive-confirmed on the deck, never underwater — all four checkpoints are on solid ground), and the deck run re-jumps the gap. The swimmer's buddy-bubble (DOWN+ACTION through a dive gap) is the no-death alternative when the pair coordinates.",
+      "expectedUnverified": true,
+      "notes": "Also the designed teaching beat: 'the bubble is the dive suit'. Surface bobbing keeps a stuck robot alive indefinitely (air regains at the surface), so even a player who refuses to drown is never in a death loop."
+    },
+    {
+      "id": "3-2-jelly-booped-away",
+      "level": "3-2",
+      "category": "C",
+      "candidate": "Zap-jelly booped the WRONG way (away from the underwater socket) — retryable at depth?",
+      "durationMs": 106882,
+      "deaths": 0,
+      "softlockPeak": 0,
+      "classification": "RECOVERABLE",
+      "stuck": {
+        "wrongBooped": false,
+        "healedToPatrol": false,
+        "jellyTxAfterHeal": 65.5
+      },
+      "recoveries": [
+        {
+          "name": "the knock decays underwater exactly like on land — the patrol clamp walks the jelly home (58-63)",
+          "ok": false
+        },
+        {
+          "name": "re-boops are unlimited; the socket's tall cradle captures in-flight — level completed",
+          "ok": true,
+          "note": "socketed + completed"
+        }
+      ],
+      "repro": [
+        "stage through the timed baffle (route steps 0-7): the bubbled swimmer is in section C with the jelly",
+        "SABOTAGE: approach from the EAST and boop the jelly WEST, away from the socket at (65,13)",
+        "assert: the knock decays and the jelly self-returns to its 58-63 patrol band",
+        "recovery: re-boop it EAST into the socket (route step 8) and finish the level"
+      ],
+      "verdict": "RECOVERABLE — a wrong-way boop at depth loses nothing: the knocked jelly's drag decays, it resumes its patrol band, and the drive re-booped it east into the socket and finished the level (lock + winch + exit).",
+      "expectedUnverified": true,
+      "notes": "The un-bubbled-contact zap also gives the swimmer a deliberate-death exit anywhere in section C."
+    },
+    {
+      "id": "3-2-chamber-pit-strand",
+      "level": "3-2",
+      "category": "B",
+      "candidate": "Escape chamber entered EARLY (lock still closed) — a dry pit with 4-tile walls: hard seal?",
+      "durationMs": 71005,
+      "deaths": 1,
+      "softlockPeak": 0,
+      "classification": "RECOVERABLE",
+      "stuck": {
+        "lockClosedAtEntry": true,
+        "wallsHold": true,
+        "sumpEntered": true,
+        "sumpDrowned": true,
+        "mBackSafeOnDeck": true
+      },
+      "recoveries": [
+        {
+          "name": "the DRAIN SUMP (72-73,16) is the pit's escape valve: shallow water, wade in -> 6s air -> respawn",
+          "ok": true
+        },
+        {
+          "name": "the magnet respawns safe on the shared deck checkpoint (solid ground)",
+          "ok": true
+        },
+        {
+          "name": "nothing was consumed: the swimmer socketed the jelly and opened the lock after the strand",
+          "ok": true,
+          "note": "tanklock opened"
+        }
+      ],
+      "repro": [
+        "stage the deck lane far side (route steps 0-6, then the chomper/msD step; the swimmer parks WEST of baffle 2 with the key)",
+        "SABOTAGE: the magnet drops off the ledge's WEST edge into the escape chamber while the tank lock is still CLOSED",
+        "attest: the pit is real — 4-tile sheer walls both ways, the lock shut, the deck sealed overhead",
+        "recovery: the DRAIN SUMP (72-73,16): wade in -> air timer -> drown-respawn at the shared deck checkpoint",
+        "attest: the swimmer's half was never blocked — the timed baffle re-squeezes and the relay opens the lock"
+      ],
+      "verdict": "RECOVERABLE — the early-entered chamber is a pit with a drain: the walls genuinely hold (4-tile sheer, lock shut, deck overhead), but the 2-tile drain sump drowns a stranded robot into the standard checkpoint respawn, reuniting the team on the deck; the swimmer's key/jelly half was untouched and the relay completed the lock afterward. Once the lock is open the chamber additionally exits into the tank itself.",
+      "expectedUnverified": true,
+      "notes": "The bubble robot can only enter the chamber THROUGH the lock (it cannot reach the ledge without the winch), so the two-robots-sealed-pre-lock case cannot occur; the magnet-alone case is exactly this scenario."
+    },
+    {
+      "id": "3-3-core-dropped-in-lane",
+      "level": "3-3",
+      "category": "B",
+      "candidate": "FUSE-CORE dropped INSIDE a live scrap lane (carrier killed mid-band) — is the core lost/unreachable?",
+      "durationMs": 15120,
+      "deaths": 2,
+      "softlockPeak": 0,
+      "classification": "RECOVERABLE",
+      "stuck": {
+        "killed": true,
+        "deathsSeen": 2,
+        "coreTx": 12.5,
+        "droppedInLane": true,
+        "bSafeAfterRespawn": true
+      },
+      "recoveries": [
+        {
+          "name": "the dropped core SETTLES on the floor where it fell (nudged out of the spawn dead-zone) — never destroyed, never in a pit",
+          "ok": true
+        },
+        {
+          "name": "huddle retrieval: M's caught-scrap shield walks B to the core and across — fc1 delivered, lane de-energized",
+          "ok": true,
+          "note": "fc1 filled"
+        }
+      ],
+      "repro": [
+        "equip (route step 0); B picks fuse-core A on the calm west side",
+        "SABOTAGE: B carries it BARE into the live teaching lane — first chunk kills; the core DROPS where it fell",
+        "assert: the core rests INSIDE the lane band (retrieval means re-entering the storm) and B respawned on solid ground",
+        "recovery: the designed answer — the HUDDLE (M catches a scrap shield, B fetches the core tucked behind the plate) delivers it to fc1; the lane de-energizes"
+      ],
+      "verdict": "RECOVERABLE — a core dropped mid-lane is a detour, not a loss: it rests on solid floor inside the band (bedrock under every yard, no pits/water in 3-3), pickup is a plain touch, and the huddle (the level's taught mechanic) fetches it behind the shield. Drive-confirmed: bare carrier killed mid-band -> core dropped in-lane -> huddle retrieval -> fc1 socketed -> lane calm.",
+      "expectedUnverified": true,
+      "notes": "The drop-position clamp (GameScene dropFuseCore) is what makes the worst drop retrievable: a core can never rest where retrieval means standing in the chunk-materialization point."
+    },
+    {
+      "id": "3-3-all-cores-dropped",
+      "level": "3-3",
+      "category": "B",
+      "candidate": "ALL THREE fuse-cores dropped in live lanes (the worst-case ferry wipe) — is the level still completable?",
+      "durationMs": 51136,
+      "deaths": 3,
+      "softlockPeak": 0,
+      "classification": "RECOVERABLE",
+      "stuck": {
+        "drop1": {
+          "dropped": true,
+          "coreTx": 13.5
+        },
+        "drop2": {
+          "dropped": false,
+          "coreTx": 44.87
+        },
+        "drop3": {
+          "dropped": false,
+          "coreTx": 49.61
+        },
+        "sockets": [
+          {
+            "id": "fc1",
+            "filled": true
+          },
+          {
+            "id": "fc2",
+            "filled": true
+          },
+          {
+            "id": "fc3",
+            "filled": true
+          }
+        ],
+        "stormOver": true
+      },
+      "recoveries": [
+        {
+          "name": "core A dropped in the live teaching lane -> huddle retrieval -> fc1",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "name": "core B dropped in live lane 1 -> defang + huddle retrieval -> fc2",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "name": "core C dropped in the live double gauntlet -> huddle retrieval -> fc3",
+          "ok": true,
+          "note": ""
+        }
+      ],
+      "repro": [
+        "equip; SABOTAGE #1: core A carried bare into the teaching lane -> killed -> dropped in-band",
+        "recovery #1: huddle retrieval -> fc1 (lane 0 calms)",
+        "SABOTAGE #2: core B carried bare into lane 1 -> killed -> dropped in-band; recovery #2: M defangs the guard, huddle ferry -> fc2 (lane 1 calms)",
+        "SABOTAGE #3: core C carried bare into the double gauntlet -> killed -> dropped in-band; recovery #3: huddle ferry -> fc3 (the storm ends)",
+        "assert: all three sockets filled — every dropped core was recovered from inside a live lane"
+      ],
+      "verdict": "UNVERIFIED — a sabotage or recovery leg flaked this run (see stuck/recoveries); re-run. The design facts: cores drop where the carrier fell (floor-settled, dead-zone-clamped), pickup is plain touch, and lanes stay crossable (catch/huddle) regardless of core state.",
+      "expectedUnverified": true,
+      "notes": "Sockets latch via pullLever (never un-latch), so partial progress also survives any later wipe. Full completion after this state is covered by the beat route (same steps)."
+    },
+    {
+      "id": "3-3-shield-expired-mid-crossing",
+      "level": "3-3",
+      "category": "B",
+      "candidate": "Scrap shield EXPIRES mid-crossing — magnet stranded bare inside a live lane?",
+      "durationMs": 27433,
+      "deaths": 1,
+      "softlockPeak": 0,
+      "classification": "RECOVERABLE",
+      "stuck": {
+        "midBandStaged": true,
+        "expiredMidBand": true,
+        "catchCdRunning": true,
+        "retreatClean": true,
+        "backSafe": true
+      },
+      "recoveries": [
+        {
+          "name": "RETREAT: every lane strip is flat open ground — walking back out the near edge needs no resource",
+          "ok": true,
+          "note": "clean walk-out, no hit"
+        },
+        {
+          "name": "wait out the 3.5s catch cooldown in the calm pocket, re-catch, cross — completed",
+          "ok": true,
+          "note": "re-crossed behind a fresh shield"
+        }
+      ],
+      "repro": [
+        "stage fc1 (route steps 0-1); M catches a fresh shield at the lane-1 lip and walks to MID-BAND (x34)",
+        "SABOTAGE: stand still until the ~8s hold expires — the storm rips the plate away, M is bare mid-lane",
+        "assert: shield idle + catch cooldown running, lane still live, M inside the band",
+        "recovery 1: RETREAT — walk back out the near edge (flat ground the whole way; a hit en route is just the standard checkpoint respawn)",
+        "recovery 2: wait out the catch cooldown in the calm pocket, re-catch, and complete the crossing"
+      ],
+      "verdict": "RECOVERABLE — an expired shield mid-lane is a setback measured in seconds: the magnet retreated out of the band on flat ground (worst case is the standard hazard death back to a solid-ground checkpoint), waited the 3.5s catch cooldown, re-caught at the lip and completed the crossing. No consumable, timer or one-way is involved.",
+      "expectedUnverified": true,
+      "notes": "The route's freshness guard (never START a crossing with <4.5s of hold) makes this state rare in driven play; kids get the last-1.5s blink warning (U11-scaled) as their cue."
+    },
+    {
+      "id": "3-3-bubble-cd-stranding",
+      "level": "3-3",
+      "category": "C",
+      "candidate": "Bubble pops EARLY in a live lane (cooldown still running) — ferry stranded bare with no re-bubble?",
+      "durationMs": 26228,
+      "deaths": 1,
+      "softlockPeak": 0,
+      "classification": "RECOVERABLE",
+      "stuck": {
+        "popped": true,
+        "tx": 30.02,
+        "inBand": true,
+        "cdMs": 1276,
+        "cdRunning": true,
+        "backSafe": true,
+        "retreatClean": true
+      },
+      "recoveries": [
+        {
+          "name": "mercy window: the pop grants 900ms invuln and the popping chunk goes dark 900ms — the walk-out is covered",
+          "ok": true,
+          "note": "clean walk-out"
+        },
+        {
+          "name": "WAIT-AND-RECOVER: the 2.2s cast cooldown re-arms in the pocket; nothing in the level is timed",
+          "ok": true
+        },
+        {
+          "name": "the designed crossing (huddle behind the caught-scrap shield) proceeds regardless of bubble state",
+          "ok": true,
+          "note": "pair crossed behind the plate"
+        }
+      ],
+      "repro": [
+        "stage fc1 (route steps 0-1); B blows a FRESH bubble at the lane-1 lip and walks straight in",
+        "the first chunk pops it well inside the 2.2s cast cooldown — B is bare, mid-band, cooldown pending (the stranding)",
+        "recovery 1: the pop's mercy invuln + the absorbed chunk's dark-time cover the walk BACK out to the calm pocket",
+        "recovery 2: WAIT-AND-RECOVER — the cooldown re-arms in the pocket (nothing in 3-3 is timed), B re-bubbles",
+        "recovery 3: the designed crossing (huddle behind M's shield) proceeds — the bubble was never the crossing tool"
+      ],
+      "verdict": "RECOVERABLE — the early-pop stranding is a pause, not a lock: the pop's mercy invuln plus the chunk's dark-time cover the retreat, the cooldown re-arms in any calm pocket (no timer in the level cares how long that takes), and the huddle — the level's actual crossing tool — works with the bubble down. Drive-confirmed end to end.",
+      "expectedUnverified": true,
+      "notes": "Worst-worst case (pop + immediate second hit after invuln) is the standard death -> solid-ground checkpoint respawn — the same kind fallback every hazard in the game uses."
     }
   ],
   "pageErrors": []

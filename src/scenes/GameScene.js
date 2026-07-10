@@ -17,6 +17,22 @@ import { SoftlockDetectors } from "../softlock/detectors.js";
 
 const J = Phaser.Input.Keyboard.JustDown;
 
+// W3W4 L33: SCRAP STORM tuning. Read ONLY by the 3-3 storm paths (scraplane/
+// fusecore/fusesocket entities + the magnet catch), which no other level spawns.
+// Fixed timers keep the storm rhythmic (catch -> shield window -> cooldown),
+// never trivializing: the hold is shorter than the long lane group, so crossings
+// are planned, and every value is deterministic (driven routes reproduce runs).
+const STORM = {
+  holdMs: 8000,   // caught-scrap shield hold before the storm rips it away
+  plantMs: 6000,  // planted-step lifetime
+  catchCd: 3500,  // re-catch cooldown after the shield is lost/expired
+  hitW: 32,       // chunk-vs-robot contact half-width (px)
+  hitH: 32,       // chunk-vs-robot contact half-height (px)
+  blockW: 46,     // chunk-vs-shield intercept half-width (px)
+  blockH: 62,     // chunk-vs-shield intercept half-height (a tall protective column)
+  graceMs: 900,   // absorbed/popped chunk dark-time at the emitter (no point-blank re-bite)
+};
+
 // U1 coach: the throw hint fires only on the FIRST buddy pickup of a play
 // session. Module-scoped so it survives level changes but resets on reload —
 // a play session, never persisted to storage (per U1 spec).
@@ -176,6 +192,13 @@ export default class GameScene extends Phaser.Scene {
     this.chompers = [];  // junk-chompers (magnet yanks their teeth out)
     this.w3Gfx = null;   // shared clear+redraw overlay (air rings, magnet link)
     this._w3Rect = new Phaser.Geom.Rectangle(0, 0, 0, 0); // reused scratch (no per-frame alloc)
+    // W3W4 L33: the SCRAP STORM device family (3-3 only — nothing below spawns
+    // unless a level lists scraplane/fusecore/fusesocket entities, so W1-W2 and
+    // 3-1/3-2 never enter these paths).
+    this.stormLanes = [];  // wind lanes of pooled flying scrap chunks
+    this.fuseCores = [];   // carriable fuse-cores (the three-ferry objective)
+    this.fuseSockets = []; // fuse sockets: a socketed core latches its lever id
+    this.stormShield = null; // the single magnet-caught scrap shield (crate body family)
 
     this.crackies = this.physics.add.staticGroup();
     this.bridgeGroup = this.physics.add.staticGroup();
@@ -298,6 +321,14 @@ export default class GameScene extends Phaser.Scene {
       this.physics.add.collider(this.players, crateImgs, rideCb); // standable + rideable
     }
     if (this.chompers.length) this.physics.add.collider(this.chompers.map((c) => c.img), this.solidObjs);
+    // W3W4 L33: the caught-scrap shield reuses the CRATE collider family (solids
+    // + players-with-rideCb) so a PLANTED shield is a proven standable step. Its
+    // body is only enabled while planted (held = pure visual follow + manual
+    // chunk intercept), so these colliders are inert the rest of the time.
+    if (this.stormShield) {
+      this.physics.add.collider(this.stormShield.img, this.solidObjs);
+      this.physics.add.collider(this.players, this.stormShield.img, rideCb);
+    }
     if (this.jellies.length) {
       const jellyImgs = this.jellies.map((j) => j.img);
       this.physics.add.collider(jellyImgs, this.solidObjs);
@@ -1760,6 +1791,97 @@ export default class GameScene extends Phaser.Scene {
         const dir = e.facing || 1;
         img.setFlipX(dir === -1);
         this.chompers.push({ img, state: "idle", timer: 0, dir, homeX: px, defanged: false });
+        this._w3 = true;
+        break;
+      }
+
+      // --- W3W4 L33: the SCRAP STORM family (3-3's polarity-storm set piece) --
+      case "scraplane": {
+        // A wind lane of flying scrap: `count` pooled chunk sprites on a
+        // KINEMATIC path (constant vx, wrapping the zone) — predictable rhythm,
+        // no physics bodies, bounded pool. Contact rules live in updateWorld3:
+        // bare robot = the standard zap death; bubbled = sharp pop + shove
+        // (drops a carried fuse-core); the caught-scrap shield absorbs chunks.
+        // `offBy` names the lever (a fuse socket id) that DE-ENERGIZES the lane.
+        // Determinism: chunk spacing is even and phases/variants come from a
+        // seeded PRNG (P4 pattern) — same level, same storm, every run.
+        // one shared catchable SHIELD for the level, created with the first lane.
+        // Its body is configured EXACTLY like the metal crate (the proven W3 box)
+        // and starts disabled: held = visual follow, planted = static step.
+        if (!this.stormShield) {
+          const simg = this.add.image(-200, -200, "scrapshield").setDepth(DEPTH.entity + 1).setVisible(false);
+          this.physics.add.existing(simg);
+          simg.body.setSize(42, 42);
+          simg.body.setDragX(420);
+          simg.body.setMass(3);
+          simg.body.setMaxVelocity(320, PHYS.maxFall);
+          simg.body.setAllowGravity(false);
+          simg.body.enable = false;
+          this.stormShield = { img: simg, state: "idle", heldBy: null, holdMs: 0, cd: 0 };
+        }
+        const x1 = e.x * TILE, x2 = (e.x + e.w) * TILE;
+        const laneY = e.y * TILE + 24;
+        const seed = ((e.x * 73856093) ^ (e.y * 19349663) ^ (e.w * 83492791)) >>> 0;
+        let s = seed;
+        const rnd = () => { // mulberry32 (the P4 decal-seeding PRNG)
+          s |= 0; s = (s + 0x6d2b79f5) | 0;
+          let t = Math.imul(s ^ (s >>> 15), 1 | s);
+          t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+        // lane band: a faint hazard wash + an emitter bracket at the upwind edge
+        // with chevrons pointing downwind (the storm telegraph — readable rhythm)
+        const band = this.add.rectangle((x1 + x2) / 2, laneY, x2 - x1, 40, 0xff4dd2, 0.055)
+          .setDepth(DEPTH.terrain - 1);
+        this.tweens.add({ targets: band, alpha: { from: 0.6, to: 1 }, duration: 900, yoyo: true, repeat: -1, ease: "sine.inOut" });
+        const emX = e.dir > 0 ? x1 - 6 : x2 + 6;
+        const em = this.add.image(emX, laneY, "stormvent").setDepth(DEPTH.entity);
+        em.setFlipX(e.dir < 0);
+        const chev = [];
+        for (let i = 0; i < 3; i++) {
+          const cx = emX + e.dir * (26 + i * 16);
+          chev.push(this.add.image(cx, laneY, "stormchev").setDepth(DEPTH.entity - 1)
+            .setFlipX(e.dir < 0).setAlpha(0.7 - i * 0.18));
+        }
+        const chunks = [];
+        for (let i = 0; i < e.count; i++) {
+          const img = this.add.image(0, 0, `scrap${1 + Math.floor(rnd() * 3)}`).setDepth(DEPTH.entity);
+          chunks.push({
+            img,
+            x: x1 + ((i + 0.5) / e.count) * (x2 - x1), // even spacing = readable rhythm
+            wait: 0,                                   // absorbed-chunk grace timer
+            phase: rnd() * Math.PI * 2,                // cosmetic bob phase (seeded)
+            spin: (rnd() > 0.5 ? 1 : -1) * (80 + rnd() * 100), // deg/s (seeded)
+          });
+        }
+        this.stormLanes.push({
+          x1, x2, y: laneY, row: e.y, dir: e.dir, speed: e.speed, chunks,
+          offBy: e.offBy || null, active: true, band, em, chev,
+        });
+        this._w3 = true;
+        break;
+      }
+      case "fusecore": {
+        // FUSE-CORE: a carriable objective item (key-family). Touch = pick up
+        // (one per robot); a scrap hit or death DROPS it where it fell (it
+        // settles onto the floor below — always retrievable); a filled fuse
+        // socket consumes it and latches that socket's lever id.
+        const cont = this.add.container(px, py).setDepth(DEPTH.pickup);
+        const glow = this.add.image(0, 0, "glowBlob").setScale(0.4).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.45).setTint(0xffd24d);
+        const img = this.add.image(0, 0, "fusecore_item");
+        cont.add([glow, img]);
+        this.fuseCores.push({ img: cont, state: "rest", carrier: null, baseY: py, t: 0 });
+        this._w3 = true;
+        break;
+      }
+      case "fusesocket": {
+        // FUSE SOCKET: the delivery cradle. A carried core within reach snaps
+        // in, fills it and latches a hidden `mag` lever with its id (the same
+        // lever-latch plumbing the jelly socket uses) — doors/lanes wire off it.
+        const img = this.add.image(px, py + 2, "fusesock").setDepth(DEPTH.entity);
+        this.addLightPool(px, py + 6, 0xffd24d, { alpha: 0.2, scale: 0.8 });
+        this.fuseSockets.push({ id: e.id, x: px, y: py, img, filled: false });
+        this.levers.push({ id: e.id, x: px, y: py, on: false, img: null, handle: null, mag: true });
         this._w3 = true;
         break;
       }
@@ -4648,6 +4770,30 @@ export default class GameScene extends Phaser.Scene {
         return true;
       }
     }
+    // W3W4 L33 — 3b. holding the caught-scrap shield -> PLANT it where it
+    // hovers (a temporary standable step / storm cover). AFTER the teeth-yank
+    // (danger must win the press — the L31 rule) so a chomper in reach is
+    // always defanged even mid-hold.
+    if (this.stormShield && this.stormShield.state === "held" && this.stormShield.heldBy === p) {
+      this.plantStormShield(p);
+      return true;
+    }
+    // W3W4 L33 — 3c. flying scrap chunk within reach + LOS -> CATCH it: the
+    // chunk recycles upwind and the magnet holds a scrap SHIELD (~8s + cooldown).
+    if (this.stormShield && this.stormShield.state === "idle" && this.stormShield.cd <= 0) {
+      let bc = null, bcd = PHYS.magGrabRange;
+      for (const lane of this.stormLanes) {
+        if (!lane.active) continue;
+        for (const c of lane.chunks) {
+          const d = Math.hypot(c.x - p.x, lane.y - p.y);
+          if (d < bcd && this.hasLOS(p.x, p.y - 8, c.x, lane.y)) { bc = { lane, c }; bcd = d; }
+        }
+      }
+      if (bc) {
+        this.catchStormChunk(p, bc.lane, bc.c);
+        return true;
+      }
+    }
     // 4. metal crate within reach + LOS -> drag-latch
     let best = null;
     let bestD = PHYS.magGrabRange;
@@ -4773,6 +4919,281 @@ export default class GameScene extends Phaser.Scene {
     this.sparks.explode(this.fxBudget(10), ch.img.x, ch.img.y);
     this.w3ActionPose(p, "magnet");
     this.game.events.emit("bb:blip", "KOBI: You took its TEETH?! ...It does look happier now. DON'T tell it I said that.");
+  }
+
+  // --- W3W4 L33: SCRAP STORM helpers -------------------------------------------
+  // All storm state lives on this.stormLanes / this.fuseCores / this.fuseSockets /
+  // this.stormShield, which ONLY a 3-3-family level spawns — every path below is
+  // unreachable in the shipped levels. No physics change anywhere: chunks are
+  // kinematic pooled sprites (manual AABB contact, like jets), and the shield's
+  // body is the proven crate box, enabled only while PLANTED.
+
+  // Magnet catch: the chunk recycles upwind and the glove holds a scrap SHIELD.
+  catchStormChunk(p, lane, c) {
+    const sh = this.stormShield;
+    this.recycleStormChunk(lane, c, STORM.graceMs);
+    sh.state = "held";
+    sh.heldBy = p;
+    sh.holdMs = STORM.holdMs;
+    this.tweens.killTweensOf(sh.img);
+    sh.img.setVisible(true).setAlpha(1).setAngle(0).setPosition(c.img.x, c.img.y);
+    sh.img.body.enable = false;
+    sfx.magnetOn();
+    this.sparks.explode(this.fxBudget(8), c.img.x, c.img.y);
+    this.w3ActionPose(p, "magnet");
+  }
+
+  // Absorbed/caught chunks re-enter at the lane's upwind edge (pool constant,
+  // spacing readable; never destroyed — bounded sprites for the whole level).
+  // The ±6px margin keeps the DANGER inside the drawn band (drive-found: a
+  // 20px overshoot made the tile beside a lane edge lethal — pixel-unfair).
+  // `graceMs` despawns the chunk at the edge for a beat before it re-flies:
+  // a shield-absorbed or bubble-popped chunk must NEVER re-bite point-blank
+  // (drive-found: a chunk re-absorbed in place at the spawn edge bit the
+  // shield-holder from behind the plate the instant he walked past it).
+  recycleStormChunk(lane, c, graceMs = 0) {
+    c.x = lane.dir > 0 ? lane.x1 - 6 : lane.x2 + 6;
+    c.wait = graceMs;
+  }
+
+  // ACTION while holding: PLANT the shield where it hovers — a temporary
+  // standable step (crate-family static body) that keeps absorbing chunks.
+  plantStormShield(p) {
+    const sh = this.stormShield;
+    const bx = sh.img.x, by = sh.img.y;
+    // refuse a plant that would embed terrain or a robot (denied buzz, re-try)
+    for (const [dx, dy] of [[0, 0], [-18, -18], [18, -18], [-18, 18], [18, 18]]) {
+      if (this.isSolidChar(this.tileAt(bx + dx, by + dy))) { sfx.denied(); return; }
+    }
+    for (const q of this.players) {
+      if (!q.dead && Math.abs(q.x - bx) < 40 && Math.abs(q.y - by) < 46) { sfx.denied(); return; }
+    }
+    sh.state = "planted";
+    sh.heldBy = null;
+    sh.holdMs = STORM.plantMs;
+    sh.img.setAngle(0).setAlpha(1);
+    sh.img.body.enable = true;
+    sh.img.body.reset(bx, by);
+    sh.img.body.setImmovable(true);
+    sh.img.body.setVelocity(0, 0);
+    sfx.magnetOff();
+    this.sparks.explode(this.fxBudget(6), bx, by);
+  }
+
+  // Hold/plant expiry (or a dead/skill-less holder): the storm rips the shield
+  // away downwind and the catch cooldown starts — rhythmic, not trivializing.
+  loseStormShield() {
+    const sh = this.stormShield;
+    if (!sh || sh.state === "idle") return;
+    sh.state = "idle";
+    sh.heldBy = null;
+    sh.cd = STORM.catchCd;
+    sh.img.body.setImmovable(false);
+    sh.img.body.enable = false;
+    const dir = this._stormFlingDir || 1;
+    this.tweens.killTweensOf(sh.img);
+    this.tweens.add({
+      targets: sh.img, x: sh.img.x + dir * 220, y: sh.img.y - 60,
+      angle: 220 * dir, alpha: 0, duration: 380, ease: "cubic.in",
+      onComplete: () => sh.img.setVisible(false).setAlpha(1).setAngle(0),
+    });
+    sfx.magnetOff();
+  }
+
+  // A carrier hit by scrap (or killed) DROPS its fuse-core where it fell; the
+  // core settles onto the first floor below — always retrievable (3-3 keeps
+  // solid bedrock under every yard; no pit/water can swallow it).
+  dropFuseCore(p) {
+    if (!p) return;
+    for (const fc of this.fuseCores) {
+      if (fc.state !== "carried" || fc.carrier !== p) continue;
+      fc.state = "rest";
+      fc.carrier = null;
+      // drop point: where it fell — but nudged INTO the band if it fell in an
+      // upwind spawn dead-zone (drive-found: a core resting at the chunk spawn
+      // point could only be re-grabbed point-blank into a fresh hit)
+      let dx = p.x;
+      for (const lane of this.stormLanes) {
+        if (!lane.active || Math.abs(lane.y - p.y) > 52) continue;
+        const edge = lane.dir > 0 ? lane.x1 - 6 : lane.x2 + 6; // the spawn point
+        if (Math.abs(dx - edge) < 72) dx = edge - lane.dir * -80; // 80px downwind, inside the band
+      }
+      const tx = Phaser.Math.Clamp(Math.floor(dx / TILE), 1, this.def.cols - 2);
+      let ty = Math.max(1, Math.floor(p.y / TILE));
+      while (ty < this.def.rows - 1 && !this.isSolidChar(this.grid[ty][tx])) ty++;
+      fc.baseY = ty * TILE - 16;
+      fc.t = 0;
+      fc.img.setPosition(tx * TILE + 24, fc.baseY);
+      sfx.land(fc.img.x, fc.img.y);
+      this.dust.emitParticleAt(fc.img.x, fc.img.y + 8, this.fxBudget(5));
+    }
+  }
+
+  // Delivery: the core snaps into its cradle and latches the socket's lever id
+  // (the jelly-socket plumbing) — doors open off it, lanes de-energize off it.
+  socketFuseCore(fc, sk) {
+    fc.state = "socketed";
+    fc.carrier = null;
+    fc.img.setPosition(sk.x, sk.y - 8);
+    sk.filled = true;
+    sk.img.setTexture("fusesock_on");
+    const lev = this.levers.find((l) => l.id === sk.id);
+    if (lev && !lev.on) this.pullLever(lev);
+    sfx.jellySocket(sk.x, sk.y);
+    this.starBurst.explode(this.fxBudget(10), sk.x, sk.y);
+    const n = this.fuseSockets.filter((k) => k.filled).length;
+    const lines = [
+      "KOBI: A fuse-core is IN?! That lane was my FAVORITE weather. Now it is... calm. GROSS.",
+      "KOBI: TWO cores socketed. My magnificent storm is becoming a BREEZE. Stop tidying my chaos!",
+      "KOBI: All THREE cores?! My storm is CANCELLED. I have never been so insulted by good housekeeping.",
+    ];
+    this.game.events.emit("bb:blip", lines[Math.min(n, lines.length) - 1]);
+  }
+
+  // The lane's fuse latched: visible relief — chunks flutter down, the band
+  // fades, the emitter goes dark. One-shot tweens (event-driven, no per-frame).
+  calmStormLane(lane) {
+    lane.active = false;
+    this.tweens.killTweensOf(lane.band);
+    this.tweens.add({ targets: lane.band, alpha: 0, duration: 600 });
+    lane.em.setTexture("stormvent_off");
+    for (const ch of lane.chev) this.tweens.add({ targets: ch, alpha: 0, duration: 600 });
+    for (const c of lane.chunks) {
+      this.tweens.add({
+        targets: c.img, y: c.img.y + 44, alpha: 0, angle: c.img.angle + 160,
+        duration: 700, ease: "cubic.in",
+      });
+    }
+    this.starBurst.explode(this.fxBudget(8), (lane.x1 + lane.x2) / 2, lane.y);
+    sfx.door((lane.x1 + lane.x2) / 2, lane.y);
+  }
+
+  // One frame of the storm: shield timers/steering, lane chunk flight +
+  // contacts, fuse-core carry/drop/delivery. Called from updateWorld3 only when
+  // storm lanes exist. Zero per-frame allocation (pooled sprites, math-only AABB).
+  updateStorm(time, delta, dt) {
+    const fsc = uxFlashScale();
+    const sh = this.stormShield;
+    if (sh) {
+      if (sh.cd > 0) sh.cd -= delta;
+      if (sh.state === "held") {
+        const p = sh.heldBy;
+        if (!p || p.dead || p.skill !== "magnet") {
+          this.loseStormShield();
+        } else {
+          sh.holdMs -= delta;
+          if (sh.holdMs <= 0) {
+            this.loseStormShield();
+          } else {
+            // hover in FRONT of the glove — a body-less visual follow while held
+            // (frame-rate independent ease, FL-013 pattern); the last ~1.5s
+            // blinks a "running out" warning (U11-scaled like every flash).
+            const tx = p.x + p.facing * 52;
+            const ty = p.y - 10;
+            const f = 1 - Math.pow(1 - 0.22, dt * 60);
+            sh.img.x += (tx - sh.img.x) * f;
+            sh.img.y += (ty - sh.img.y) * f;
+            sh.img.setAngle(Math.sin(time / 140) * 6);
+            sh.img.setAlpha(sh.holdMs < 1500 ? (Math.floor(time / (150 / fsc)) % 2 ? 0.35 : 1) : 1);
+            if (this.w3Gfx) {
+              this.w3Gfx.lineStyle(2, 0xffb347, 0.5);
+              this.w3Gfx.lineBetween(p.x + p.facing * 10, p.y - 8, sh.img.x, sh.img.y);
+            }
+          }
+        }
+      } else if (sh.state === "planted") {
+        sh.holdMs -= delta;
+        sh.img.setAlpha(sh.holdMs < 1500 ? (Math.floor(time / (150 / fsc)) % 2 ? 0.35 : 1) : 1);
+        if (sh.holdMs <= 0) this.loseStormShield();
+      }
+    }
+
+    for (const lane of this.stormLanes) {
+      if (lane.active && lane.offBy) {
+        const lev = this.levers.find((l) => l.id === lane.offBy);
+        if (lev && lev.on) this.calmStormLane(lane);
+      }
+      if (!lane.active) continue;
+      this._stormFlingDir = lane.dir; // the rip-away fling follows the local wind
+      for (const c of lane.chunks) {
+        // grace: an absorbed/popped/wrapped chunk holds dark at the emitter for
+        // a beat, and NEVER materializes on top of a robot or the shield (the
+        // "scrap never spawns on you" fairness invariant — drive-found: a
+        // chunk re-entering at the emitter while a robot walked past it was an
+        // unreadable point-blank hit)
+        if (c.wait > 0) {
+          c.wait -= delta;
+          if (c.wait <= 0) {
+            const clear = this.players.every((p) => p.dead || Math.abs(p.x - c.x) > 90) &&
+              !(sh && sh.state !== "idle" && Math.abs(sh.img.x - c.x) < 110);
+            if (!clear) c.wait = 300; // hold dark until the doorway is clear
+          }
+          if (c.img.visible) c.img.setVisible(false);
+          continue;
+        }
+        if (!c.img.visible) c.img.setVisible(true);
+        c.x += lane.speed * lane.dir * dt;
+        if (lane.dir > 0 && c.x > lane.x2 + 6) this.recycleStormChunk(lane, c, 60);
+        else if (lane.dir < 0 && c.x < lane.x1 - 6) this.recycleStormChunk(lane, c, 60);
+        const cy = lane.y + Math.sin(time / 260 + c.phase) * 5;
+        c.img.setPosition(c.x, cy);
+        c.img.setAngle(c.img.angle + c.spin * dt);
+        // the caught/planted shield absorbs any chunk reaching its column —
+        // the safe window both robots huddle behind
+        if (sh && sh.state !== "idle" &&
+            Math.abs(c.x - sh.img.x) < STORM.blockW && Math.abs(cy - sh.img.y) < STORM.blockH) {
+          this.sparks.explode(this.fxBudget(6), c.x, cy);
+          sfx.land(c.x, cy);
+          this.recycleStormChunk(lane, c, STORM.graceMs);
+          continue;
+        }
+        for (const p of this.players) {
+          if (p.dead || p.carriedBy) continue;
+          if (Math.abs(p.x - c.x) >= STORM.hitW || Math.abs(p.y - cy) >= STORM.hitH) continue;
+          if (p.bubbleT > 0) {
+            // scrap is a SHARP hit: pop + shove + the ferry drops its core
+            this.popBubble(p, true);
+            this.dropFuseCore(p);
+            p.setVelocity(lane.dir * 260, -170);
+            this.sparks.explode(this.fxBudget(5), c.x, cy);
+            this.recycleStormChunk(lane, c, STORM.graceMs);
+          } else if (p.invuln <= 0) {
+            this.dropFuseCore(p); // dropped where it fell — retrievable
+            sfx.jellyZap(p.x, p.y); // the standard electric-hazard sting
+            this.killPlayer(p);   // standard death -> checkpoint respawn
+          }
+        }
+      }
+    }
+
+    // fuse-cores: rest bob / pickup, carried follow / delivery, carrier-loss drop
+    for (const fc of this.fuseCores) {
+      if (fc.state === "rest") {
+        fc.t += delta;
+        fc.img.y = fc.baseY + Math.sin(fc.t / 450) * 5;
+        for (const p of this.players) {
+          if (p.dead || p.carriedBy) continue;
+          if (this.fuseCores.some((o) => o.state === "carried" && o.carrier === p)) continue;
+          if (Math.hypot(p.x - fc.img.x, p.y - fc.img.y) < 40) {
+            fc.state = "carried";
+            fc.carrier = p;
+            sfx.key(fc.img.x, fc.img.y);
+            this.starBurst.explode(this.fxBudget(6), fc.img.x, fc.img.y);
+            break;
+          }
+        }
+      } else if (fc.state === "carried") {
+        const p = fc.carrier;
+        if (!p || p.dead) { this.dropFuseCore(p); continue; }
+        fc.img.setPosition(p.x - p.facing * 20, p.y - 14);
+        for (const sk of this.fuseSockets) {
+          if (!sk.filled && Math.abs(p.x - sk.x) < 50 && Math.abs(p.y - sk.y) < 60) {
+            this.socketFuseCore(fc, sk);
+            break;
+          }
+        }
+      }
+    }
   }
 
   // One frame of every World-3 system. Early-returns unless W3 content is present.
@@ -4970,7 +5391,21 @@ export default class GameScene extends Phaser.Scene {
       }
       ch.timer -= delta;
       if (ch.state === "idle") {
-        b.velocity.x = 0;
+        // W3W4 L33: HOME LEASH — an idle chomper displaced by its own lunges
+        // treads back toward its post (dozer pace) instead of parking wherever
+        // the last chase ended. Drive-found on 3-3: successive lunges migrated
+        // the fc2 guard deep into a live scrap lane, where no yank stance
+        // exists — an unwinnable camp. Behavior-neutral where it matters: the
+        // guard still defends the same spot, aggro/lunge/defang unchanged
+        // (3-1/3-2 re-verified green in the full matrix).
+        const drift = ch.homeX - img.x;
+        if (Math.abs(drift) > 2.5 * TILE) {
+          b.velocity.x = 60 * Math.sign(drift);
+          ch.dir = Math.sign(drift);
+          img.setFlipX(ch.dir === -1);
+        } else {
+          b.velocity.x = 0;
+        }
         const near = this.players.find((p) => !p.dead && !p.carriedBy &&
           Math.abs(p.x - img.x) < 190 && Math.abs(p.y - img.y) < 64);
         if (near) {
@@ -5011,12 +5446,18 @@ export default class GameScene extends Phaser.Scene {
         if (ch.timer <= 0) ch.state = "idle";
       }
     }
+
+    // --- W3W4 L33: the scrap storm (lanes / shield / fuse-cores) -------------
+    if (this.stormLanes.length) this.updateStorm(time, delta, dt);
   }
 
   // Bake the World-3 texture set ONCE, lazily, the first time a W3 level loads.
   // Mirrors BootScene's `make` pattern (all drawn, Canvas-safe, no tint states);
   // the shipped W1/W2 boot path never reaches this.
   ensureW3Textures() {
+    // W3W4 L33: the storm set carries its OWN guard — a 3-1 -> 3-3 session has
+    // crate3 baked already (the early-return below) but still needs scrap art.
+    this.ensureStormTextures();
     if (this.textures.exists("crate3")) return;
     const make = (key, w, h, draw) => {
       const g = this.make.graphics({ add: false });
@@ -5268,6 +5709,110 @@ export default class GameScene extends Phaser.Scene {
       g.fillStyle(tone, 1).fillRect(360, beamY, 10, 864 - beamY);
       g.fillStyle(edge, 1);
       for (let x = 145; x < 360; x += 30) g.fillRect(x, beamY + 14, 6, 12 + Math.floor(rnd() * 12));
+    });
+  }
+
+  // W3W4 L33: the SCRAP STORM texture set (3-3 only), baked lazily with its own
+  // guard. Same conventions as ensureW3Textures: all DRAWN, Canvas-safe, state
+  // changes are texture swaps (never tint).
+  ensureStormTextures() {
+    if (this.textures.exists("scrap1")) return;
+    const make = (key, w, h, draw) => {
+      const g = this.make.graphics({ add: false });
+      draw(g, w, h);
+      g.generateTexture(key, w, h);
+      g.destroy();
+    };
+    // three flying-scrap chunk variants: jagged plate / gear / pipe elbow —
+    // all with a hot magenta polarity fringe (the "this bites" read).
+    make("scrap1", 34, 26, (g) => {
+      g.fillStyle(0x39415e).fillTriangle(2, 6, 30, 2, 24, 22);
+      g.fillStyle(0x2a3350).fillTriangle(8, 10, 26, 6, 20, 18);
+      g.lineStyle(2, 0xff4dd2, 0.9);
+      g.lineBetween(2, 6, 30, 2); g.lineBetween(24, 22, 2, 6);
+      g.fillStyle(0x8fa3d9, 0.8).fillRect(12, 8, 6, 3); // glint
+    });
+    make("scrap2", 30, 30, (g) => {
+      g.fillStyle(0x39415e).fillCircle(15, 15, 11);
+      g.fillStyle(0x121a30).fillCircle(15, 15, 4.5);
+      g.fillStyle(0x39415e);
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        g.fillRect(15 + Math.cos(a) * 12 - 2.5, 15 + Math.sin(a) * 12 - 2.5, 5, 5);
+      }
+      g.lineStyle(2, 0xff4dd2, 0.9).strokeCircle(15, 15, 11.5);
+    });
+    make("scrap3", 32, 24, (g) => {
+      g.fillStyle(0x2f4066).fillRoundedRect(2, 8, 22, 10, 4);
+      g.fillStyle(0x2f4066).fillRoundedRect(16, 2, 10, 16, 4);
+      g.lineStyle(2, 0xff4dd2, 0.9);
+      g.strokeRoundedRect(2, 8, 22, 10, 4);
+      g.fillStyle(0x121a30).fillCircle(7, 13, 2.6).fillCircle(21, 6, 2.6);
+      g.fillStyle(0x8fa3d9, 0.7).fillRect(5, 9, 10, 2);
+    });
+    // the caught-scrap SHIELD: a tall riveted plate wrapped in the magnet's
+    // amber field — big enough to read as "hide behind me".
+    make("scrapshield", 46, 60, (g) => {
+      for (let r = 0; r < 4; r++) {
+        g.fillStyle(0xffb347, 0.05).fillRoundedRect(r, r + 4, 46 - r * 2, 52 - r * 2, 10);
+      }
+      g.fillStyle(0x39415e).fillRoundedRect(6, 8, 34, 44, 7);
+      g.lineStyle(2.5, 0xffb347, 0.95).strokeRoundedRect(6, 8, 34, 44, 7);
+      g.fillStyle(0x2a3350).fillRect(10, 12, 26, 36);
+      g.lineStyle(3, 0x4a5578);
+      g.lineBetween(11, 13, 35, 47); g.lineBetween(35, 13, 11, 47);
+      g.fillStyle(0xffe0a8, 0.95);
+      [[10, 12], [36, 12], [10, 48], [36, 48]].forEach(([x, y]) => g.fillCircle(x, y, 2.2));
+      g.fillStyle(0x8fa3d9, 0.5).fillRect(10, 12, 26, 3);
+    });
+    // FUSE-CORE: a chunky amber energy cell with cyan poles (the ferry cargo).
+    make("fusecore_item", 24, 30, (g) => {
+      g.fillStyle(0x1c2742).fillRoundedRect(4, 2, 16, 26, 4);
+      g.lineStyle(2, 0x7ee0ff, 0.95).strokeRoundedRect(4, 2, 16, 26, 4);
+      g.fillStyle(0xffd24d).fillRoundedRect(7, 7, 10, 16, 3);
+      g.fillStyle(0xfff6c2, 0.95).fillRect(9, 9, 3, 12); // hot filament
+      g.fillStyle(0x7ee0ff).fillRect(9, 0, 6, 3).fillRect(9, 27, 6, 3); // poles
+      g.fillStyle(0xffffff, 0.9).fillCircle(9, 8, 1.2);
+    });
+    // fuse socket: an empty cradle with waiting contacts (off) -> seated core
+    // glowing between lit contacts (on). Texture-swap states, Canvas-safe.
+    const fusesock = (on) => (g) => {
+      g.fillStyle(0x1c2742).fillRect(16, 32, 12, 10); // stem
+      g.fillStyle(0x2a3350).fillRoundedRect(4, 36, 36, 8, 3);
+      g.lineStyle(3, on ? 0xffd24d : 0x44548c);
+      g.beginPath(); g.arc(22, 22, 14, Math.PI * 0.85, Math.PI * 2.15); g.strokePath();
+      g.fillStyle(on ? 0xffd24d : 0x39415e);
+      g.fillCircle(8.5, 26, 3); g.fillCircle(35.5, 26, 3); // contact studs
+      if (on) {
+        g.fillStyle(0xffd24d).fillRoundedRect(17, 12, 10, 16, 3); // the seated core
+        g.fillStyle(0xfff6c2, 0.95).fillRect(19, 14, 3, 12);
+        g.lineStyle(1.5, 0xfff6c2, 0.9);
+        g.lineBetween(12, 8, 8, 3); g.lineBetween(32, 8, 36, 3);
+      } else {
+        g.fillStyle(0xffd24d, 0.5).fillCircle(22, 6, 2); // "feed me" pilot dot
+      }
+    };
+    make("fusesock", 44, 44, fusesock(false));
+    make("fusesock_on", 44, 44, fusesock(true));
+    // storm lane emitter (the upwind telegraph): a polarity nozzle, live/dark.
+    const stormvent = (on) => (g) => {
+      g.fillStyle(0x2a3350).fillRoundedRect(0, 6, 14, 24, 3);
+      g.lineStyle(2, on ? 0xff4dd2 : 0x44548c).strokeRoundedRect(0, 6, 14, 24, 3);
+      g.fillStyle(on ? 0xff4dd2 : 0x39415e);
+      g.fillTriangle(14, 8, 26, 18, 14, 28);
+      if (on) {
+        g.lineStyle(1.5, 0xffb9ec, 0.9);
+        g.lineBetween(16, 12, 22, 8); g.lineBetween(18, 18, 26, 18); g.lineBetween(16, 24, 22, 28);
+      }
+    };
+    make("stormvent", 28, 36, stormvent(true));
+    make("stormvent_off", 28, 36, stormvent(false));
+    // downwind chevron (lane direction cue)
+    make("stormchev", 14, 18, (g) => {
+      g.lineStyle(3, 0xff4dd2, 0.9);
+      g.beginPath();
+      g.moveTo(2, 2); g.lineTo(11, 9); g.lineTo(2, 16);
+      g.strokePath();
     });
   }
 
