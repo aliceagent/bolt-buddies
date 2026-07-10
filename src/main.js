@@ -7,6 +7,7 @@ import UIScene from "./scenes/UIScene.js";
 import PauseScene from "./scenes/PauseScene.js";
 import SettingsScene from "./scenes/SettingsScene.js";
 import OnboardScene from "./scenes/OnboardScene.js";
+import WalkthroughScene from "./scenes/WalkthroughScene.js";
 import MuteScene from "./scenes/MuteScene.js";
 import { engineState } from "./audio/engine.js";
 import { musicState } from "./audio/music.js";
@@ -35,7 +36,7 @@ const game = new Phaser.Game({
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [BootScene, TitleScene, HubScene, GameScene, UIScene, PauseScene, SettingsScene, OnboardScene, MuteScene],
+  scene: [BootScene, TitleScene, HubScene, GameScene, UIScene, PauseScene, SettingsScene, OnboardScene, WalkthroughScene, MuteScene],
 });
 
 // Global mute dropdown: launch the always-on-top overlay once the game is booted

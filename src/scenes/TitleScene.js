@@ -396,11 +396,17 @@ export default class TitleScene extends Phaser.Scene {
     if (hasSave) items.push({ id: "continue", label: "CONTINUE" });
     items.push({ id: "new", label: "NEW GAME" });
     items.push({ id: "tutorial", label: "TUTORIAL" });
+    // WALKTHROUGHS: appended LAST so the default cursor position and every
+    // existing key-tap sequence (playtest/tut_sanity/campaign) stay valid.
+    items.push({ id: "walkthroughs", label: "WALKTHROUGHS" });
     this.menuItems = items;
     this.sel = 0; // CONTINUE when present, else NEW GAME — both default to index 0
 
-    const bw = 380, bh = 50, gap = 12;
-    const top = 360; // raised ~24px from the old 388
+    // 4 items (CONTINUE present + WALKTHROUGHS) compact slightly so the stack
+    // still clears the footer panel at y540; the 3-item layout is unchanged.
+    const compact = items.length > 3;
+    const bw = 380, bh = compact ? 44 : 50, gap = compact ? 8 : 12;
+    const top = compact ? 354 : 360; // raised ~24px from the old 388; compact clears the footer
     this.menuTop = top;
     this.menuStep = bh + gap;
     items.forEach((it, i) => {
@@ -560,6 +566,11 @@ export default class TitleScene extends Phaser.Scene {
         storeSave({ unlocked: 1, cores: {} });
         this.gotoHub();
       }
+    } else if (it.id === "walkthroughs") {
+      // WALKTHROUGHS: the manifest-driven level-video grid. No fade guard
+      // needed — mirrors the Settings hand-off (scene.start, music keeps going).
+      sfx.menuSelect();
+      this.scene.start("Walkthroughs");
     } else if (it.id === "tutorial") {
       // Sprint 10: launch the hidden tutorial chamber ("Orientation Day").
       sfx.menuSelect();
