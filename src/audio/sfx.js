@@ -485,6 +485,37 @@ export const sfx = {
   chompLunge: (x, y) => { const v = pv(x, y); if (v > 0) { const p = panForX(x); noise(0.1, { type: "bandpass", freq: 700, q: 1.5, vol: 0.03 * v, pan: p }); setTimeout(() => tone(180, 0.08, "square", 0.045 * v, -60, p), 90); } },
   teethYank: (x, y) => { const v = pv(x, y); if (v > 0) { const p = panForX(x); slide(1100, 260, 0.24, "sawtooth", 0.05 * v, p); [90, 180, 270].forEach((d) => setTimeout(() => tone(340 + d, 0.04, "square", 0.03 * v, -120, p), d)); } },
 
+  // --- W3W4 M4: World-4 skills, terrain & enemies ---------------------------
+  // Same mix rationale as the M3 block: player-driven skill cues centred at
+  // 0.03-0.045; positional world/enemy voices ride proximity; repeatable ones
+  // are rate-limited. Nothing here fires unless a W4 skill/ent is in the level.
+  //   freezeCast   0.045   –   time-freeze: crystalline descending shimmer
+  //   freezeEnd    0.035   –   the thaw: soft rising release
+  //   beamOn       0.040   –   light-beam ignites (warm rising sweep)
+  //   beamOff      0.030   –   beam douse (falling)
+  //   beamHum      0.018   –   soft hum while lit (rate-limited)
+  //   iceMelt      0.028   y   melting sizzle under the beam (rate-limited)
+  //   iceCrack     0.050   y   the door gives way (crack + slush)
+  //   ghostReveal  0.030   y   invisible platform materializes (rate-limited)
+  //   gloomHiss    0.020   y   gloomy's dark whisper (rate-limited)
+  //   gloomFlee    0.040   y   dazzled gloomy squeals away
+  //   tickTock     0.028   y   ticker wind-up telegraph (rate-limited)
+  //   tickerDash   0.040   y   clockwork dash whirr
+  //   laserZap     0.045   y   laser contact discharge
+  freezeCast: () => { [1320, 1050, 830, 660].forEach((f, i) => setTimeout(() => tone(f, 0.14, "sine", 0.038), i * 70)); noise(0.3, { type: "highpass", freq: 5200, vol: 0.016 }); },
+  freezeEnd: () => { [660, 880, 1100].forEach((f, i) => setTimeout(() => tone(f, 0.09, "sine", 0.028), i * 60)); },
+  beamOn: () => { slide(280, 720, 0.16, "sine", 0.036); tone(1400, 0.08, "triangle", 0.02); },
+  beamOff: () => slide(720, 300, 0.14, "sine", 0.026),
+  beamHum: (x, y) => { if (!rateLimit("beamHum", 340)) return; const v = 0.018 * pv(x, y); if (v > 0) tone(190 + Math.random() * 14, 0.3, "sine", v, 8, panForX(x)); },
+  iceMelt: (x, y) => { if (!rateLimit("iceMelt", 260)) return; const v = pv(x, y); if (v > 0) noise(0.2, { type: "bandpass", freq: 3200, q: 1.6, vol: 0.028 * v, pan: panForX(x) }); },
+  iceCrack: (x, y) => { const v = pv(x, y); if (v > 0) { const p = panForX(x); tone(240, 0.08, "square", 0.05 * v, -120, p); noise(0.26, { type: "lowpass", freq: 1400, vol: 0.04 * v, pan: p }); [70, 150].forEach((d) => setTimeout(() => noise(0.06, { type: "highpass", freq: 3600, vol: 0.024 * v, pan: p }), d)); } },
+  ghostReveal: (x, y) => { if (!rateLimit("ghostReveal", 420)) return; const v = pv(x, y); if (v > 0) { const p = panForX(x); slide(520, 1040, 0.12, "sine", 0.03 * v, p); tone(1560, 0.06, "triangle", 0.02 * v, 0, p); } },
+  gloomHiss: (x, y) => { if (!rateLimit("gloomHiss", 900)) return; const v = 0.02 * pv(x, y); if (v > 0) noise(0.4, { type: "lowpass", freq: 500, q: 2, vol: v, pan: panForX(x) }); },
+  gloomFlee: (x, y) => { const v = pv(x, y); if (v > 0) { const p = panForX(x); slide(900, 1500, 0.16, "sine", 0.04 * v, p); slide(700, 1180, 0.16, "sine", 0.02 * v, p); } },
+  tickTock: (x, y) => { if (!rateLimit("tickTock", 330)) return; const v = 0.028 * pv(x, y); if (v > 0) { const p = panForX(x); tone(1160, 0.03, "square", v, -60, p); setTimeout(() => tone(880, 0.03, "square", v * 0.8, -40, p), 160); } },
+  tickerDash: (x, y) => { const v = pv(x, y); if (v > 0) { const p = panForX(x); slide(300, 760, 0.18, "sawtooth", 0.04 * v, p); noise(0.12, { type: "bandpass", freq: 1900, q: 1.4, vol: 0.02 * v, pan: p }); } },
+  laserZap: (x, y) => { const v = pv(x, y); if (v > 0) { const p = panForX(x); tone(980, 0.12, "sawtooth", 0.045 * v, -640, p); noise(0.09, { type: "highpass", freq: 3000, vol: 0.03 * v, pan: p }); } },
+
   // --- UI / meta -----------------------------------------------------------
   menuMove: () => tone(660, 0.04, "square", 0.03),
   menuSelect: () => { tone(523, 0.07, "square", 0.04); setTimeout(() => tone(784, 0.1, "square", 0.04), 60); },

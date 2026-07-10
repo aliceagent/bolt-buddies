@@ -49,6 +49,14 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.inWater = null;   // the water volume overlapping this robot (set per frame)
     this.airMs = 0;        // un-bubbled submerged time toward PHYS.waterAirMs
 
+    // --- W3W4 M4: World-4 skill state ---------------------------------------
+    // ALL of these rest at 0/false in shipped levels (only W4 skills set them),
+    // so every branch that reads them is inert outside World 4.
+    this.freezeCd = 0;             // ms until TIME-FREEZE may be cast again
+    this.beamOn = false;           // LIGHT-BEAM lit this frame (held ACTION)
+    this.beamMs = PHYS.beamBattMs; // beam battery remaining (drains lit, slow recharge)
+    this.beamAim = 0;              // current cone aim angle (rad; 0=right, set per frame)
+
     // --- presentation state (Sprint 3) -------------------------------------
     this.baseKey = idx === 0 ? "robot_b" : "robot_o";
     // squash & stretch is a MULTIPLIER on the skill base scale so heavy/tiny and

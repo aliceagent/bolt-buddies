@@ -23,6 +23,9 @@ import { installCraneAnim } from "./crane_anim.js";
 import { installJellyAnim } from "./jelly_anim.js";
 import { installChomperAnim } from "./chomper_anim.js";
 import { installW3SkillAnim } from "./w3skills_anim.js";
+import { installGloomyAnim } from "./gloomy_anim.js";
+import { installTickerAnim } from "./ticker_anim.js";
+import { installW4SkillAnim } from "./w4skills_anim.js";
 import { installDeviceAnim } from "./device_anim.js";
 import { installSocialAnim } from "./social_anim.js";
 import { installCameoAnim } from "./cameo_anim.js";
@@ -106,6 +109,44 @@ export class AnimSystem {
     // install it, so the player rig stays byte-identical there).
     const sk = this.scene.def && this.scene.def.skills;
     if (sk && (sk.includes("magnet") || sk.includes("bubble"))) installW3SkillAnim(rig, this.scene);
+    // W3W4 M4: same gate for the World-4 pair (freeze/beam action overlays)
+    if (sk && (sk.includes("freeze") || sk.includes("beam"))) installW4SkillAnim(rig, this.scene);
+    return rig;
+  }
+
+  // W3W4 M4: the gloomy rig (wisp billow + lurk bob + dazzle shiver).
+  registerGloomy(gl) {
+    const rig = this._add(gl.img, {
+      kind: "gloomy", depth: DEPTH.entity + 2,
+      probe: (h, out) => {
+        const b = h.body;
+        out.dead = false; out.hurt = false; out.carrying = false;
+        out.airborne = true;
+        out.vx = b ? b.velocity.x : 0;
+        out.vy = b ? b.velocity.y : 0;
+        out.face = 1;
+        out.input = false;
+      },
+    });
+    installGloomyAnim(rig, this.scene, gl);
+    return rig;
+  }
+
+  // W3W4 M4: the ticker rig (wind-up key spin + telegraph quiver).
+  registerTicker(t) {
+    const rig = this._add(t.img, {
+      kind: "ticker", depth: DEPTH.entity + 2,
+      probe: (h, out) => {
+        const b = h.body;
+        out.dead = false; out.hurt = false; out.carrying = false;
+        out.airborne = false;
+        out.vx = b ? b.velocity.x : 0;
+        out.vy = 0;
+        out.face = t.dir || 1;
+        out.input = false;
+      },
+    });
+    installTickerAnim(rig, this.scene, t);
     return rig;
   }
 
@@ -225,6 +266,9 @@ export class AnimSystem {
     // W3W4 M3: the World-3 enemy cast (empty arrays in every shipped level)
     if (s.jellies) s.jellies.forEach((j) => this.registerJelly(j));
     if (s.chompers) s.chompers.forEach((c) => this.registerChomper(c));
+    // W3W4 M4: the World-4 enemy cast (empty arrays in every shipped level)
+    if (s.gloomies) s.gloomies.forEach((gl) => this.registerGloomy(gl));
+    if (s.tickers) s.tickers.forEach((t) => this.registerTicker(t));
     // A9: wire the device-personality overlays now that every device record exists.
     this.device = installDeviceAnim(s);
     // A10: wire the social & co-op moment overlays now that both player rigs exist.

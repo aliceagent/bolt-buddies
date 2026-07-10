@@ -63,7 +63,10 @@ export const WORLD_THEMES = {
   1: { accent: 0xffb347, accent2: 0x35f0ff, bgTop: 0x1e4380, bgBottom: 0x060a14, glow: 0x3f7fe8 },
   2: { accent: 0xc39dff, accent2: 0x59ffb0, bgTop: 0x0f5242, bgBottom: 0x04100c, glow: 0x2fc29a },
   3: { accent: 0xffd24d, accent2: 0xff4dd2, bgTop: 0x431e5e, bgBottom: 0x0c0614, glow: 0xc45cff },
-  4: { accent: 0x35f0ff, accent2: 0xff5566, bgTop: 0x1a2560, bgBottom: 0x03050e, glow: 0x3558e8 },
+  // W3W4 M4: World 4 committed to its designed identity — near-black datacenter/
+  // void, DEEP VIOLET-BLACK (the darkest world), thin neon seams (cyan accent2)
+  // over a violet accent. Only backdrop/mood consumers read these.
+  4: { accent: 0x8f7bff, accent2: 0x35f0ff, bgTop: 0x191243, bgBottom: 0x020207, glow: 0x5b3fd8 },
 };
 
 // --- P11: FX particle palette ----------------------------------------------
@@ -114,6 +117,19 @@ export const PHYS = {
   waterAirMs: 6000,    // un-bubbled underwater air supply before drowning (ms)
   waterSink: 55,       // slow-sink terminal velocity for a normal robot (px/s)
   swimSpeed: 170,      // bubbled free-swim speed underwater (px/s)
+  // --- W3W4 M4: World-4 mechanics tuning -----------------------------------
+  // All read ONLY by the W4 code paths (freeze/beam skills + W4 ents), which
+  // are inert unless a W4 level actually spawns them — shipped levels untouched.
+  freezeMs: 5000,      // TIME-FREEZE world-hold duration (GAME_DESIGN: "5 seconds")
+  freezeCdMs: 8000,    // freeze re-cast cooldown (badge cooldown ring)
+  beamBattMs: 6000,    // LIGHT-BEAM battery: ms of light while held
+  beamRegen: 0.5,      // recharge rate factor (drains 1x, recharges ~2x slower)
+  beamMinMs: 600,      // minimum charge before the beam can re-ignite (no flicker)
+  beamRange: 310,      // light-cone reach (px)
+  beamHalf: 0.42,      // light-cone half-angle (rad, ~24 deg)
+  ghostGlowMs: 1500,   // invisible-platform afterglow after the beam leaves (ms)
+  iceMeltMs: 2200,     // beam exposure needed to melt an ice door (ms)
+  glowRadius: 120,     // a robot's own glow radius inside dark zones (px, kid-fair)
 };
 
 export const DEPTH = {
@@ -167,5 +183,18 @@ export const SKILL_INFO = {
     color: 0x7ee0ff,
     card: "Blow a big safe bubble around you —\nor around your buddy!",
     hint: "ACTION: bubble up! Float on vents,\nroll over sparks, swim free.\nDOWN+ACTION: bubble your BUDDY!",
+  },
+  // --- W3W4 M4: World-4 skill pair (GAME_DESIGN §4 card copy, kid voice) ----
+  freeze: {
+    name: "TIME-FREEZE",
+    color: 0x9fd8ff,
+    card: "Stop the world for 5 seconds.\nPlatforms, lasers, enemies — frozen!",
+    hint: "ACTION: FREEZE the world 5s!\nFrozen platforms are stepping stones.\nWatch the badge ring recharge.",
+  },
+  beam: {
+    name: "LIGHT-BEAM",
+    color: 0xffe08a,
+    card: "A mighty flashlight! Light the dark,\nmelt the ice, dazzle the baddies.",
+    hint: "HOLD ACTION: shine the light cone.\nUP+ACTION aims up. Mind the battery!\nDOWN+ACTION: reel your buddy!",
   },
 };

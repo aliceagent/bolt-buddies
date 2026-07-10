@@ -182,6 +182,18 @@ export const MOTION = Object.freeze({
   CHOMP_DOZER: Object.freeze({ dur: 1700, ease: "sine.inOut", open: 0.3 }), // defanged contented panting
   CHOMP_TILT: Object.freeze({ amp: 0.09 }),                                 // anticipation/lunge body tilt (rad)
 
+  // --- W3W4 M4: World-4 skill action overlays + enemy sets -------------------
+  // Every one is a pure VISUAL overlay on the SACRED W4 logic (freeze cast/gate,
+  // beam hold/battery, gloomy drift/flee, ticker wind/dash — all owned by
+  // GameScene and byte-identical with the rig off).
+  FREEZE_ACT: tok(420, "cubic.out"),  // freeze cast flash (expanding frost star at the hand)
+  BEAM_ACT: tok(300, "cubic.out"),    // beam ignite flash (warm ring at the lamp hand)
+  GLOOM_BOB: Object.freeze({ dur: 1400, ease: "sine.inOut", amp: 0.07 }),  // lurking dome bob (host rotation)
+  GLOOM_WISP: Object.freeze({ dur: 1100, ease: "sine.inOut", amp: 0.3 }),  // trailing wisp sway (feeler channel)
+  GLOOM_FLEE: Object.freeze({ freqMul: 2.8, ampMul: 1.9 }),                // frantic wisps while dazzled/fleeing
+  TICKER_KEY: Object.freeze({ dur: 900, ease: "linear", spin: 240 }),      // back-key spin (deg/s, |vx|-scaled on a dash)
+  TICKER_WIND: Object.freeze({ freq: 26, amp: 0.05 }),                     // wind-up telegraph quiver (host rotation)
+
   // --- Bolt & KOBI cameo animation (A11) -----------------------------------
   // Menu polish (#1-#4) extends the existing Title/Hub/UI scene code directly; the
   // in-level cameo (#5) is a pure display-list BACKDROP with NO body/collision/timing

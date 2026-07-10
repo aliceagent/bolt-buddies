@@ -3,6 +3,7 @@ import { TILE, COLORS, PHYS, DEPTH, SKILL_INFO, WORLD_THEMES, FONT, FS, TEXT, PA
 import { LEVELS } from "../levels/registry.js";
 import { makeGrid } from "../levels/builder.js";
 import devW3 from "../levels/dev_w3.js";
+import devW4 from "../levels/dev_w4.js";
 import { completeLevel, loadSave } from "../save.js";
 import { initAudio, sfx, installMute, playTrack, setMusicLayer, playJingle, trackForLevel, setListener, clearListener, proximity, setLoop, stopLoops, pauseDuck, setSadMusic } from "../audio.js";
 import { addGradient, addMotes, addPropStrip, addFogBand, addDrips, addDustShafts, addVignette } from "../backdrop.js";
@@ -101,18 +102,21 @@ export default class GameScene extends Phaser.Scene {
     // so its clear overlay returns to the HUB (not Title). Menu-launched
     // tutorials leave it false and keep returning to Title.
     this.returnToHub = !!(data && data.returnToHub);
-    // W3W4 M3: dev-only sandbox hook. Honored ONLY when the page itself was
-    // loaded with ?devlevel=w3 — normal play/registry/hub can never reach it.
-    const devOk = typeof location !== "undefined" && /(?:\?|&)devlevel=w3(?:&|$)/.test(location.search);
-    this.devLevel = devOk && data && data.devLevel === "w3" ? "w3" : null;
+    // W3W4 M3/M4: dev-only sandbox hook. Honored ONLY when the page itself was
+    // loaded with ?devlevel=<id> — normal play/registry/hub can never reach it.
+    const want = data && data.devLevel;
+    const devOk = (id) => typeof location !== "undefined" &&
+      new RegExp(`(?:\\?|&)devlevel=${id}(?:&|$)`).test(location.search);
+    this.devLevel = (want === "w3" || want === "w4") && devOk(want) ? want : null;
   }
 
   create() {
-    const def = this.devLevel ? devW3 : LEVELS[this.levelIndex];
+    const def = this.devLevel === "w4" ? devW4 : this.devLevel ? devW3 : LEVELS[this.levelIndex];
     this.def = def;
-    // W3W4 M3: bake the World-3 texture set lazily, the first time a W3 level
-    // actually loads (shipped W1/W2 boot path bakes nothing new — inert).
+    // W3W4 M3/M4: bake the World-3/4 texture sets lazily, the first time such a
+    // level actually loads (shipped W1/W2 boot path bakes nothing new — inert).
     if (def.world === 3) this.ensureW3Textures();
+    if (def.world === 4) this.ensureW4Textures();
     const gb = makeGrid(def.cols, def.rows);
     def.build(gb);
     this.grid = gb.g;
@@ -199,6 +203,30 @@ export default class GameScene extends Phaser.Scene {
     this.fuseCores = [];   // carriable fuse-cores (the three-ferry objective)
     this.fuseSockets = []; // fuse sockets: a socketed core latches its lever id
     this.stormShield = null; // the single magnet-caught scrap shield (crate body family)
+
+    // W3W4 M4: World-4 mechanics state. `_w4` flips true only when a W4
+    // skill/ent is actually present, and every new update path early-returns on
+    // it — so all of this is inert in the shipped W1-W3 levels. `frozen` is the
+    // TIME-FREEZE world gate every device family checks: while true, device
+    // state machines are simply NOT STEPPED (timers untouched, kinematic bodies
+    // velocity-held at 0) so the resume is byte-identical by construction.
+    this._w4 = false;
+    this.frozen = false;   // the freeze gate (read by every device update path)
+    this.freezeT = 0;      // ms of world-freeze remaining
+    this.darkZones = [];   // near-black rects (glow-radius / beam-cone reveal)
+    this.ghosts = [];      // invisible platforms (solid always, lit-only visible)
+    this.rotBridges = [];  // spinning kinematic platform assemblies
+    this.lasers = [];      // sweeping laser hazards (freeze holds their angle)
+    this.iceDoors = [];    // beam-melting door-family barriers
+    this.gloomies = [];    // shadow blobs (flee the light, jam plates)
+    this.tickers = [];     // clockwork patrollers (held + harmless while frozen)
+    this.w4Gfx = null;     // shared clear+redraw overlay (cone, bars, melt fill)
+    this.laserGfx = null;  // shared clear+redraw laser-beam painter (pooled draw)
+    this.darkRT = null;    // half-res screen-space darkness mask (dark zones only)
+    this._w4Line = new Phaser.Geom.Line(0, 0, 0, 0);      // reused scratch (no per-frame alloc)
+    this._w4Rect2 = new Phaser.Geom.Rectangle(0, 0, 0, 0); // reused scratch
+    this._iceOverlays = []; // pooled frost panels stamped on frozen devices
+    this._freezeWash = null; // screen-fixed cold wash while frozen
 
     this.crackies = this.physics.add.staticGroup();
     this.bridgeGroup = this.physics.add.staticGroup();
@@ -347,6 +375,58 @@ export default class GameScene extends Phaser.Scene {
           if (webglShell) p.bubbleShell.setBlendMode(Phaser.BlendModes.ADD);
         });
       }
+    }
+
+    // W3W4 M4: World-4 physics + overlay wiring — only when W4 content is present.
+    if (this.rotBridges.length) {
+      const segs = [];
+      this.rotBridges.forEach((rb) => rb.segs.forEach((s) => segs.push(s.img)));
+      this.physics.add.collider(this.players, segs, rideCb); // ridable spinning platforms
+    }
+    if (this.tickers.length) this.physics.add.collider(this.tickers.map((t) => t.img), this.solidObjs);
+    if (this.gloomies.length) this.physics.add.collider(this.gloomies.map((gl) => gl.img), this.solidObjs);
+    if (this._w4) {
+      const webglW4 = this.game.renderer.type === Phaser.WEBGL;
+      // shared overlays: cone/battery/cooldown/melt painter + the laser painter
+      this.w4Gfx = this.add.graphics().setDepth(DEPTH.fx);
+      this.laserGfx = this.add.graphics().setDepth(DEPTH.entity + 3);
+      // the visible beam-cone light (baked gradient wedge; ADD on WebGL only —
+      // the alpha-baked art carries the read on Canvas)
+      this.beamCones = this.players.map(() => {
+        const c = this.add.image(0, 0, "conelight").setOrigin(0, 0.5)
+          .setDepth(DEPTH.fx - 2).setVisible(false);
+        if (webglW4) c.setBlendMode(Phaser.BlendModes.ADD);
+        return c;
+      });
+      // screen-fixed cold wash shown while the world is frozen (Canvas-safe:
+      // a plain low-alpha fill; WebGL additionally shimmers additively)
+      this._freezeWash = this.add.rectangle(this.scale.width / 2, this.scale.height / 2,
+        this.scale.width + 8, this.scale.height + 8, 0x9fd8ff, 0.07)
+        .setScrollFactor(0).setDepth(DEPTH.fx + 18).setVisible(false);
+      if (webglW4) this._freezeWash.setBlendMode(Phaser.BlendModes.ADD);
+      // pooled frost panels: one per freezable device, stamped while frozen
+      // (icy tint that no-ops on Canvas is banned — this is drawn art instead)
+      const freezables = this.crushers.length + this.lifts.length + this.lasers.length +
+        this.tickers.length + this.gloomies.length + this.rotBridges.length;
+      for (let i = 0; i < Math.min(freezables, 14); i++) {
+        const ov = this.add.image(0, 0, "icepanel").setDepth(DEPTH.entity + 4).setVisible(false);
+        if (webglW4) ov.setBlendMode(Phaser.BlendModes.ADD);
+        this._iceOverlays.push(ov);
+      }
+    }
+    // DARK ZONES: a half-resolution screen-space darkness mask (one RenderTexture
+    // covering the camera, scrollFactor 0). Each frame it is cleared, the zone
+    // rects are stamped BLACK, and the robots' glow radii + the lit beam cone are
+    // ERASED (gradient stamps -> soft holes). Half-res halves the software-Canvas
+    // raster cost; there is NO per-frame texture rebake (clear+stamp only) and
+    // the erase stamps are prebuilt `make.image` objects (zero per-frame alloc).
+    if (this.darkZones.length) {
+      const rw = Math.ceil(this.scale.width / 2), rh = Math.ceil(this.scale.height / 2);
+      this.darkRT = this.add.renderTexture(0, 0, rw, rh).setOrigin(0, 0)
+        .setScrollFactor(0).setScale(2).setDepth(DEPTH.fx + 15).setAlpha(0.93);
+      this._darkStampRect = this.make.image({ key: "darkpx", add: false }).setOrigin(0, 0);
+      this._darkStampGlow = this.make.image({ key: "glowmask", add: false });
+      this._darkStampCone = this.make.image({ key: "conemask", add: false }).setOrigin(0, 0.5);
     }
 
     // camera
@@ -601,9 +681,10 @@ export default class GameScene extends Phaser.Scene {
     // 1-3 starts with the `tension` layer ON by default (crane alive).
     playTrack(trackForLevel(def.id));
 
-    // The dev sandbox points the HUD at the 3-1 registry placeholder (index 6)
-    // so the top plate/theme read as World 3; normal play is untouched.
-    this.scene.launch("UI", { levelIndex: this.devLevel ? 6 : this.levelIndex });
+    // The dev sandboxes point the HUD at their world's first registry
+    // placeholder (3-1 = index 6, 4-1 = index 9) so the top plate/theme read
+    // as that world; normal play is untouched.
+    this.scene.launch("UI", { levelIndex: this.devLevel === "w4" ? 9 : this.devLevel ? 6 : this.levelIndex });
 
     // __BB.scene must be available synchronously — the beat runner + suites read
     // it right after scene.start, so nothing below may gate it.
@@ -1221,6 +1302,8 @@ export default class GameScene extends Phaser.Scene {
         this.pedestals.push(ped);
         // W3W4 M3: a W3 skill pedestal arms the (otherwise inert) W3 update path
         if (e.skill === "magnet" || e.skill === "bubble") this._w3 = true;
+        // W3W4 M4: same pattern for the World-4 pair
+        if (e.skill === "freeze" || e.skill === "beam") this._w4 = true;
         break;
       }
       case "anchor": {
@@ -1885,6 +1968,127 @@ export default class GameScene extends Phaser.Scene {
         this._w3 = true;
         break;
       }
+
+      // --- W3W4 M4: World-4 terrain devices & enemies -----------------------
+      case "dark": {
+        // DARK ZONE (rect, tile coords): inside, ambient render is near-black —
+        // the screen-space darkness mask (built in create once any zone exists)
+        // covers it; robots' glow radii + the beam cone are erased as reveals.
+        // Kid-fair: the glow radius ALWAYS shows immediate surroundings.
+        const rect = new Phaser.Geom.Rectangle(e.x * TILE, e.y * TILE, e.w * TILE, e.h * TILE);
+        // faint violet edge seam so the zone boundary itself reads on both tiers
+        const edge = this.add.graphics().setDepth(DEPTH.terrain + 1);
+        edge.lineStyle(2, 0x8f7bff, 0.35).strokeRect(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2);
+        this.darkZones.push({ rect });
+        this._w4 = true;
+        break;
+      }
+      case "ghost": {
+        // INVISIBLE PLATFORM: a real static platform body (physics identical to
+        // a drawn one — solid ALWAYS) whose art is visible only while the beam
+        // cone lights it (+ ~1.5s afterglow). At rest a whisper-faint shimmer
+        // hint keeps it kid-fair-discoverable without giving the reveal away.
+        const w = (e.w || 2) * TILE;
+        const cx = e.x * TILE + w / 2;
+        const img = this.add.tileSprite(cx, e.y * TILE + 24, w, TILE, "ghosttile")
+          .setDepth(DEPTH.terrain).setAlpha(0.06);
+        this.physics.add.existing(img, true);
+        this.solidObjs.push(img); // reuses the platform collider family
+        this.ghosts.push({ img, lit: 0, baseA: 0.06 });
+        this._w4 = true;
+        break;
+      }
+      case "rotbridge": {
+        // ROTATING BRIDGE: a spinning platform assembly (lift-family kinematic
+        // bodies, moved ONLY by velocity so collisions/riding stay physics-true).
+        // Crossable when TIME-FREEZE holds it flat — the design's key beat.
+        const lenPx = (e.len || 4) * TILE;      // full bar length
+        const half = lenPx / 2;
+        const hub = this.add.image(px, py, "rothub").setDepth(DEPTH.entity + 1);
+        const segN = Math.max(4, Math.round(lenPx / 26));
+        const segs = [];
+        for (let i = 0; i < segN; i++) {
+          const off = -half + (i + 0.5) * (lenPx / segN);
+          const img = this.add.image(px + off, py, "rotseg").setDepth(DEPTH.entity);
+          this.physics.add.existing(img);
+          img.body.setAllowGravity(false);
+          img.body.setImmovable(true);
+          img.body.setSize(24, 12);
+          segs.push({ img, off });
+        }
+        this.rotBridges.push({
+          x: px, y: py, hub, segs,
+          angle: (e.angle || 0) * Math.PI / 180,
+          speed: ((e.speed || 40) * Math.PI) / 180, // rad/s
+        });
+        this._w4 = true;
+        break;
+      }
+      case "laser": {
+        // LASER SWEEPER: a rotating/oscillating beam — hazard-class kill on
+        // contact, telegraphed by being constantly visible + slow. Pooled draw
+        // (ONE shared Graphics repaints every beam), Canvas-safe colors.
+        // Freeze holds the angle (the state below is simply not stepped).
+        const img = this.add.image(px, py, "laseremit").setDepth(DEPTH.entity + 1);
+        this.addLightPool(px, py, 0xff5566, { alpha: 0.2, scale: 0.8 });
+        this.lasers.push({
+          img, x: px, y: py,
+          len: (e.len || 5) * TILE,
+          mode: e.mode || "spin",              // "spin" = full rotation, "sweep" = min..max ping-pong
+          speed: ((e.speed || 45) * Math.PI) / 180, // rad/s
+          min: ((e.min ?? 200) * Math.PI) / 180,
+          max: ((e.max ?? 340) * Math.PI) / 180,
+          angle: ((e.angle ?? e.min ?? 0) * Math.PI) / 180,
+          dir: 1,
+          endX: px, endY: py, // resolved beam endpoint (walls clip it)
+        });
+        this._w4 = true;
+        break;
+      }
+      case "icedoor": {
+        // ICE DOOR: a door-family barrier with a MELT-PROGRESS fill driven by
+        // beam exposure. Melt state only rises; once fully melted it opens
+        // permanently (body off, ice fades) — it can never re-freeze.
+        const h = (e.h || 3) * TILE;
+        const cy = e.y * TILE + h / 2;
+        const img = this.add.tileSprite(px, cy, TILE - 6, h, "icetile").setDepth(DEPTH.entity);
+        this.physics.add.existing(img, true);
+        this.doorGroup.add(img); // reuses the door collider family (players/bugs/jellies/crates)
+        this.addLightPool(px, cy, 0x9fd8ff, { alpha: 0.18, scale: 1 });
+        this.iceDoors.push({ id: e.id, img, x: px, topY: e.y * TILE, h, melt: 0, open: false, dripCd: 0 });
+        this._w4 = true;
+        break;
+      }
+      case "gloomy": {
+        // GLOOMY: a shadow blob that drifts toward robots in darkness (slow
+        // menace, standard hurt on touch) but FLEES the light cone and each
+        // robot's own glow radius. It parks on its home spot — put a plate
+        // under that spot and the gloomy JAMS it until the beam herds it off.
+        const img = this.add.image(px, py, "gloomy").setDepth(DEPTH.entity);
+        this.physics.add.existing(img);
+        img.body.setAllowGravity(false);
+        img.body.setSize(30, 24);
+        img.body.setCollideWorldBounds(true);
+        this.gloomies.push({ img, homeX: px, homeY: py, scared: 0, fleeX: 0, tex: "gloomy" });
+        this._w4 = true;
+        break;
+      }
+      case "ticker": {
+        // TICKER: a clockwork patroller — wind-up telegraph, FAST dash between
+        // its patrol ends. The KEY interaction: completely held by TIME-FREEZE
+        // (timers paused, velocity 0, harmless while frozen — safe to pass).
+        const img = this.add.image(px, py + 2, "ticker").setDepth(DEPTH.entity);
+        this.physics.add.existing(img);
+        img.body.setSize(30, 36).setOffset(2, 4);
+        const dir = e.facing || 1;
+        img.setFlipX(dir === -1);
+        this.tickers.push({
+          img, state: "wind", timer: 700 + ((e.x * 37) % 4) * 120, dir,
+          minX: e.min * TILE + 16, maxX: (e.max + 1) * TILE - 16, tex: "ticker",
+        });
+        this._w4 = true;
+        break;
+      }
     }
   }
 
@@ -2104,6 +2308,38 @@ export default class GameScene extends Phaser.Scene {
       }
       if (p.bubbleT > 0) { this.popBubble(p, false); return; } // re-press = release early
       if (p.bubbleCd <= 0) { this.grantBubble(p, p); return; }
+      sfx.denied();
+      return;
+    } else if (p.skill === "freeze") {
+      // W3W4 M4 — TIME-FREEZE: ACTION = freeze the WORLD for 5s. One cast at a
+      // time; the badge cooldown ring re-arms it. Players stay fully free —
+      // only device/enemy state machines stop stepping (see the freeze gates).
+      if (!this.frozen && p.freezeCd <= 0) { this.castFreeze(p); return; }
+      sfx.denied();
+      return;
+    } else if (p.skill === "beam") {
+      // W3W4 M4 — LIGHT-BEAM.
+      const padDownHeld = p.pad && p.pad.down.isDown;
+      if (p.keys.down.isDown || padDownHeld) {
+        // DOWN+ACTION = the standard buddy-reel chord (same guards as the
+        // grapple/magnet ropes — FL-001/FL-005 — REUSING startReeled).
+        const q = p.partner;
+        const d = q ? Math.hypot(q.x - p.x, q.y - p.y) : 0;
+        if (
+          q && !q.dead && !q.carriedBy && !q.zip && !q.reeled &&
+          d > 72 && d <= PHYS.grappleRange && p.grounded &&
+          (this.hasLOS(p.x, p.y, q.x, q.y) || this.hasLOS(p.x, p.y - 44, q.x, q.y - 24))
+        ) {
+          q.startReeled(p);
+          this.sparks.explode(this.fxBudget(6), p.x, p.y - 8);
+        } else {
+          sfx.denied();
+        }
+        return;
+      }
+      // plain ACTION: ignite the light cone — the HOLD itself is driven per
+      // frame in updateWorld4 (key isDown); this edge is the instant feedback.
+      if (p.beamMs > PHYS.beamMinMs) { this.setBeam(p, true); return; }
       sfx.denied();
       return;
     }
@@ -2448,6 +2684,10 @@ export default class GameScene extends Phaser.Scene {
   updateCrane(delta) {
     const c = this.crane;
     if (!c) return;
+    // W3W4 M4 freeze gate: the whole fight machine holds (timers/positions
+    // untouched — nothing here moves by velocity). Unreachable in 1-3 (no W4
+    // skill), listed for completeness so a future W4 crane freezes correctly.
+    if (this.frozen) return;
     const dt = delta / 1000;
     const b = c.body;
     const g = this.craneGfx;
@@ -2597,6 +2837,8 @@ export default class GameScene extends Phaser.Scene {
     // no-ops in shipped levels (magCrate/bubbleT only set by W3 skills).
     if (p.magCrate) this.releaseMagCrate(p, true);
     this.popBubble(p, false, true);
+    // W4: a dying beam robot's light goes out (no-op unless the beam skill lit it).
+    if (p.beamOn) this.setBeam(p, false);
     p.inWater = null;
     p.airMs = 0;
     p.clearStates();
@@ -3831,7 +4073,12 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
 
-    this.beltSprites.forEach((b) => (b.tilePositionX += b.beltDir * 60 * dt));
+    // W3W4 M4: `this.frozen` is the TIME-FREEZE world gate. It can only ever be
+    // true while a W4 level is running (castFreeze is reachable only from the
+    // freeze skill), so every `!this.frozen` guard below is byte-inert in the
+    // shipped game. Frozen devices are simply NOT STEPPED: timers untouched,
+    // kinematic bodies velocity-held at 0 — resume is exact by construction.
+    if (!this.frozen) this.beltSprites.forEach((b) => (b.tilePositionX += b.beltDir * 60 * dt));
 
     // drifting phase-wall shimmer: one shared counter, applied to every overlay
     if (this.phaseFlows.length) {
@@ -3901,8 +4148,8 @@ export default class GameScene extends Phaser.Scene {
         p.dustCd = 130;
       }
 
-      // conveyor drift (Heavyweight stands his ground)
-      if (p.skill !== "heavy" && p.grounded && !p.zip) {
+      // conveyor drift (Heavyweight stands his ground; a FROZEN belt is still)
+      if (p.skill !== "heavy" && p.grounded && !p.zip && !this.frozen) {
         const c = this.tileAt(p.x, p.body.bottom + 6);
         if (c === "<") p.x -= PHYS.beltPush * dt;
         else if (c === ">") p.x += PHYS.beltPush * dt;
@@ -4052,7 +4299,9 @@ export default class GameScene extends Phaser.Scene {
         const rect = new Phaser.Geom.Rectangle(p.body.x, p.body.y, p.body.width, p.body.height + 6);
         if (p.grounded && Phaser.Geom.Rectangle.Overlaps(pl.rect, rect)) weight += p.weight;
       }
-      const active = weight >= pl.threshold;
+      // W3W4 M4: a GLOOMY sitting on the plate JAMS it (pl._gloomed is written
+      // ONLY by updateWorld4 when gloomies exist — always falsy in shipped levels).
+      const active = !pl._gloomed && weight >= pl.threshold;
       // U2 plate-flash: a robot stepped on but the accumulated weight is short of
       // the threshold (the "needs 2, have 1" moment) → flash the pips 3× (cd 4s).
       if (pl.pipCont && !active && weight > 0 && pl._weight <= 0 && time > pl._flashCd) {
@@ -4188,6 +4437,13 @@ export default class GameScene extends Phaser.Scene {
 
     // lifts
     for (const lf of this.lifts) {
+      // W3W4 M4 freeze gate: a frozen lift holds position mid-travel — a solid
+      // stepping stone wherever it stands. holdTimer untouched; glow dark.
+      if (this.frozen) {
+        lf.img.body.setVelocityY(0);
+        if (lf.glow) lf.glow.setAlpha(0);
+        continue;
+      }
       let weight = 0;
       for (const p of this.players) {
         if (p.dead || p.carriedBy) continue;
@@ -4243,6 +4499,9 @@ export default class GameScene extends Phaser.Scene {
     for (const cr of this.crushers) {
       const img = cr.img;
       const body = img.body;
+      // W3W4 M4 freeze gate: hold the phase — velocity 0, timer NOT decremented,
+      // state untouched. Resume picks up the exact ms it left off.
+      if (this.frozen) { body.setVelocityY(0); continue; }
       cr.timerLast = cr.timer;
       switch (cr.state) {
         case "hold":
@@ -4301,6 +4560,9 @@ export default class GameScene extends Phaser.Scene {
     // bugs: patrol, turn at walls/edges, resolve player contact
     this.bugs.children.each((bug) => {
       if (!bug.active) return;
+      // W3W4 M4 freeze gate: a frozen bug is held in place and harmless
+      // (grounded, gravity keeps it seated; contact checks skipped).
+      if (this.frozen) { bug.setVelocityX(0); return; }
       const dir = Math.sign(bug.body.velocity.x) || 1;
       const aheadX = bug.x + dir * 26;
       const floorAhead = this.isSolidChar(this.tileAt(aheadX, bug.body.bottom + 10));
@@ -4342,6 +4604,7 @@ export default class GameScene extends Phaser.Scene {
     this.updateCrane(delta);
     this.updateWorld2(time, delta, dt);
     this.updateWorld3(time, delta, dt); // W3W4 M3: early-returns unless W3 content is present
+    this.updateWorld4(time, delta, dt); // W3W4 M4: early-returns unless W4 content is present
 
     // ropes: slight catenary sag, a hook head at the far end, and speed-lines
     // while the grappler is zipping. Reeling gets the same rope + pull dust.
@@ -4513,6 +4776,9 @@ export default class GameScene extends Phaser.Scene {
     this.beamGfx.clear();
     for (const r of this.rollers) {
       const img = r.img;
+      // W3W4 M4 freeze gate: a frozen roller is held (velocity 0, state/timer
+      // untouched, beam dark + harmless while the world is stopped).
+      if (this.frozen) { img.body.setVelocityX(0); continue; }
       if (r.state === "patrol") {
         img.body.setVelocityX(58 * r.dir);
         if (img.body.blocked.left || img.x < r.minX + 20) r.dir = 1;
@@ -5325,6 +5591,8 @@ export default class GameScene extends Phaser.Scene {
     for (const j of this.jellies) {
       const img = j.img;
       const b = img.body;
+      // W3W4 M4 freeze gate: held in place, timers untouched, harmless.
+      if (this.frozen) { b.setVelocity(0, 0); continue; }
       if (j.hitCd > 0) j.hitCd -= delta;
       if (j.state === "patrol") {
         b.velocity.x = 42 * j.dir;
@@ -5381,6 +5649,8 @@ export default class GameScene extends Phaser.Scene {
     for (const ch of this.chompers) {
       const img = ch.img;
       const b = img.body;
+      // W3W4 M4 freeze gate: held in place, state/timer untouched, harmless.
+      if (this.frozen) { b.setVelocityX(0); continue; }
       if (ch.defanged) {
         // harmless dozer: contented slow wander around home, nothing else
         b.velocity.x = 26 * ch.dir;
@@ -5448,7 +5718,451 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // --- W3W4 L33: the scrap storm (lanes / shield / fuse-cores) -------------
-    if (this.stormLanes.length) this.updateStorm(time, delta, dt);
+    // (M4: a frozen storm holds — chunks stop mid-air, timers pause.)
+    if (this.stormLanes.length && !this.frozen) this.updateStorm(time, delta, dt);
+  }
+
+  // --- W3W4 M4: World-4 mechanics ----------------------------------------------
+  // Everything below only runs when `_w4` is armed (a W4 skill/ent in the loaded
+  // level), so the shipped W1-W3 game never enters these paths.
+
+  // TIME-FREEZE cast: flip the world gate. PHYSICS-SACRED by construction —
+  // nothing is saved/restored, because frozen device state machines are simply
+  // NOT STEPPED (their `if (this.frozen)` gates hold velocity at 0 and skip the
+  // timer decrement), so every position/timer resumes byte-identical. Players,
+  // killPlayer/respawn (scene-clock delayedCall), finishLevel and the save are
+  // untouched by the gate — they can NEVER freeze.
+  castFreeze(p) {
+    this.frozen = true;
+    this.freezeT = PHYS.freezeMs;
+    // the badge ring runs cast->ready: the 5s hold + the ~8s recharge
+    p.freezeCd = PHYS.freezeMs + PHYS.freezeCdMs;
+    sfx.freezeCast();
+    this.starBurst.explode(this.fxBudget(10), p.x, p.y - 10);
+    if (this._freezeWash) this._freezeWash.setVisible(true).setAlpha(0.07);
+    // stamp pooled frost panels on every held device (drawn art — Canvas-safe;
+    // ADD blend shimmer on WebGL). Frozen targets are static, so place once.
+    const targets = [];
+    this.crushers.forEach((c) => targets.push(c.img));
+    this.lifts.forEach((l) => targets.push(l.img));
+    this.lasers.forEach((l) => targets.push(l.img));
+    this.tickers.forEach((t) => targets.push(t.img));
+    this.gloomies.forEach((gl) => targets.push(gl.img));
+    this.rotBridges.forEach((rb) => targets.push(rb.hub));
+    for (let i = 0; i < this._iceOverlays.length; i++) {
+      const ov = this._iceOverlays[i];
+      const t = targets[i];
+      if (t) {
+        ov.setVisible(true).setPosition(t.x, t.y)
+          .setDisplaySize(t.displayWidth + 16, t.displayHeight + 16);
+      } else ov.setVisible(false);
+    }
+    this.w4ActionPose(p, "freeze");
+  }
+
+  endFreeze() {
+    if (!this.frozen) return;
+    this.frozen = false;
+    this.freezeT = 0;
+    sfx.freezeEnd();
+    if (this._freezeWash) this._freezeWash.setVisible(false);
+    for (const ov of this._iceOverlays) ov.setVisible(false);
+  }
+
+  // LIGHT-BEAM ignite/douse (visual + sfx edges; the hold is driven per frame).
+  setBeam(p, on) {
+    if (p.beamOn === on) return;
+    p.beamOn = on;
+    const cone = this.beamCones && this.beamCones[p.idx];
+    if (cone) cone.setVisible(on);
+    if (on) { sfx.beamOn(); this.w4ActionPose(p, "beam"); }
+    else sfx.beamOff();
+  }
+
+  // Cosmetic A-series action overlay dispatch (body-invariant; rig-off = no-op).
+  w4ActionPose(p, kind) {
+    const rig = this.anim && this.anim.enabled && this.anim.rigFor(p);
+    if (rig && rig.startW4Action) rig.startW4Action(kind, p.facing);
+  }
+
+  // Is (x, y) inside `p`'s lit cone (range + half-angle + wall LOS)?
+  coneHits(p, x, y) {
+    const ox = p.x + p.facing * 8, oy = p.y - 10;
+    const dx = x - ox, dy = y - oy;
+    const d = Math.hypot(dx, dy);
+    if (d < 6) return true; // point-blank always counts
+    if (d > PHYS.beamRange) return false;
+    const da = Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(dy, dx) - p.beamAim));
+    if (da > PHYS.beamHalf) return false;
+    return this.hasLOS(ox, oy, x, y);
+  }
+
+  // Point inside any dark zone?
+  inDark(x, y) {
+    for (const dz of this.darkZones) {
+      if (Phaser.Geom.Rectangle.Contains(dz.rect, x, y)) return true;
+    }
+    return false;
+  }
+
+  // An ICE DOOR fully melted: opens PERMANENTLY (state only ever rises).
+  openIceDoor(d) {
+    d.open = true;
+    d.melt = PHYS.iceMeltMs;
+    d.img.body.enable = false;
+    this.opened.add(d.id);
+    sfx.iceCrack(d.x, d.topY + d.h / 2);
+    this.boom.explode(this.fxBudget(10), d.x, d.topY + d.h / 2);
+    this.jetDrips.emitParticleAt(d.x - 8, d.topY + d.h - 10, this.fxBudget(2));
+    this.jetDrips.emitParticleAt(d.x + 8, d.topY + d.h - 10, this.fxBudget(2));
+    this.tweens.add({ targets: d.img, alpha: 0.08, duration: 500, ease: "quad.out" });
+    if (!this._iceBlipFired) {
+      this._iceBlipFired = true;
+      this.game.events.emit("bb:blip", "KOBI: You MELTED my beautiful ice door?! That took me AGES to chill. ...It was very pretty. WAS.");
+    }
+  }
+
+  // One frame of every World-4 system. Early-returns unless W4 content is present.
+  updateWorld4(time, delta, dt) {
+    if (!this._w4) return;
+    const g = this.w4Gfx;
+    if (g) g.clear();
+    const fsc = uxFlashScale(); // U11 comfort: blink rates scale like every other flash
+
+    // --- the freeze clock (world-gate) — never freezes ITSELF: this timer, the
+    // players, killPlayer/respawn and finishLevel all keep running normally.
+    if (this.frozen) {
+      this.freezeT -= delta;
+      if (this._freezeWash) {
+        // last ~0.9s: the wash blinks a gentle "about to thaw" warning
+        const blink = this.freezeT < 900 ? (Math.floor(time / (170 / fsc)) % 2 ? 0.03 : 0.1) : 0.07;
+        this._freezeWash.setAlpha(blink);
+      }
+      if (this.freezeT <= 0) this.endFreeze();
+    }
+
+    // --- players: freeze cooldown, beam hold/battery/aim, badge meters -------
+    for (const p of this.players) {
+      if (p.freezeCd > 0) p.freezeCd -= delta;
+      if (p.skill === "beam") {
+        const P = p.pad;
+        const actHeld = p.keys.act.isDown || (p.keys.actAlt && p.keys.actAlt.isDown) || (P && P.act.isDown);
+        const dnHeld = p.keys.down.isDown || (P && P.down.isDown);
+        // hold-to-shine: stays lit while held and charged; a drained battery
+        // must recover past beamMinMs before it can re-ignite (no flicker-spam)
+        const wantOn = actHeld && !dnHeld && !p.dead && !p.carriedBy &&
+          (p.beamOn ? p.beamMs > 0 : p.beamMs > PHYS.beamMinMs);
+        this.setBeam(p, wantOn);
+        if (p.beamOn) {
+          const upHeld = p.keys.jump.isDown || (P && P.jump.isDown);
+          p.beamAim = upHeld ? -Math.PI / 2 : (p.facing < 0 ? Math.PI : 0);
+          p.beamMs = Math.max(0, p.beamMs - delta); // battery drains while lit
+          sfx.beamHum(p.x, p.y); // rate-limited soft hum
+          if (p.beamMs <= 0) this.setBeam(p, false);
+        } else {
+          // recharges ~2x slower than it drains
+          p.beamMs = Math.min(PHYS.beamBattMs, p.beamMs + delta * PHYS.beamRegen);
+        }
+        // position the visible cone (alpha-baked wedge; ADD on WebGL)
+        const cone = this.beamCones && this.beamCones[p.idx];
+        if (cone && p.beamOn) {
+          cone.setPosition(p.x + p.facing * 8, p.y - 10).setRotation(p.beamAim)
+            .setAlpha(0.85 + 0.1 * Math.sin(time / 90));
+        }
+      } else if (p.beamOn) {
+        this.setBeam(p, false); // skill lost/changed mid-hold
+      }
+
+      // badge meters (drawn into the shared overlay — zero alloc)
+      if (g && p.badge && p.badge.visible) {
+        const bx = p.badge.x, by = p.badge.y;
+        if (p.skill === "freeze" && p.freezeCd > 0) {
+          // cooldown ring sweeps clockwise from 12 o'clock as it recharges
+          const frac = 1 - p.freezeCd / (PHYS.freezeMs + PHYS.freezeCdMs);
+          g.lineStyle(3, 0x9fd8ff, 0.9);
+          g.beginPath();
+          g.arc(bx, by, 20, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * frac);
+          g.strokePath();
+        } else if (p.skill === "beam") {
+          // battery bar under the badge; blinks soft-red when nearly drained
+          const frac = p.beamMs / PHYS.beamBattMs;
+          const low = frac < 0.25;
+          const w = 30;
+          g.fillStyle(COLORS.hudBg, 0.85).fillRect(bx - w / 2 - 1, by + 15, w + 2, 7);
+          const a = low && Math.floor(time / (180 / fsc)) % 2 === 0 ? 0.35 : 0.95;
+          g.fillStyle(low ? 0xff5566 : 0xffe08a, a).fillRect(bx - w / 2, by + 16, Math.max(1, w * frac), 5);
+        }
+      }
+    }
+
+    // --- invisible platforms: solid ALWAYS; visible while coned (+ afterglow) -
+    for (const gh of this.ghosts) {
+      if (gh.lit > 0) gh.lit -= delta;
+      const b = gh.img;
+      const hw = b.width / 2;
+      for (const p of this.players) {
+        if (p.dead || !p.beamOn) continue;
+        if (this.coneHits(p, b.x, b.y) || this.coneHits(p, b.x - hw + 8, b.y) || this.coneHits(p, b.x + hw - 8, b.y)) {
+          if (gh.lit <= 0) sfx.ghostReveal(b.x, b.y);
+          gh.lit = PHYS.ghostGlowMs;
+          break;
+        }
+      }
+      const a = gh.lit > 0 ? Math.min(1, gh.lit / (PHYS.ghostGlowMs * 0.55)) : 0;
+      b.setAlpha(gh.baseA + (1 - gh.baseA) * a);
+    }
+
+    // --- ice doors: beam exposure fills the melt (never drains; opens once) ---
+    for (const d of this.iceDoors) {
+      if (d.open) continue;
+      let lit = false;
+      for (const p of this.players) {
+        if (p.dead || !p.beamOn) continue;
+        const fx = d.x - Math.sign(d.x - p.x || 1) * ((TILE - 6) / 2 + 3); // near face
+        for (let k = 0; k < 3; k++) {
+          if (this.coneHits(p, fx, d.topY + (k + 0.5) * (d.h / 3))) { lit = true; break; }
+        }
+        if (lit) break;
+      }
+      if (lit) {
+        d.melt += delta;
+        sfx.iceMelt(d.x, d.topY + d.h / 2); // rate-limited sizzle
+        d.dripCd -= delta;
+        if (d.dripCd <= 0) {
+          this.jetDrips.emitParticleAt(d.x + ((time % 7) - 3) * 4, d.topY + d.h - 8, this.fxBudget(1));
+          d.dripCd = 150;
+        }
+        if (d.melt >= PHYS.iceMeltMs) { this.openIceDoor(d); continue; }
+      }
+      const prog = d.melt / PHYS.iceMeltMs;
+      d.img.setAlpha(1 - prog * 0.45); // thins visibly as it melts
+      if (g && prog > 0) {
+        // melt-progress fill above the door (meaning-bearing, drawn both tiers)
+        g.fillStyle(COLORS.hudBg, 0.88).fillRect(d.x - 21, d.topY - 15, 42, 8);
+        g.fillStyle(0x9fd8ff, 0.95).fillRect(d.x - 20, d.topY - 14, Math.max(1, 40 * Math.min(1, prog)), 6);
+      }
+    }
+
+    // --- laser sweepers: rotating/oscillating hazard beams (pooled draw) ------
+    if (this.lasers.length) {
+      const lg = this.laserGfx;
+      lg.clear();
+      for (const L of this.lasers) {
+        if (!this.frozen) {
+          // FREEZE GATE: angle simply not advanced while frozen
+          if (L.mode === "sweep") {
+            L.angle += L.speed * L.dir * dt;
+            if (L.angle >= L.max) { L.angle = L.max; L.dir = -1; }
+            else if (L.angle <= L.min) { L.angle = L.min; L.dir = 1; }
+          } else {
+            L.angle += L.speed * dt;
+            if (L.angle > Math.PI * 2) L.angle -= Math.PI * 2;
+          }
+        }
+        const ca = Math.cos(L.angle), sa = Math.sin(L.angle);
+        let end = L.len;
+        for (let s = 18; s <= L.len; s += 12) {
+          if (this.isSolidChar(this.tileAt(L.x + ca * s, L.y + sa * s))) { end = s; break; }
+        }
+        L.endX = L.x + ca * end;
+        L.endY = L.y + sa * end;
+        L.img.setRotation(L.angle);
+        // constant-visible telegraph: soft glow sheath + hot core + tip spark.
+        // Frozen beams repaint pale ice-blue (still lethal — pass the GAPS).
+        const glowCol = this.frozen ? 0x9fd8ff : 0xff5566;
+        const coreCol = this.frozen ? 0xe8f6ff : 0xffd9de;
+        lg.lineStyle(7, glowCol, 0.22);
+        lg.lineBetween(L.x + ca * 12, L.y + sa * 12, L.endX, L.endY);
+        lg.lineStyle(2.5, coreCol, 0.9);
+        lg.lineBetween(L.x + ca * 12, L.y + sa * 12, L.endX, L.endY);
+        lg.fillStyle(coreCol, 0.85).fillCircle(L.endX, L.endY, 3);
+        // hazard-class contact (bubble = the standard sharp pop)
+        this._w4Line.setTo(L.x + ca * 14, L.y + sa * 14, L.endX, L.endY);
+        for (const p of this.players) {
+          if (p.dead || p.invuln > 0 || p.carriedBy) continue;
+          this._w4Rect2.setTo(p.body.x, p.body.y, p.body.width, p.body.height);
+          if (Phaser.Geom.Intersects.LineToRectangle(this._w4Line, this._w4Rect2)) {
+            if (p.bubbleT > 0) this.popBubble(p, true);
+            else { sfx.laserZap(p.x, p.y); this.killPlayer(p); }
+          }
+        }
+      }
+    }
+
+    // --- rotating bridges: kinematic segment ring (velocity-steered) ----------
+    for (const rb of this.rotBridges) {
+      if (!this.frozen) rb.angle += rb.speed * dt; // FREEZE GATE: angle holds
+      const ca = Math.cos(rb.angle), sa = Math.sin(rb.angle);
+      for (const s of rb.segs) {
+        const b = s.img.body;
+        if (this.frozen) {
+          b.setVelocity(0, 0); // held EXACTLY where it stands — a stepping stone
+        } else {
+          // exact kinematic steering: velocity = position error / dt, so the
+          // segment lands ON its ring slot each step (collisions fully apply)
+          const txp = rb.x + ca * s.off, typ = rb.y + sa * s.off;
+          b.setVelocity(
+            Phaser.Math.Clamp((txp - s.img.x) / dt, -420, 420),
+            Phaser.Math.Clamp((typ - s.img.y) / dt, -420, 420)
+          );
+        }
+        s.img.setRotation(rb.angle); // visual; the arcade AABB ignores rotation
+      }
+      rb.hub.setRotation(rb.angle);
+    }
+
+    // --- gloomies: darkness menace / light-fear / plate jammer ----------------
+    for (const gl of this.gloomies) {
+      const img = gl.img;
+      const b = img.body;
+      if (this.frozen) { b.setVelocity(0, 0); continue; } // held + harmless
+      if (gl.scared > 0) gl.scared -= delta;
+      // the beam cone DAZZLES it — it flees the light
+      for (const p of this.players) {
+        if (p.dead || !p.beamOn) continue;
+        if (this.coneHits(p, img.x, img.y)) {
+          if (gl.scared <= 0) sfx.gloomFlee(img.x, img.y);
+          gl.scared = 550;
+          gl.fleeX = p.x;
+          gl.fleeY = p.y;
+          break;
+        }
+      }
+      const wantTex = gl.scared > 0 ? "gloomy_scared" : "gloomy";
+      if (gl.tex !== wantTex) { gl.tex = wantTex; img.setTexture(wantTex); }
+      // nearest live robot
+      let near = null, nd = Infinity;
+      for (const p of this.players) {
+        if (p.dead || p.carriedBy) continue;
+        const d = Math.hypot(p.x - img.x, p.y - img.y);
+        if (d < nd) { nd = d; near = p; }
+      }
+      const homeD = Math.hypot(gl.homeX - img.x, gl.homeY - img.y);
+      const seated = homeD < 44; // ON its post (the switch it guards)
+      if (gl.scared > 0) {
+        const a = Math.atan2(img.y - gl.fleeY, img.x - gl.fleeX);
+        b.setVelocity(Math.cos(a) * 175, Math.sin(a) * 110); // flee the cone FAST
+      } else if (seated) {
+        // a SEATED guard is stubborn: mere glow doesn't move it — only the
+        // beam does (the design's "scare it off the switch" beat). Its touch
+        // is still the standard hurt, so it IS the obstacle. It settles the
+        // last few px onto its exact post (so it re-JAMS the plate square).
+        if (homeD > 8) b.setVelocity(((gl.homeX - img.x) / homeD) * 30, ((gl.homeY - img.y) / homeD) * 30);
+        else b.setVelocity(0, 0);
+      } else if (near && nd < PHYS.glowRadius) {
+        const a = Math.atan2(img.y - near.y, img.x - near.x);
+        b.setVelocity(Math.cos(a) * 58, Math.sin(a) * 40); // roaming: shy of the glow
+      } else if (near && nd < 300 && this.inDark(img.x, img.y)) {
+        const a = Math.atan2(near.y - img.y, near.x - img.x);
+        b.setVelocity(Math.cos(a) * 42, Math.sin(a) * 28); // the slow dark menace
+        sfx.gloomHiss(img.x, img.y); // rate-limited whisper
+      } else {
+        // drift home to re-jam its switch — but a robot's glow BLOCKS the
+        // return (stand your ground on the plate and it hovers at bay)
+        const glowBlocked = this.players.some((p) => !p.dead &&
+          Math.hypot(p.x - gl.homeX, p.y - gl.homeY) < PHYS.glowRadius);
+        if (!glowBlocked && homeD > 6) {
+          b.setVelocity(((gl.homeX - img.x) / homeD) * 55, ((gl.homeY - img.y) / homeD) * 42);
+        } else {
+          b.setVelocity(0, 0);
+        }
+      }
+      // touch = the standard hurt (bubble = sharp pop)
+      for (const p of this.players) {
+        if (p.dead || p.carriedBy || p.invuln > 0) continue;
+        if (Math.abs(p.x - img.x) < 30 && Math.abs(p.y - img.y) < 28) {
+          if (p.bubbleT > 0) this.popBubble(p, true);
+          else this.killPlayer(p);
+        }
+      }
+    }
+    // plate jam flags — written ONLY here (gloomies present), read by the plates loop
+    if (this.gloomies.length) {
+      for (const pl of this.plates) {
+        let jam = false;
+        for (const gl of this.gloomies) {
+          if (Math.abs(gl.img.x - pl.rect.centerX) < pl.rect.width / 2 + 10 &&
+              Math.abs(gl.img.y - pl.rect.centerY) < 48) { jam = true; break; }
+        }
+        pl._gloomed = jam;
+      }
+    }
+
+    // --- tickers: wind-up telegraph -> FAST dash; utterly held by freeze ------
+    for (const t of this.tickers) {
+      const img = t.img;
+      const b = img.body;
+      if (this.frozen) { b.setVelocityX(0); continue; } // held + SAFE to pass
+      t.timer -= delta;
+      if (t.state === "wind") {
+        b.setVelocityX(0);
+        if (t.tex !== "ticker_wind") { t.tex = "ticker_wind"; img.setTexture("ticker_wind"); }
+        sfx.tickTock(img.x, img.y); // rate-limited tick-tock telegraph
+        if (t.timer <= 0) {
+          t.state = "dash";
+          t.timer = 2600;
+          t.tex = "ticker";
+          img.setTexture("ticker");
+          sfx.tickerDash(img.x, img.y);
+        }
+      } else {
+        b.setVelocityX(240 * t.dir); // the fast dash
+        img.setFlipX(t.dir === -1);
+        const atEnd = (t.dir > 0 && img.x >= t.maxX) || (t.dir < 0 && img.x <= t.minX) ||
+          b.blocked.left || b.blocked.right;
+        if (atEnd || t.timer <= 0) {
+          b.setVelocityX(0);
+          t.dir = -t.dir;
+          t.state = "wind";
+          t.timer = 700;
+        }
+      }
+      // contact = standard hurt — NEVER while frozen (gated above)
+      for (const p of this.players) {
+        if (p.dead || p.carriedBy || p.invuln > 0) continue;
+        if (Math.abs(p.x - img.x) < 34 && Math.abs(p.y - img.y) < 38) {
+          if (p.bubbleT > 0) { this.popBubble(p, true); p.setVelocity(t.dir * 260, -180); }
+          else this.killPlayer(p);
+        }
+      }
+    }
+
+    // --- dark zones: repaint the screen-space darkness mask -------------------
+    // clear + stamp + erase on a HALF-RES RenderTexture (no texture rebake, no
+    // alloc). Zone rects stamp black; the robots' glow radii and any lit beam
+    // cone are erased through gradient stamps (kid-fair: never pitch-black
+    // around a robot). Runs both tiers — dark zones are meaning-bearing.
+    if (this.darkRT) {
+      const cam = this.cameras.main;
+      const z = cam.zoom * 0.5; // world px -> half-res RT px
+      const vx = cam.worldView.x, vy = cam.worldView.y;
+      const rt = this.darkRT;
+      rt.clear();
+      const R = this._darkStampRect;
+      for (const dz of this.darkZones) {
+        const r = dz.rect;
+        R.setPosition((r.x - vx) * z, (r.y - vy) * z);
+        R.setDisplaySize(Math.max(1, r.width * z), Math.max(1, r.height * z));
+        rt.draw(R);
+      }
+      const G = this._darkStampGlow;
+      for (const p of this.players) {
+        if (p.dead || !p.visible) continue;
+        const dia = (PHYS.glowRadius * 2 + 60) * z; // gradient reaches past the nominal radius
+        G.setPosition((p.x - vx) * z, (p.y - 8 - vy) * z);
+        G.setDisplaySize(dia, dia);
+        rt.erase(G);
+      }
+      const C = this._darkStampCone;
+      for (const p of this.players) {
+        if (p.dead || !p.beamOn) continue;
+        C.setPosition((p.x + p.facing * 8 - vx) * z, (p.y - 10 - vy) * z);
+        C.setRotation(p.beamAim);
+        const sc = ((PHYS.beamRange + 50) * z) / 320;
+        C.setScale(sc);
+        rt.erase(C);
+      }
+    }
   }
 
   // Bake the World-3 texture set ONCE, lazily, the first time a W3 level loads.
@@ -5813,6 +6527,260 @@ export default class GameScene extends Phaser.Scene {
       g.beginPath();
       g.moveTo(2, 2); g.lineTo(11, 9); g.lineTo(2, 16);
       g.strokePath();
+    });
+  }
+
+  // W3W4 M4: bake the World-4 texture set ONCE, lazily, the first time a W4
+  // level loads (shipped boot path bakes nothing new). Same conventions as
+  // ensureW3Textures: all DRAWN, Canvas-safe, translucency baked into the art,
+  // state changes are texture swaps (never tint).
+  ensureW4Textures() {
+    if (this.textures.exists("gloomy")) return;
+    const make = (key, w, h, draw) => {
+      const g = this.make.graphics({ add: false });
+      draw(g, w, h);
+      g.generateTexture(key, w, h);
+      g.destroy();
+    };
+    const shade = (hex, f) => {
+      const c = Phaser.Display.Color.IntegerToColor(hex);
+      const cl = (v) => Math.max(0, Math.min(255, Math.round(v)));
+      return Phaser.Display.Color.GetColor(cl(c.red * f), cl(c.green * f), cl(c.blue * f));
+    };
+
+    // darkness stamp: a plain black square (the RT scales it over each zone)
+    make("darkpx", 4, 4, (g) => g.fillStyle(0x000000, 1).fillRect(0, 0, 4, 4));
+    // glow-radius ERASE stamp: radial white->transparent (stacked rings bake the
+    // gradient; the RT erase consumes the alpha as hole depth)
+    make("glowmask", 256, 256, (g) => {
+      for (let r = 126; r > 4; r -= 3) {
+        g.fillStyle(0xffffff, 0.07);
+        g.fillCircle(128, 128, r);
+      }
+    });
+    // beam-cone ERASE stamp: apex-left wedge fading along its length
+    make("conemask", 320, 260, (g) => {
+      const cy = 130, N = 16;
+      for (let i = 0; i < N; i++) {
+        const x0 = 4 + (i / N) * 312, x1 = 4 + ((i + 1) / N) * 312;
+        const h0 = Math.min(124, x0 * 0.45) + 5, h1 = Math.min(124, x1 * 0.45) + 5;
+        g.fillStyle(0xffffff, 0.9 * (1 - (i / N) * 0.8));
+        g.fillPoints([
+          { x: x0, y: cy - h0 }, { x: x1, y: cy - h1 },
+          { x: x1, y: cy + h1 }, { x: x0, y: cy + h0 },
+        ], true);
+      }
+    });
+    // the VISIBLE beam cone: warm light wedge, translucency baked (Canvas-safe;
+    // GameScene adds ADD blend on WebGL only)
+    make("conelight", 320, 260, (g) => {
+      const cy = 130, N = 14;
+      for (let i = 0; i < N; i++) {
+        const x0 = 2 + (i / N) * 310, x1 = 2 + ((i + 1) / N) * 310;
+        const h0 = Math.min(120, x0 * 0.44) + 3, h1 = Math.min(120, x1 * 0.44) + 3;
+        g.fillStyle(0xffe8b0, 0.2 * (1 - (i / N) * 0.85) + 0.015);
+        g.fillPoints([
+          { x: x0, y: cy - h0 }, { x: x1, y: cy - h1 },
+          { x: x1, y: cy + h1 }, { x: x0, y: cy + h0 },
+        ], true);
+      }
+      // bright core streak down the middle
+      g.fillStyle(0xfff6d8, 0.16).fillRect(2, cy - 4, 250, 8);
+    });
+    // invisible platform ('ghost' ent): a holographic circuit plate — the art
+    // exists at full detail; VISIBILITY is what the beam drives (alpha).
+    make("ghosttile", 48, 48, (g) => {
+      g.fillStyle(0x2a2058, 0.85).fillRect(0, 0, 48, 48);
+      g.lineStyle(2, 0x8f7bff, 0.95).strokeRect(1, 1, 46, 46);
+      g.lineStyle(1, 0x35f0ff, 0.8);
+      g.lineBetween(6, 14, 26, 14); g.lineBetween(26, 14, 26, 34); g.lineBetween(26, 34, 42, 34);
+      g.fillStyle(0x35f0ff, 0.9).fillCircle(6, 14, 1.8).fillCircle(42, 34, 1.8);
+      g.fillStyle(0x8f7bff, 0.6).fillRect(0, 0, 48, 3); // top seam
+    });
+    // rotating bridge: hub (spoked drum) + plated segment
+    make("rothub", 30, 30, (g) => {
+      g.fillStyle(0x1c2742).fillCircle(15, 15, 13);
+      g.lineStyle(2, 0x8f7bff, 0.95).strokeCircle(15, 15, 13);
+      g.lineStyle(2, 0x39415e);
+      g.lineBetween(15, 4, 15, 26); g.lineBetween(4, 15, 26, 15);
+      g.fillStyle(0x35f0ff, 0.9).fillCircle(15, 15, 3);
+    });
+    make("rotseg", 26, 14, (g) => {
+      g.fillStyle(0x39415e).fillRoundedRect(0, 1, 26, 12, 3);
+      g.lineStyle(1.5, 0x6b78a8).strokeRoundedRect(0, 1, 26, 12, 3);
+      g.fillStyle(0x8f7bff, 0.8).fillRect(2, 2, 22, 2); // neon walking face
+      g.fillStyle(0x121a30).fillCircle(6, 8, 1.6).fillCircle(20, 8, 1.6);
+    });
+    // laser emitter: a squat turret with a hot lens
+    make("laseremit", 30, 30, (g) => {
+      g.fillStyle(0x1c2742).fillCircle(15, 15, 12);
+      g.lineStyle(2, 0x39415e).strokeCircle(15, 15, 12);
+      g.fillStyle(0x2a3350).fillRect(15, 11, 14, 8); // barrel (points +x; image rotates)
+      g.lineStyle(1.5, 0xff5566, 0.9).strokeRect(15, 11, 14, 8);
+      g.fillStyle(0xff5566).fillCircle(15, 15, 4.5);
+      g.fillStyle(0xffd9de, 0.95).fillCircle(15, 15, 2);
+    });
+    // ice door tile: glacial block with cracks + sheen (alpha carries the melt)
+    make("icetile", 42, 48, (g) => {
+      g.fillStyle(0x9fd8ff, 0.5).fillRect(0, 0, 42, 48);
+      g.fillStyle(0xd8f2ff, 0.55).fillRect(2, 2, 38, 10);
+      g.lineStyle(2, 0xcdeeff, 0.9).strokeRect(1, 1, 40, 46);
+      g.lineStyle(1.5, 0xeaf9ff, 0.7);
+      g.lineBetween(8, 6, 16, 20); g.lineBetween(16, 20, 12, 34);
+      g.lineBetween(28, 12, 24, 26); g.lineBetween(24, 26, 32, 40);
+      g.fillStyle(0xffffff, 0.75).fillCircle(9, 9, 1.8).fillCircle(31, 30, 1.5);
+    });
+    // frost overlay panel stamped on frozen devices (translucency baked)
+    make("icepanel", 48, 48, (g) => {
+      g.fillStyle(0x9fd8ff, 0.22).fillRoundedRect(0, 0, 48, 48, 9);
+      g.lineStyle(2, 0xcdeeff, 0.55).strokeRoundedRect(1, 1, 46, 46, 9);
+      // frost ferns in the corners
+      g.lineStyle(1.5, 0xe8f6ff, 0.6);
+      g.lineBetween(6, 12, 14, 6); g.lineBetween(8, 9, 12, 11);
+      g.lineBetween(42, 36, 34, 42); g.lineBetween(40, 39, 36, 37);
+      g.fillStyle(0xffffff, 0.7).fillCircle(24, 24, 1.6);
+    });
+    // GLOOMY: a shadow blob — near-black violet dome, two moon eyes; the scared
+    // face goes wide-eyed with a stretched wail mouth (texture swap, Canvas-safe)
+    const gloomy = (scared) => (g) => {
+      g.fillStyle(0x0d0a1e, 0.45).fillEllipse(18, 26, 30, 8); // seep shadow
+      g.fillStyle(0x191233, 0.96).fillEllipse(18, 15, 32, 24); // body
+      g.fillStyle(0x241a4a, 0.9).fillEllipse(14, 10, 12, 7);   // dim crown sheen
+      g.lineStyle(1.5, 0x3a2a6e, 0.9).strokeEllipse(18, 15, 32, 24);
+      // wispy skirt tips
+      g.fillStyle(0x191233, 0.9);
+      for (let x = 6; x <= 30; x += 6) g.fillTriangle(x, 24, x + 4, 24, x + 2, 29);
+      if (scared) {
+        g.fillStyle(0xcdd8ff, 0.95).fillCircle(12, 13, 3.4).fillCircle(24, 13, 3.4);
+        g.fillStyle(0x0c0a18).fillCircle(12, 13, 1.4).fillCircle(24, 13, 1.4);
+        g.fillStyle(0x0c0a18, 0.9).fillEllipse(18, 20, 5, 7); // wailing mouth
+      } else {
+        g.fillStyle(0x8fa3d9, 0.85).fillCircle(12, 13, 2.2).fillCircle(24, 13, 2.2);
+        g.fillStyle(0x0c0a18).fillCircle(12.6, 13.4, 1).fillCircle(24.6, 13.4, 1);
+      }
+    };
+    make("gloomy", 36, 32, gloomy(false));
+    make("gloomy_scared", 36, 32, gloomy(true));
+    // gloomy wisp (anim rig part): a trailing shadow ribbon
+    make("gloom_wisp", 8, 14, (g) => {
+      g.fillStyle(0x191233, 0.85).fillRoundedRect(2, 0, 4, 11, 2);
+      g.fillStyle(0x3a2a6e, 0.8).fillCircle(4, 12, 2);
+    });
+    // TICKER: a clockwork patroller — brass body, clock face, wind-up key. The
+    // wind pose flushes the face amber (the telegraph; texture swap).
+    const ticker = (wind) => (g) => {
+      // treads
+      g.fillStyle(0x14100c).fillRect(3, 34, 28, 7);
+      g.fillStyle(0x2a2018);
+      [8, 17, 26].forEach((x) => g.fillCircle(x, 37.5, 2.8));
+      // body
+      g.fillStyle(0x6e5426).fillRoundedRect(2, 4, 30, 32, 6);
+      g.lineStyle(2, wind ? 0xffb347 : 0x9a7a3a).strokeRoundedRect(2, 4, 30, 32, 6);
+      // clock face
+      g.fillStyle(wind ? 0xffd9a0 : 0xe8e2d0).fillCircle(17, 17, 9);
+      g.lineStyle(1.5, 0x3a2c14).strokeCircle(17, 17, 9);
+      g.lineStyle(2, 0x3a2c14);
+      g.lineBetween(17, 17, 17, 11);                       // minute hand
+      g.lineBetween(17, 17, wind ? 23 : 21, wind ? 15 : 19); // hour hand
+      g.fillStyle(0x3a2c14).fillCircle(17, 17, 1.4);
+      // little legs of rivets
+      g.fillStyle(0xffe0a8, 0.9).fillCircle(6, 8, 1.4).fillCircle(28, 8, 1.4);
+      if (wind) { // strained brow + motion ticks
+        g.lineStyle(2, 0xff5566, 0.9);
+        g.lineBetween(6, 2, 10, 5); g.lineBetween(28, 2, 24, 5);
+      }
+    };
+    make("ticker", 34, 42, ticker(false));
+    make("ticker_wind", 34, 42, ticker(true));
+    // wind-up key (anim rig part, spins on the back)
+    make("ticker_key", 10, 18, (g) => {
+      g.fillStyle(0xffd9a0).fillRoundedRect(3.5, 6, 3, 11, 1.5);
+      g.lineStyle(2.5, 0xffd9a0);
+      g.strokeCircle(3, 3.6, 2.6); g.strokeCircle(7, 3.6, 2.6);
+    });
+    // skill icons (badges + pedestal floaters + item cards)
+    make("icon_freeze", 26, 26, (g) => {
+      // a six-armed frost star
+      g.lineStyle(2.5, 0x9fd8ff, 0.95);
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        const cx = 13 + Math.cos(a) * 9.5, cy = 13 + Math.sin(a) * 9.5;
+        g.lineBetween(13, 13, cx, cy);
+        // arm barbs
+        g.lineBetween(
+          13 + Math.cos(a) * 6, 13 + Math.sin(a) * 6,
+          13 + Math.cos(a + 0.5) * 8.6, 13 + Math.sin(a + 0.5) * 8.6
+        );
+      }
+      g.fillStyle(0xe8f6ff, 0.95).fillCircle(13, 13, 2.2);
+    });
+    make("icon_beam", 26, 26, (g) => {
+      // stubby flashlight, cone of light to the upper right
+      g.fillStyle(0xffe08a, 0.28).fillTriangle(12, 12, 25, 2, 25, 16);
+      g.fillStyle(0x39415e).fillRoundedRect(2, 12, 10, 8, 2.5);
+      g.lineStyle(1.5, 0x8fa3d9).strokeRoundedRect(2, 12, 10, 8, 2.5);
+      g.fillStyle(0xffe08a).fillRect(11, 11, 3, 10);
+      g.fillStyle(0xfff6d8, 0.95).fillCircle(13, 16, 1.6);
+    });
+    // W4 backdrop identity: near-black datacenter/void — server-rack silhouettes,
+    // thin neon seams, a great dark eye-socket arch. Deterministic (seeded),
+    // matching propStrip1/2/3 conventions (512x864).
+    const seeded = (s) => () => {
+      s |= 0; s = (s + 0x6d2b79f5) | 0;
+      let t = Math.imul(s ^ (s >>> 15), 1 | s);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    make("propStrip4", 512, 864, (g) => {
+      const tone = shade(0x8f7bff, 0.22);  // violet darkened to near-silhouette
+      const seam = shade(0x35f0ff, 0.55);  // the thin neon seams
+      const rnd = seeded(404);
+      // server-rack rows: tall dark cabinets with sparse lit LED dots
+      [30, 120, 330, 430].forEach((x, i) => {
+        const w = 64 + (i % 2) * 14;
+        const topY = 300 + Math.floor(rnd() * 120);
+        g.fillStyle(tone, 1).fillRect(x, topY, w, 864 - topY);
+        g.fillStyle(shade(0x8f7bff, 0.3), 1).fillRect(x, topY, w, 6); // cap
+        // rack unit seams
+        g.fillStyle(shade(0x8f7bff, 0.13), 1);
+        for (let cy = topY + 18; cy < 850; cy += 26) g.fillRect(x + 4, cy, w - 8, 3);
+        // sparse blinking-LED dots (baked lit; sparse = calm)
+        for (let cy = topY + 24; cy < 840; cy += 26) {
+          if (rnd() < 0.3) {
+            g.fillStyle(rnd() < 0.7 ? seam : shade(0xff5566, 0.7), 1);
+            g.fillRect(x + 8 + Math.floor(rnd() * (w - 20)), cy, 3, 3);
+          }
+        }
+      });
+      // thin neon floor seams running the strip
+      g.fillStyle(seam, 1).fillRect(0, 700, 512, 2);
+      g.fillStyle(shade(0x35f0ff, 0.3), 1).fillRect(0, 703, 512, 1);
+      g.fillStyle(seam, 1).fillRect(0, 820, 512, 2);
+      // hanging cable bundles swooping between ceiling points
+      g.lineStyle(3, tone, 1);
+      const pts = [0, 128, 300, 512];
+      for (let i = 0; i < pts.length - 1; i++) {
+        const x0 = pts[i], x1 = pts[i + 1];
+        const sag = 60 + Math.floor(rnd() * 50);
+        let lx = x0, ly = 90;
+        for (let k = 1; k <= 8; k++) {
+          const t = k / 8;
+          const xx = x0 + (x1 - x0) * t;
+          const yy = 90 + Math.sin(t * Math.PI) * sag;
+          g.lineBetween(lx, ly, xx, yy);
+          lx = xx; ly = yy;
+        }
+      }
+      // a vast dark arch mid-strip — the void where the Core waits
+      g.lineStyle(6, tone, 1);
+      g.beginPath(); g.arc(256, 620, 150, Math.PI, Math.PI * 2); g.strokePath();
+      g.lineStyle(2, seam, 0.8);
+      g.beginPath(); g.arc(256, 620, 140, Math.PI * 1.15, Math.PI * 1.85); g.strokePath();
+      // sparse data-motes drifting in the arch (baked still points)
+      for (let i = 0; i < 14; i++) {
+        g.fillStyle(seam, 0.5 + rnd() * 0.4);
+        g.fillRect(150 + Math.floor(rnd() * 210), 480 + Math.floor(rnd() * 130), 2, 2);
+      }
     });
   }
 

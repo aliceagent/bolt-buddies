@@ -579,6 +579,51 @@ const TRACKS = {
     ],
   },
 
+  // w4 — reserve (World 4, THE DARK CORE): the somber-mysterious base the W4
+  // level tracks will extend. 82 BPM C-minor, long low pads under a sparse
+  // music-box sine lead, a slow two-note heartbeat bass, off-beat hats like
+  // dripping servers. Dark but never scary — a lonely machine humming to
+  // itself. 32 bars (A/B/hollow/tail), sectioned so it never loops one cell.
+  w4: {
+    bpm: 82, root: 48, scale: [0, 2, 3, 5, 7, 8, 10],
+    leadType: "sine", leadVol: 0.03, leadLen: 0.9,
+    arpType: "triangle", arpVol: 0.014, bassType: "triangle", bassVol: 0.08,
+    kickVol: 0.07, hatVol: 0.014, padVol: 0.032,
+    sections: [
+      {
+        name: "A", bars: 8,
+        pads: [pad(CH.CmLo), pad(CH.AbLo), pad(CH.Eb), pad(CH.GLo)],
+        bass: [b2(36, 43), b2(32, 39), b2(39, 46), b2(31, 38)],
+        lead: [row({ 4: 75 }), row({ 8: 72 }), row({ 4: 79, 12: 75 }), row({ 8: 74 })],
+        drums: [D.softKick, D.none, D.softKick, D.offhat],
+      },
+      {
+        name: "B", bars: 8,
+        pads: [pad(CH.Fm), pad(CH.CmLo), pad(CH.AbLo), pad(CH.Bb)],
+        bass: [b2(41, 48), b2(36, 43), b2(32, 39), b2(34, 41)],
+        lead: [row({ 2: 80, 10: 77 }), row({ 6: 75 }), row({ 2: 78, 10: 75 }), row({ 6: 74, 14: 70 })],
+        arp: [row({ 0: 60, 8: 63 }), row({ 0: 60, 8: 67 }), row({ 0: 56, 8: 60 }), row({ 0: 58, 8: 62 })],
+        drums: [D.softKick, D.offhat, D.softKick, D.tick],
+      },
+      {
+        name: "hollow", bars: 8,
+        pads: [pad(CH.CmLo), pad(CH.CmLo), pad(CH.AbLo), pad(CH.GLo)],
+        bass: [b2(36, 43), b2(36, 43), b2(32, 39), b2(31, 38)],
+        arp: [row({ 0: 60, 6: 63, 12: 67 }), row({ 0: 60, 6: 63, 12: 67 }),
+          row({ 0: 56, 6: 60, 12: 63 }), row({ 0: 55, 6: 58, 12: 62 })],
+        lead: [row({ 8: 84 }), row({}), row({ 8: 80 }), row({ 4: 79 })],
+        drums: [D.none, D.softKick, D.none, D.softKick],
+      },
+      {
+        name: "tail", bars: 8,
+        pads: [pad(CH.AbLo), pad(CH.Bb), pad(CH.CmLo), pad(CH.CmLo)],
+        bass: [b2(32, 39), b2(34, 41), b2(36, 43), b2(36, 48)],
+        lead: [row({ 4: 72 }), row({ 8: 74 }), row({ 4: 75, 12: 72 }), row({ 0: 72 })],
+        drums: [D.offhat, D.softKick, D.tick, D.none],
+      },
+    ],
+  },
+
   // w3l1 — 3-1 "Attract Mode" (W3W4 L31): the Magnet Works floor track. Extends
   // the w3 electro-funk identity (same C-minor-pentatonic root/scale family) but
   // a distinct mix per the S2 per-level conventions: brighter 116 BPM, a snappy
@@ -836,6 +881,9 @@ const LEVEL_TRACK = {
   // "wire the LEVEL music registry for world 3" entry — 3-1..3-3 above were
   // already mapped; this makes the sandbox exercise the same reuse path).
   "dev-w3": "w3",
+  // W3W4 M4: the dev-only World-4 mechanics sandbox rides the new w4 base track
+  // (the 4-1..4-3 rows above already pointed at "w4"; it now actually exists).
+  "dev-w4": "w4",
 };
 export function trackForLevel(id) {
   return LEVEL_TRACK[id] || "w1l1";
