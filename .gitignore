@@ -41,3 +41,4 @@ tools/beat/failures
 
 # bisect/debug scratch harnesses
 tools/_*.mjs
+tools/campaign.report.json
