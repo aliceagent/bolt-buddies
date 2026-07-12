@@ -55,17 +55,22 @@ the master output is capped at 0.8 with a limiter safeguard so nothing clips
 even when many sounds fire at once, and repeatable effects are rate-limited so
 crowds of enemies never turn into a wall of noise.
 
-## Current state
+## Current state — the game is FINISHED 🎉
+
+**A complete 12-level campaign across 4 worlds, with a boss finale, epilogue and credits.** Clearing 4-3 rescues Bolt, rolls the adoption epilogue + credits, and the title/hub acknowledge the completed campaign.
 
 - ✅ Engine core: 2-player input, physics, shared camera with soft zoom, checkpoints & instant respawn
 - ✅ World 1 — Assembly Wing (Grapple + Heavyweight): levels 1-1, 1-2, 1-3 (crane set-piece)
 - ✅ World 2 — Maintenance Tunnels (Phase-Walk + Tiny): vents, shimmer-walls & hand-hold escorting, fans, steam jets, Patrol Rollers, Wall-Wardens, throw finale
-- ✅ Hub map, hidden data-cores, localStorage save
+- ✅ World 3 — Magnet Works (Magnet Glove + Bubble Shield): metal crates & rail-cling, electric floors, vent updrafts, underwater tank traversal, Zap-Jellies & Junk-Chompers, the scrap-storm set piece
+- ✅ World 4 — The Dark Core (Time-Freeze + Light-Beam): dark zones & light-cone reveal, invisible platforms, rotating bridge, laser sweeps, ice doors, Gloomies & Tickers — and the 4-3 "KOBI's Heart" finale (blind the eye, freeze the turbines, unplug the tantrum; no violence)
+- ✅ The ending: Bolt rescued → adoption epilogue playground scene → credits → campaign-complete state on the title & hub
+- ✅ Hub map (all four wings), hidden data-cores, localStorage save
 - ✅ "Orientation Day" tutorial chamber (KOBI-narrated, reachable from the main menu)
 - ✅ UI polish pass: one shared typography scale (`FONT`/`FS`) and colour palette (`TEXT`), audited depth ordering, and a consistent world-accent language across HUD, hubs and intro banners
 - ✅ Full procedural animation pass (idle/run/skill/reaction rigs, enemies, crane & devices) and a non-blocking "Stuck?" recovery prompt (escalating gentle → firm R×2 restart), with a global mute dropdown and Orientation-Day restart lesson
-- ✅ Meticulous final visual audit (GFX P12): full gallery regenerated shot-by-shot and every meaning-bearing state verified under Canvas — zero known visual defects
-- 🔜 Worlds 3–4, story scenes, polish (see roadmap in the design doc)
+- ✅ Meticulous final visual audits (GFX P12 + W3W4 X1): full gallery regenerated shot-by-shot across all 12 levels, the finale, epilogue, credits and completion chips — every meaning-bearing state verified under Canvas
+- ✅ Close-out audit (W3W4 X1): the full-game campaign loop (title → NEW GAME → all 12 levels → epilogue → tutorial, real input only) green twice consecutively; the 24-run beat matrix green twice; softlock inventory closed (see `SOFTLOCK_INVENTORY.md`)
 
 ## Run locally
 
@@ -108,9 +113,19 @@ The repo works out of the box: framework **Vite**, build `npm run build`, output
    both robots through all 7 stations, and confirms hazard respawn, pedestal
    equips, the bridge lever, the throw-to-ledge, the both-robots exit, that the
    run writes NO save, and that continue returns to the Title menu (not the Hub).
-5. **Beat matrix** (`tools/beat/runner.mjs`, 12 runs) — plays every level of
-   Worlds 1-2 start-to-finish with real keyboard input only, in BOTH role
-   assignments, proving each level is beatable like a human would play it.
+5. **Beat matrix** (`tools/beat/runner.mjs`, 24 runs) — plays every level of
+   all four worlds start-to-finish with real keyboard input only, in BOTH role
+   assignments, proving each level is beatable like a human would play it
+   (the 4-3 run continues through the epilogue + credits to the Title).
+
+`npm run campaign` plays the WHOLE game like a human — title → NEW GAME → all
+12 levels in unlock order via real hub navigation → the finale's epilogue and
+credits → the tutorial — asserting save/unlock progression, the
+campaign-complete acknowledgements and zero watchdog/softlock false-fires,
+looping until two consecutive fully-clean campaigns.
+
+`npm run test:softlock` drives the full softlock audit (35 scenarios across the
+tutorial + all 12 levels); `SOFTLOCK_INVENTORY.md` holds the per-level verdicts.
 
 `npm run test:beat -- 1-3 2-2` runs the beat matrix for a subset of levels.
 Failures write artifacts (screenshot + state dump + step log) to

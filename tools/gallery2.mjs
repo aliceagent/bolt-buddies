@@ -1,6 +1,11 @@
 // GFX P12 — full final gallery capture (regen of tools/gallery.mjs + the states
 // shipped since: SL4 "Stuck?" prompt, the global mute dropdown, tutorial, pause,
 // settings, clear overlay, and representative animation frames).
+// W3W4 X1 extends it to the FULL 12-level game: 3-1…4-3 start+action, the
+// finale's "BOLT RESCUED!" clear overlay, the epilogue (story/credits/end)
+// and the campaign-complete Title/Hub chips. (The deep DRIVEN finale-fight
+// beats — blinded eye, frozen turbine run, Bolt rescue — stay with
+// tools/snap_w4_l43.mjs, which stages them with real input.)
 //   node tools/gallery2.mjs        (dev server on :5173)
 // Drops everything into tools/shots/gallery2/. Purely a screenshot tool — it never
 // asserts. Uses a FRESH BROWSER per chunk (menus together, then one browser per
@@ -83,6 +88,8 @@ await withPage(async ({ shot, scene, sleep }) => {
 const LV = [
   { i: 0, id: "1-1" }, { i: 1, id: "1-2" }, { i: 2, id: "1-3" },
   { i: 3, id: "2-1" }, { i: 4, id: "2-2" }, { i: 5, id: "2-3" },
+  { i: 6, id: "3-1" }, { i: 7, id: "3-2" }, { i: 8, id: "3-3" },
+  { i: 9, id: "4-1" }, { i: 10, id: "4-2" }, { i: 11, id: "4-3" },
 ];
 for (const { i, id } of LV) {
   try {
@@ -234,5 +241,62 @@ try {
   });
   console.log("captured animation frames");
 } catch (e) { console.log("anim chunk failed:", e.message); }
+
+// --- W3W4 X1: the FINALE clear overlay ("BOLT RESCUED!") ---------------------
+try {
+  await withPage(async ({ page, shot, scene, sleep }) => {
+    await scene(() => { const m = window.__BB.game.scene; ["UI","Title","Hub","Game","Epilogue"].forEach(k=>m.stop(k)); m.start("Game", { levelIndex: 11 }); });
+    await sleep(1800);
+    await scene(() => {
+      window.__BB.game.events.emit("bb:complete", {
+        index: 11, name: "KOBI'S HEART", tutorial: false, finale: true,
+        cores: [true, true, true], newlyUnlocked: true,
+        stats: { timeStr: "9:41.0", deaths: 3, coresCount: 3, grade: "KOBI: ...you may keep the dog." },
+      });
+    });
+    await sleep(1900); // panel pop + core reveal + saved tag
+    await shot("90-finale-clear-bolt-rescued");
+  });
+  console.log("captured finale clear overlay");
+} catch (e) { console.log("finale clear chunk failed:", e.message); }
+
+// --- W3W4 X1: epilogue playground -> credits -> end (key-advanced) -----------
+try {
+  await withPage(async ({ page, shot, scene, sleep }) => {
+    await scene(() => { const m = window.__BB.game.scene; ["UI","Title","Hub","Game","Epilogue"].forEach(k=>m.stop(k)); m.start("Epilogue"); });
+    await sleep(1700); // fade-in + first caption beat
+    await shot("91-epilogue-story");
+    for (let i = 0; i < 4; i++) { await page.keyboard.press("Enter"); await sleep(430); }
+    await sleep(4800); // mid-scroll through the credits roll
+    await shot("92-epilogue-credits");
+    await page.keyboard.press("Enter"); // skip the scroll -> "end"
+    await sleep(900);
+    await shot("93-epilogue-end");
+  });
+  console.log("captured epilogue + credits");
+} catch (e) { console.log("epilogue chunk failed:", e.message); }
+
+// --- W3W4 X1: campaign-complete acknowledgements (Title + Hub chips) ---------
+try {
+  await withPage(async ({ shot, scene, sleep }) => {
+    await scene(() => {
+      const cores = {};
+      for (const id of ["1-1","1-2","1-3","2-1","2-2","2-3","3-1","3-2","3-3","4-1","4-2","4-3"]) cores[id] = [true, true, true];
+      cores["1-1"] = [true, false, true]; cores["1-2"] = [false, true, true]; // FL-T3-A/B uncollectable cores stay honest
+      localStorage.setItem("bolt-buddies-save-v1", JSON.stringify({ unlocked: 13, cores }));
+      const m = window.__BB.game.scene; ["UI","Game","Hub","Epilogue"].forEach(k=>m.stop(k));
+      m.stop("Title"); m.start("Title");
+    });
+    await sleep(1700); // chip fades in over ~1.1s
+    await shot("94-title-complete-chip");
+    await scene(() => {
+      const m = window.__BB.game.scene; ["UI","Game","Title","Hub"].forEach(k=>m.stop(k));
+      m.start("Hub", { sel: 11 });
+    });
+    await sleep(900);
+    await shot("95-hub-complete-chip");
+  });
+  console.log("captured completion chips");
+} catch (e) { console.log("completion chips chunk failed:", e.message); }
 
 console.log("gallery2 captured ->", SHOTS);

@@ -74,6 +74,9 @@ const ROLES = { G: 0, H: 1, P: 0, T: 1, M: 0, B: 1, F: 0 };
 const LEVEL_BUDGET_MS = 4 * 60 * 1000; // per whole-level attempt
 const STEP_CAP_MS = 3.5 * 60 * 1000;   // hard cap on any single route step
 const MAX_LEVEL_ATTEMPTS = 3;          // thermal-flake retries per level
+const RETRY_COOLDOWN_MS = 25 * 1000;   // idle on the hub before a retry — a hot
+                                       // box caused the flake; retrying instantly
+                                       // just re-runs it hot (X1 finding)
 const TARGET_CLEAN = 2;                // two CONSECUTIVE clean campaigns
 const MAX_CAMPAIGNS = 6;               // safety cap on total passes
 
@@ -300,6 +303,11 @@ async function playLevel(page, bb, i) {
       if (attempt >= MAX_LEVEL_ATTEMPTS) {
         throw new Error(`${id} failed to complete after ${MAX_LEVEL_ATTEMPTS} attempts — last: ${lastErr.message}`);
       }
+      // idle cooldown on the hub before retrying: the flake means the box is
+      // running hot RIGHT NOW; an instant re-entry mostly re-fails (observed on
+      // 4-1's beam-herd step: 3 instant retries failed back-to-back while the
+      // same level passed standalone 2/2 minutes later).
+      await sleep(RETRY_COOLDOWN_MS);
     }
   }
 
@@ -483,6 +491,32 @@ async function runCampaign(page, bb, no, errCountAtStart, pageErrors) {
   }
   await page.reload({ waitUntil: "networkidle" });
   await sleep(1200);
+
+  // Warmup pass (same rationale + shape as the beat runner's): the reload above
+  // gives this campaign a cold JS context, and the first level a cold context
+  // simulates is measurably slower (JIT, texture generation, audio spin-up) —
+  // which made the SCORED 1-1 flake on attempt 1 repeatedly. Load 1-1 directly
+  // (setup poke, discarded — writes nothing), idle-drive ~10s, then return to
+  // the Title. The campaign proper still starts from a fresh save on the Title.
+  process.stdout.write(`\n  warmup: 1-1 idle pass ... `);
+  await page.evaluate(() => {
+    const m = window.__BB.game.scene;
+    ["UI", "Title", "Hub", "Epilogue"].forEach((k) => m.stop(k));
+    m.start("Game", { levelIndex: 0 });
+  });
+  await sleep(1600);
+  for (let w = 0; w < 4; w++) {
+    await page.keyboard.down("KeyD"); await sleep(800); await page.keyboard.up("KeyD");
+    await page.keyboard.down("KeyA"); await sleep(800); await page.keyboard.up("KeyA");
+    await sleep(400);
+  }
+  await page.evaluate(() => {
+    const m = window.__BB.game.scene;
+    ["UI", "Game", "Hub", "Epilogue"].forEach((k) => m.stop(k));
+    m.start("Title");
+  });
+  await sleep(900);
+  process.stdout.write(`done`);
 
   assert(await active(page, "Title"), "campaign starts on the Title scene");
   if (!fromIdx) assert((await readSave(page)) === null, "fresh save (no bolt-buddies-save-v1)");
