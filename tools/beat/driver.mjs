@@ -104,6 +104,8 @@ export class Driver {
         bubbleT: p.bubbleT || 0, bubbleCd: p.bubbleCd || 0,
         magCling: !!p.magCling, magCrate: !!p.magCrate,
         inWater: !!p.inWater, airMs: p.airMs || 0,
+        // W3W4 L41: freeze/beam state (0/false on W1-W3 levels — pure reads)
+        freezeCd: p.freezeCd || 0, beamOn: !!p.beamOn, beamMs: p.beamMs || 0,
         blocked: {
           left: p.body.blocked.left, right: p.body.blocked.right,
           down: p.body.blocked.down, up: p.body.blocked.up,
@@ -135,7 +137,17 @@ export class Driver {
             }
           : null,
         pods: s.pods ? s.pods.filter((p) => p.active).map((p) => ({ x: p.x, y: p.y })) : [],
-        plates: s.plates.map((p) => ({ id: p.id, active: p.active })),
+        plates: s.plates.map((p) => ({ id: p.id, active: p.active, gloomed: !!p._gloomed })),
+        // W3W4 L41: world-4 reads (false/empty everywhere but W4 — pure reads)
+        frozen: !!s.frozen,
+        freezeT: s.freezeT || 0,
+        ghosts: (s.ghosts || []).map((gh) => ({ x: gh.img.x, tx: gh.img.x / T, lit: gh.lit, alpha: gh.img.alpha })),
+        gloomies: (s.gloomies || []).map((gl) => ({
+          x: gl.img.x, y: gl.img.y, tx: gl.img.x / T, scared: gl.scared, homeX: gl.homeX, homeY: gl.homeY,
+        })),
+        tickers: (s.tickers || []).map((t) => ({ x: t.img.x, tx: t.img.x / T, state: t.state, dir: t.dir })),
+        rotbridges: (s.rotBridges || []).map((rb) => ({ angle: rb.angle })),
+        icedoors: (s.iceDoors || []).map((d) => ({ id: d.id, melt: d.melt, open: d.open })),
         // W3W4 L31: world-3 entity reads (empty arrays on W1-W2 levels)
         crates: (s.crates || []).map((c) => ({ x: c.img.x, y: c.img.y, tx: c.img.x / T, held: !!c.heldBy })),
         jellies: (s.jellies || []).map((j) => ({ x: j.img.x, y: j.img.y, tx: j.img.x / T, state: j.state })),

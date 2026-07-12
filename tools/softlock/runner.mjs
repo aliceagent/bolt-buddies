@@ -24,12 +24,13 @@ import tutScenarios from "./scenarios/tut.mjs";
 import world1Scenarios from "./scenarios/world1.mjs";
 import world2Scenarios from "./scenarios/world2.mjs";
 import world3Scenarios from "./scenarios/world3.mjs";
+import world4Scenarios from "./scenarios/world4.mjs";
 
 const URL = process.env.BB_URL || "http://localhost:5173/?canvas=1";
 const CHROMIUM = process.env.BB_CHROMIUM || "/opt/pw-browsers/chromium";
 const SCENARIO_BUDGET_MS = 3.5 * 60 * 1000;
 
-const ALL = [...tutScenarios, ...world1Scenarios, ...world2Scenarios, ...world3Scenarios];
+const ALL = [...tutScenarios, ...world1Scenarios, ...world2Scenarios, ...world3Scenarios, ...world4Scenarios];
 
 const argv = process.argv.slice(2);
 const STRICT = argv.includes("--strict");

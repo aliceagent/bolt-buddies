@@ -624,6 +624,71 @@ const TRACKS = {
     ],
   },
 
+  // w4l1 — 4-1 "Lights Out" (W3W4 L41): the Dark Core's first chamber. Extends
+  // the w4 somber-mysterious identity (same 82-BPM-family C-minor root/scale)
+  // but a distinct mix per the S2 per-level conventions: a searching music-box
+  // sine lead that sweeps like the flashlight cone, a ticking off-hat pulse
+  // (server drips in the dark), a slow heartbeat bass, and a B section that
+  // warms two octaves up — "the beam finds something". Near-black quiet, never
+  // scary. 40 bars (intro/A/B/dim/A'/tail) so it never loops one cell.
+  w4l1: {
+    bpm: 80, root: 48, scale: [0, 2, 3, 5, 7, 8, 10],
+    leadType: "sine", leadVol: 0.032, leadLen: 1.0,
+    arpType: "triangle", arpVol: 0.013, arpLen: 1.2,
+    bassType: "triangle", bassVol: 0.075, bassLen: 3.2,
+    kickVol: 0.065, snareVol: 0.018, hatVol: 0.013, padVol: 0.03, padCut: 1900,
+    sections: [
+      {
+        name: "intro", bars: 4,
+        pads: [pad(CH.CmLo), pad(CH.CmLo), pad(CH.AbLo), pad(CH.GLo)],
+        bass: [b2(36, 43), b2(36, 43), b2(32, 39), b2(31, 38)],
+        lead: [row({ 8: 72 }), row({}), row({ 8: 68 }), row({ 4: 67 })],
+        drums: [D.none, D.offhat, D.none, D.offhat],
+      },
+      {
+        name: "A", bars: 8,
+        pads: [pad(CH.CmLo), pad(CH.AbLo), pad(CH.Eb), pad(CH.GLo)],
+        bass: [b2(36, 43), b2(32, 39), b2(39, 46), b2(31, 38)],
+        lead: [row({ 4: 75, 12: 72 }), row({ 8: 68 }), row({ 4: 79, 12: 75 }), row({ 8: 74 })],
+        arp: [row({ 0: 60, 8: 63 }), row({ 0: 56, 8: 60 }), row({ 0: 63, 8: 67 }), row({ 0: 55, 8: 62 })],
+        drums: [D.softKick, D.offhat, D.softKick, D.tick],
+      },
+      {
+        name: "B", bars: 8,
+        pads: [pad(CH.Fm), pad(CH.CmLo), pad(CH.AbLo), pad(CH.Bb)],
+        bass: [b2(41, 48), b2(36, 43), b2(32, 39), b2(34, 41)],
+        lead: [row({ 0: 80, 6: 84, 12: 80 }), row({ 4: 75, 10: 79 }),
+          row({ 0: 80, 6: 77, 12: 75 }), row({ 4: 74, 10: 70 })],
+        arp: [row({ 2: 65, 10: 68 }), row({ 2: 63, 10: 67 }), row({ 2: 60, 10: 63 }), row({ 2: 62, 10: 65 })],
+        drums: [D.softKick, D.tick, D.softKick, D.offhat],
+      },
+      {
+        name: "dim", bars: 8,
+        pads: [pad(CH.CmLo), pad(CH.CmLo), pad(CH.AbLo), pad(CH.GLo)],
+        bass: [b2(36, 43), b2(36, 43), b2(32, 39), b2(31, 38)],
+        arp: [row({ 0: 60, 6: 63, 12: 67 }), row({ 0: 60, 6: 63, 12: 67 }),
+          row({ 0: 56, 6: 60, 12: 63 }), row({ 0: 55, 6: 58, 12: 62 })],
+        lead: [row({ 8: 87 }), row({}), row({ 8: 84 }), row({ 4: 82 })],
+        drums: [D.none, D.softKick, D.none, D.tick],
+      },
+      {
+        name: "A'", bars: 8,
+        pads: [pad(CH.CmLo), pad(CH.AbLo), pad(CH.Eb), pad(CH.Bb)],
+        bass: [b2(36, 43), b2(32, 39), b2(39, 46), b2(34, 41)],
+        lead: [row({ 4: 75, 12: 79 }), row({ 8: 80 }), row({ 4: 79, 12: 75 }), row({ 8: 74, 14: 72 })],
+        arp: [row({ 0: 60, 8: 63 }), row({ 0: 56, 8: 60 }), row({ 0: 63, 8: 67 }), row({ 0: 58, 8: 62 })],
+        drums: [D.softKick, D.offhat, D.softKick, D.sneak],
+      },
+      {
+        name: "tail", bars: 4,
+        pads: [pad(CH.AbLo), pad(CH.Bb), pad(CH.CmLo), pad(CH.CmLo)],
+        bass: [b2(32, 39), b2(34, 41), b2(36, 43), b2(36, 48)],
+        lead: [row({ 4: 72 }), row({ 8: 74 }), row({ 4: 75 }), row({ 0: 72 })],
+        drums: [D.offhat, D.none, D.tick, D.none],
+      },
+    ],
+  },
+
   // w3l1 — 3-1 "Attract Mode" (W3W4 L31): the Magnet Works floor track. Extends
   // the w3 electro-funk identity (same C-minor-pentatonic root/scale family) but
   // a distinct mix per the S2 per-level conventions: brighter 116 BPM, a snappy
@@ -819,52 +884,11 @@ const TRACKS = {
     ],
   },
 
-  // w4 — reserve (World 4, dark ambient): very slow A-phrygian drift, 70 BPM,
-  // long detuned pads, a lone low bass and rare soft percussion. 32 bars.
-  w4: {
-    bpm: 70, root: 45, scale: [0, 1, 3, 5, 7, 8, 10],
-    leadType: "sine", leadVol: 0.028, leadLen: 1.4, arpType: "sine", arpVol: 0.012,
-    bassVol: 0.06, kickVol: 0.05, hatVol: 0.012, padVol: 0.026, padCut: 1800,
-    sections: [
-      {
-        name: "intro", bars: 4,
-        pads: [pad(CH.AmLo), pad(CH.Fm), pad(CH.AmLo), pad(CH.G)],
-        bass: [b2(33, 40), b2(41, 48), b2(33, 40), b2(43, 50)],
-        drums: [D.none, D.none, D.softKick, D.none],
-      },
-      {
-        name: "A", bars: 8,
-        pads: [pad(CH.AmLo), pad(CH.Fm), pad(CH.G), pad(CH.Fm)],
-        bass: [b2(33, 40), b2(41, 48), b2(43, 50), b2(41, 48)],
-        lead: [row({ 8: 69 }), row({ 4: 68 }), row({ 8: 67 }), row({ 12: 65 })],
-        drums: [D.softKick, D.none, D.softKick, D.none],
-      },
-      {
-        name: "B", bars: 8,
-        pads: [pad(CH.Fm), pad(CH.CmLo), pad(CH.G), pad(CH.AmLo)],
-        bass: [b2(41, 48), b2(36, 43), b2(43, 50), b2(33, 40)],
-        lead: [row({ 2: 72, 10: 68 }), row({ 6: 67 }), row({ 2: 74, 10: 70 }), row({ 6: 69, 14: 65 })],
-        arp: [row({ 0: 60, 8: 65 }), row({ 0: 60, 8: 63 }), row({ 0: 62, 8: 67 }), row({ 0: 57, 8: 60 })],
-        drums: [D.softKick, D.offhat, D.softKick, D.offhat],
-      },
-      {
-        name: "drift", bars: 8,
-        pads: [pad(CH.AmLo), pad(CH.Fm), pad(CH.AmLo), pad(CH.G)],
-        bass: [b2(33, 40), b2(41, 48), b2(33, 40), b2(43, 50)],
-        lead: [row({ 4: 76, 12: 72 }), row({ 8: 68 }), row({ 4: 77, 12: 73 }), row({ 8: 67 })],
-        arp: [row({ 0: 57, 6: 60, 12: 64 }), row({ 0: 56, 6: 60, 12: 63 }),
-          row({ 0: 57, 6: 60, 12: 64 }), row({ 0: 55, 6: 58, 12: 62 })],
-        drums: [D.softKick, D.none, D.softKick, D.offhat],
-      },
-      {
-        name: "tail", bars: 4,
-        pads: [pad(CH.AmLo), pad(CH.Fm), pad(CH.G), pad(CH.AmLo)],
-        bass: [b2(33, 40), b2(41, 48), b2(43, 50), b2(33, 45)],
-        lead: [row({ 8: 69 }), row({ 4: 68 }), row({ 8: 67 }), row({ 0: 69 })],
-        drums: [D.none, D.softKick, D.none, D.none],
-      },
-    ],
-  },
+  // (W3W4 L41 touch-up, flagged: the PRE-M4 70 BPM A-phrygian `w4` reserve used
+  // to sit here. M4 composed its replacement (82 BPM C-minor, above) but left
+  // this stale twin in place — and a duplicate object key means the LATER one
+  // won, so M4's committed track never actually played. Removed so the M4
+  // composition is the one that sounds for 4-2/4-3/dev-w4.)
 };
 
 // which composed track backs each level (GameScene picks by def.id). Worlds 3/4
@@ -876,7 +900,8 @@ const LEVEL_TRACK = {
   "2-1": "w2l1", "2-2": "w2l2", "2-3": "w2l3",
   // W3W4 L31/L32/L33: all three Magnet Works chambers have composed tracks.
   "3-1": "w3l1", "3-2": "w3l2", "3-3": "w3l3",
-  "4-1": "w4", "4-2": "w4", "4-3": "w4",
+  // W3W4 L41: 4-1 gets its composed chamber track; 4-2/4-3 stay on the w4 base.
+  "4-1": "w4l1", "4-2": "w4", "4-3": "w4",
   // W3W4 M3: the dev-only World-3 mechanics sandbox reuses the w3 track (the
   // "wire the LEVEL music registry for world 3" entry — 3-1..3-3 above were
   // already mapped; this makes the sandbox exercise the same reuse path).
