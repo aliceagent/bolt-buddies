@@ -54,21 +54,33 @@ async function driftHop(bb, role, releaseX, jumpHold = 320, dir = "right") {
 const hopRight = (bb, role, releaseX, jumpHold = 320) => driftHop(bb, role, releaseX, jumpHold, "right");
 
 // Mount the 1-tile plate podium at x36 (walkTo's auto-hop can OVERFLY a lone
-// stub — its arrival check fires mid-air over the target). Closed-loop: square
-// up on whichever side the robot stands, standing-jump + drift onto the top.
+// stub — its arrival check fires mid-air over the target).
+// W3W4 X1 robustness fix (tooling-only; the level is unchanged): the original
+// drift-hop released its drift on a STATE POLL past x36.2, and on a degraded
+// headless box (<~35fps) the poll fires late enough that air momentum carries
+// the lander ~2 tiles past the 48px top — driven measurement at 27fps: 0/8
+// mounts, every landing at tx 38.5-38.8 (and the mirrored east approach
+// overflies west), which was the whole "gd1 open (latched)" flake family.
+// A STANDING jump beside the post with a FIXED 100ms directional tap carries
+// bounded, poll-independent momentum instead: 8/8 at the same 27fps, landing
+// tx 36.3-37.1 on the top; the rare miss bounces off the post face and settles
+// at its foot, so the loop simply re-taps. Same real-input contract.
 async function mountPodium(bb, role) {
   const i = bb.idx(role);
-  for (let m = 0; m < 6; m++) {
+  const k = bb.keysFor(role);
+  for (let m = 0; m < 8; m++) {
     const p = (await bb.state()).players[i];
     if (p.dead) { await bb.awaitRespawn(role); continue; }
     if (p.grounded && p.ty < 13.1 && Math.abs(p.tx - 36.5) < 0.75) return true; // on top
-    if (p.tx < 36.5) {
-      await bb.walkTo(role, 35.3, { tol: 6, timeout: 5000 }).catch(() => {});
-      await driftHop(bb, role, 36.2 * TILE, 300, "right");
-    } else {
-      await bb.walkTo(role, 37.7, { tol: 6, timeout: 5000 }).catch(() => {});
-      await driftHop(bb, role, 36.8 * TILE, 300, "left");
-    }
+    const west = p.tx < 36.5;
+    await bb.walkTo(role, west ? 35.45 : 37.55, { tol: 5, timeout: 5000 }).catch(() => {});
+    await bb.down(k.jump);
+    await sleep(150);
+    await bb.tap(west ? k.right : k.left, 100);
+    await sleep(160);
+    await bb.up(k.jump);
+    await bb.waitFor((s) => s.players[i].grounded, 2500, "mount landed").catch(() => {});
+    await sleep(120);
   }
   return false;
 }
