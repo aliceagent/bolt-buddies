@@ -689,6 +689,89 @@ const TRACKS = {
     ],
   },
 
+  // w4l2 — 4-2 "The Laser Garden" (W3W4 L42): the Dark Core's laser conservatory.
+  // Extends the w4 somber-mysterious identity (same 82-BPM-family C-minor
+  // root/scale, sine music-box lead, heartbeat bass) but a distinct mix per the
+  // S2 per-level conventions: a touch quicker at 84 BPM, a PULSE arp that sweeps
+  // up-and-over-and-back in 16ths like the laser fans, tick/off-hat servo drums,
+  // and a "bloom" section where the sweep-arp blossoms two octaves up before the
+  // hush returns. Dark but tidy — a lonely machine pruning light. 40 bars
+  // (intro/A/B/bloom/A'/tail), sectioned so it never loops one cell.
+  w4l2: {
+    bpm: 84, root: 48, scale: [0, 2, 3, 5, 7, 8, 10],
+    leadType: "sine", leadVol: 0.03, leadLen: 0.95,
+    arpType: "pulse", arpVol: 0.012, arpLen: 0.55,
+    bassType: "triangle", bassVol: 0.078, bassLen: 3.0,
+    kickVol: 0.065, snareVol: 0.016, hatVol: 0.014, padVol: 0.03, padCut: 2000,
+    sections: [
+      {
+        name: "intro", bars: 4,
+        pads: [pad(CH.CmLo), pad(CH.CmLo), pad(CH.AbLo), pad(CH.GLo)],
+        bass: [b2(36, 43), b2(36, 43), b2(32, 39), b2(31, 38)],
+        // the first sweep wakes: a slow half-arc, out and back
+        arp: [row({ 0: 60, 4: 63, 8: 67, 12: 63 }), row({ 0: 60, 4: 63, 8: 67, 12: 63 }),
+          row({ 0: 56, 4: 60, 8: 63, 12: 60 }), row({ 0: 55, 4: 58, 8: 62, 12: 58 })],
+        drums: [D.none, D.tick, D.none, D.offhat],
+      },
+      {
+        name: "A", bars: 8,
+        pads: [pad(CH.CmLo), pad(CH.AbLo), pad(CH.Eb), pad(CH.GLo)],
+        bass: [b2(36, 43), b2(32, 39), b2(39, 46), b2(31, 38)],
+        // the sweep-arp: up-over-and-back 16ths, one fan pass per bar
+        arp: [s16([60, 63, 67, 70, 72, 70, 67, 63, 60, 63, 67, 70, 72, 70, 67, 63]),
+          s16([56, 60, 63, 67, 68, 67, 63, 60, 56, 60, 63, 67, 68, 67, 63, 60]),
+          s16([63, 67, 70, 74, 75, 74, 70, 67, 63, 67, 70, 74, 75, 74, 70, 67]),
+          s16([55, 58, 62, 67, 67, 67, 62, 58, 55, 58, 62, 67, 67, 67, 62, 58])],
+        lead: [row({ 4: 75 }), row({ 8: 72 }), row({ 4: 79, 12: 75 }), row({ 8: 74 })],
+        drums: [D.softKick, D.tick, D.softKick, D.offhat],
+      },
+      {
+        name: "B", bars: 8,
+        pads: [pad(CH.Fm), pad(CH.CmLo), pad(CH.AbLo), pad(CH.Bb)],
+        bass: [b2(41, 48), b2(36, 43), b2(32, 39), b2(34, 41)],
+        lead: [row({ 2: 80, 10: 77 }), row({ 6: 75, 14: 72 }), row({ 2: 78, 10: 75 }), row({ 6: 74, 14: 70 })],
+        // the twin blooms: two mirrored half-sweeps per bar
+        arp: [row({ 0: 65, 2: 68, 4: 72, 6: 68, 8: 65, 10: 68, 12: 72, 14: 68 }),
+          row({ 0: 60, 2: 63, 4: 67, 6: 63, 8: 60, 10: 63, 12: 67, 14: 63 }),
+          row({ 0: 56, 2: 60, 4: 63, 6: 60, 8: 56, 10: 60, 12: 63, 14: 60 }),
+          row({ 0: 58, 2: 62, 4: 65, 6: 62, 8: 58, 10: 62, 12: 65, 14: 62 })],
+        drums: [D.softKick, D.offhat, D.softKick, D.tick],
+      },
+      {
+        name: "bloom", bars: 8,
+        pads: [pad(CH.AbLo), pad(CH.Bb), pad(CH.CmLo), pad(CH.GLo)],
+        bass: [b2(32, 39), b2(34, 41), b2(36, 43), b2(31, 38)],
+        // the garden opens: the sweep blossoms two octaves up
+        arp: [s16([72, 75, 79, 82, 84, 82, 79, 75, 72, 75, 79, 82, 84, 82, 79, 75]),
+          s16([70, 74, 77, 82, 82, 82, 77, 74, 70, 74, 77, 82, 82, 82, 77, 74]),
+          s16([72, 75, 79, 84, 87, 84, 79, 75, 72, 75, 79, 84, 87, 84, 79, 75]),
+          s16([67, 70, 74, 79, 79, 79, 74, 70, 67, 70, 74, 79, 79, 79, 74, 70])],
+        lead: [row({ 8: 84 }), row({ 4: 82 }), row({ 8: 87 }), row({ 4: 79, 12: 75 })],
+        drums: [D.softKick, D.tick, D.sneak, D.offhat],
+      },
+      {
+        name: "A'", bars: 8,
+        pads: [pad(CH.CmLo), pad(CH.AbLo), pad(CH.Eb), pad(CH.Bb)],
+        bass: [b2(36, 43), b2(32, 39), b2(39, 46), b2(34, 41)],
+        arp: [s16([60, 63, 67, 70, 72, 70, 67, 63, 60, 63, 67, 70, 72, 70, 67, 63]),
+          s16([56, 60, 63, 67, 68, 67, 63, 60, 56, 60, 63, 67, 68, 67, 63, 60]),
+          s16([63, 67, 70, 74, 75, 74, 70, 67, 63, 67, 70, 74, 75, 74, 70, 67]),
+          s16([58, 62, 65, 70, 70, 70, 65, 62, 58, 62, 65, 70, 70, 70, 62, 58])],
+        lead: [row({ 4: 75, 12: 79 }), row({ 8: 80 }), row({ 4: 79, 12: 75 }), row({ 8: 74, 14: 72 })],
+        drums: [D.softKick, D.offhat, D.softKick, D.sneak],
+      },
+      {
+        name: "tail", bars: 4,
+        pads: [pad(CH.AbLo), pad(CH.Bb), pad(CH.CmLo), pad(CH.CmLo)],
+        bass: [b2(32, 39), b2(34, 41), b2(36, 43), b2(36, 48)],
+        // the sweeps power down, one by one
+        arp: [row({ 0: 60, 4: 63, 8: 67 }), row({ 0: 58, 4: 62 }), row({ 0: 60 }), row({})],
+        lead: [row({ 4: 72 }), row({ 8: 74 }), row({ 4: 75 }), row({ 0: 72 })],
+        drums: [D.offhat, D.none, D.tick, D.none],
+      },
+    ],
+  },
+
   // w3l1 — 3-1 "Attract Mode" (W3W4 L31): the Magnet Works floor track. Extends
   // the w3 electro-funk identity (same C-minor-pentatonic root/scale family) but
   // a distinct mix per the S2 per-level conventions: brighter 116 BPM, a snappy
@@ -900,8 +983,9 @@ const LEVEL_TRACK = {
   "2-1": "w2l1", "2-2": "w2l2", "2-3": "w2l3",
   // W3W4 L31/L32/L33: all three Magnet Works chambers have composed tracks.
   "3-1": "w3l1", "3-2": "w3l2", "3-3": "w3l3",
-  // W3W4 L41: 4-1 gets its composed chamber track; 4-2/4-3 stay on the w4 base.
-  "4-1": "w4l1", "4-2": "w4", "4-3": "w4",
+  // W3W4 L41/L42: 4-1 and 4-2 get their composed chamber tracks; 4-3 stays on
+  // the w4 base until L43 composes the finale.
+  "4-1": "w4l1", "4-2": "w4l2", "4-3": "w4",
   // W3W4 M3: the dev-only World-3 mechanics sandbox reuses the w3 track (the
   // "wire the LEVEL music registry for world 3" entry — 3-1..3-3 above were
   // already mapped; this makes the sandbox exercise the same reuse path).

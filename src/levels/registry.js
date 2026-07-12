@@ -8,6 +8,7 @@ import level3_1 from "./level3_1.js";
 import level3_2 from "./level3_2.js";
 import level3_3 from "./level3_3.js";
 import level4_1 from "./level4_1.js";
+import level4_2 from "./level4_2.js";
 import tutorial from "./tutorial.js";
 
 export const WORLD_INFO = [
@@ -17,7 +18,7 @@ export const WORLD_INFO = [
   { name: "The Dark Core", emoji: "🌑", skills: "Time-Freeze + Light-Beam" },
 ];
 
-// Linear unlock order. 4-2..4-3 are designed (see GAME_DESIGN.md) but not built yet.
+// Linear unlock order. 4-3 is designed (see GAME_DESIGN.md) but not built yet.
 export const LEVELS = [
   level1_1,
   level1_2,
@@ -29,7 +30,7 @@ export const LEVELS = [
   level3_2,
   level3_3,
   level4_1,
-  { id: "4-2", name: "The Laser Garden", world: 4, wip: true },
+  level4_2,
   { id: "4-3", name: "KOBI's Heart", world: 4, wip: true },
   // Sprint 10: the tutorial is APPENDED LAST (registry indices 0-11 unchanged, so
   // the beat matrix + hub node layout are untouched) and flagged hidden+tutorial.

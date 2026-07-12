@@ -148,6 +148,11 @@ export class Driver {
         tickers: (s.tickers || []).map((t) => ({ x: t.img.x, tx: t.img.x / T, state: t.state, dir: t.dir })),
         rotbridges: (s.rotBridges || []).map((rb) => ({ angle: rb.angle })),
         icedoors: (s.iceDoors || []).map((d) => ({ id: d.id, melt: d.melt, open: d.open })),
+        // W3W4 L42: laser-sweeper reads (angle rad, 0=right/90=down; empty
+        // everywhere but W4 — pure reads, same additive pattern as icedoors)
+        lasers: (s.lasers || []).map((L) => ({
+          x: L.x, tx: L.x / T, angle: L.angle, dir: L.dir, mode: L.mode,
+        })),
         // W3W4 L31: world-3 entity reads (empty arrays on W1-W2 levels)
         crates: (s.crates || []).map((c) => ({ x: c.img.x, y: c.img.y, tx: c.img.x / T, held: !!c.heldBy })),
         jellies: (s.jellies || []).map((j) => ({ x: j.img.x, y: j.img.y, tx: j.img.x / T, state: j.state })),
