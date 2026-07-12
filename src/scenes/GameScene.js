@@ -117,6 +117,9 @@ export default class GameScene extends Phaser.Scene {
     // level actually loads (shipped W1/W2 boot path bakes nothing new — inert).
     if (def.world === 3) this.ensureW3Textures();
     if (def.world === 4) this.ensureW4Textures();
+    // W3W4 L43: the finale's boss set is baked only when 4-3 itself loads —
+    // 4-1/4-2 (and every other level) bake nothing new.
+    if (def.finale) this.ensureHeartTextures();
     const gb = makeGrid(def.cols, def.rows);
     def.build(gb);
     this.grid = gb.g;
@@ -227,6 +230,15 @@ export default class GameScene extends Phaser.Scene {
     this._w4Rect2 = new Phaser.Geom.Rectangle(0, 0, 0, 0); // reused scratch
     this._iceOverlays = []; // pooled frost panels stamped on frozen devices
     this._freezeWash = null; // screen-fixed cold wash while frozen
+
+    // W3W4 L43: KOBI'S HEART (4-3 finale) state. `heart`/`turbines` only spawn
+    // from the 4-3 level def (`kobiheart`/`turbine` ents), so every path below
+    // is inert in all other levels — same additive pattern as the crane.
+    this.heart = null;          // the KOBI-eye boss rig (state machine below)
+    this.turbines = [];         // defense turbine columns (freeze-held, station-bound)
+    this.heartDefeated = false; // all three cooling cores unplugged
+    this.heartResolved = false; // Bolt free + home with the buddies -> exit may open
+    this.heartGfx = null;       // shared clear+redraw painter (glare column, cables)
 
     this.crackies = this.physics.add.staticGroup();
     this.bridgeGroup = this.physics.add.staticGroup();
@@ -407,7 +419,8 @@ export default class GameScene extends Phaser.Scene {
       // pooled frost panels: one per freezable device, stamped while frozen
       // (icy tint that no-ops on Canvas is banned — this is drawn art instead)
       const freezables = this.crushers.length + this.lifts.length + this.lasers.length +
-        this.tickers.length + this.gloomies.length + this.rotBridges.length;
+        this.tickers.length + this.gloomies.length + this.rotBridges.length +
+        this.turbines.length; // W3W4 L43: frozen turbines wear frost too
       for (let i = 0; i < Math.min(freezables, 14); i++) {
         const ov = this.add.image(0, 0, "icepanel").setDepth(DEPTH.entity + 4).setVisible(false);
         if (webglW4) ov.setBlendMode(Phaser.BlendModes.ADD);
@@ -2089,6 +2102,61 @@ export default class GameScene extends Phaser.Scene {
         this._w4 = true;
         break;
       }
+
+      // --- W3W4 L43: KOBI'S HEART (the 4-3 finale boss family) ---------------
+      case "turbine": {
+        // DEFENSE TURBINE: a floor-mounted fan column guarding a cooling core.
+        // Lethal on contact while spinning; utterly held + SAFE under
+        // TIME-FREEZE (the Ticker contract); powers down FOREVER the moment
+        // its station's core is unplugged. Stepped in updateHeart (4-3 only).
+        const base = this.add.image(px, py + 8, "turbine").setDepth(DEPTH.entity);
+        const rotor = this.add.image(px, py - 30, "turbine_rotor").setDepth(DEPTH.entity + 1);
+        this.addLightPool(px, py + 6, 0xff5566, { alpha: 0.16, scale: 0.7 });
+        this.turbines.push({
+          x: px, y: py, base, rotor, station: e.station | 0, dead: false,
+          spin: (e.x % 2 ? -1 : 1) * 9, // rad/s, alternating handedness
+        });
+        this._w4 = true;
+        break;
+      }
+      case "kobiheart": {
+        // THE KOBI-EYE BOSS RIG. Non-violent by construction: the eye is never
+        // attacked — the beam BLINDS it (a cooling core exposes), a robot
+        // TOUCHES the exposed core to unplug it, ×3 -> staged power-down +
+        // the Bolt rescue. Structured like the crane fight: a state machine
+        // stepped from update() with telegraphed attacks and safe windows.
+        const housing = this.add.image(px, py, "kobi_housing").setDepth(DEPTH.entity + 1);
+        const iris = this.add.image(px, py, "kobi_iris").setDepth(DEPTH.entity + 2);
+        // the eyelid: a housing-toned cap that scales down over the sclera
+        // (squint while blinded, shut while reeling/down) — drawn art, no tint
+        const lid = this.add.image(px, py - 46, "kobi_lid").setOrigin(0.5, 0)
+          .setDepth(DEPTH.entity + 3).setScale(1, 0);
+        this.addLightPool(px, py + 10, 0xff4dd2, { alpha: 0.2, scale: 1.4 });
+        // Bolt's cage on the floor east of the eye (opens at the rescue)
+        const cageX = (e.cage ?? e.x + 3) * TILE + 24;
+        const cageY = 13 * TILE + 20;
+        const cage = this.add.image(cageX, cageY, "bolt_cage").setDepth(DEPTH.entity);
+        this.addLightPool(cageX, cageY + 8, 0xffb347, { alpha: 0.18, scale: 0.8 });
+        // the three cooling-core stations: armored vent -> exposed core pod
+        const stations = (e.stations || []).map((s, i) => {
+          const cx = s.x * TILE + 24, cy = s.y * TILE + 20;
+          const core = this.add.image(cx, cy - 2, "heart_core").setDepth(DEPTH.entity);
+          const vent = this.add.image(cx, cy, "heart_vent").setDepth(DEPTH.entity + 2);
+          return { idx: i, x: cx, y: cy, vent, core, ring: null, exposed: false, taken: false };
+        });
+        this.heartGfx = this.add.graphics().setDepth(DEPTH.entity - 1);
+        this.heart = {
+          x: px, y: py, housing, iris, lid, stations, cage,
+          state: "fight",            // fight -> reeling (post-expose) -> down
+          dazzle: 0, reelT: 0, coresTaken: 0,
+          // the glare attack: aim (column follows) -> lock -> strike -> cool
+          glare: { state: "cool", t: 2200, x: px, lockX: px },
+          minX: (e.minX ?? 0) * TILE + 24, maxX: (e.maxX ?? this.def.cols) * TILE + 24,
+          bolt: null, boltFree: false, downT: 0, downStep: 0, _squintCd: 0,
+        };
+        this._w4 = true;
+        break;
+      }
     }
   }
 
@@ -2813,6 +2881,339 @@ export default class GameScene extends Phaser.Scene {
     return alive.reduce((a, b) => (Math.abs(a.x - x) < Math.abs(b.x - x) ? a : b)).x;
   }
 
+  // --- W3W4 L43: KOBI'S HEART — the 4-3 finale boss -----------------------------
+  // The confrontation set piece (GAME_DESIGN §4-3): beam BLINDS the eye (a
+  // cooling core exposes, PERMANENTLY), freeze holds the defense turbines, a
+  // robot TOUCHES the core — ×3, then the staged power-down + Bolt rescue.
+  // Structured like the crane fight: one state machine stepped from update(),
+  // fully freeze-gated per the M4 contract (frozen = simply not stepped), and
+  // every bit of progress MONOTONIC so the fight can never become unwinnable.
+  // Glare tuning: per-core stage scaling mirrors the crane's escalation.
+  static HEART = {
+    aimMs: 2300, lockMs: 750, strikeMs: 500, coolMs: 1800,
+    stageScale: [1, 0.85, 0.7], // glare cycle speed-up per core taken
+    glareHalfW: 52,             // strike column kill half-width (px)
+    aimSpeed: 170,              // px/s the aim column tracks a robot
+    boltSpeed: 210,             // Bolt's bound speed toward the buddies (px/s)
+  };
+
+  updateHeart(time, delta) {
+    const H = this.heart;
+    if (!H) return;
+    // Core touches resolve EVEN MID-FREEZE — the design's key beat: the world
+    // (turbines, glare) holds while the live robot reaches the exposed core.
+    if (H.state !== "down") this.checkHeartCores();
+    // M4 freeze contract: the whole boss machine (glare timers, dazzle,
+    // turbines, cinematics) is simply NOT STEPPED while frozen — the painter
+    // keeps its last frame (the crane's convention), resume is byte-identical.
+    if (this.frozen) return;
+    const HEART = GameScene.HEART;
+    const dt = delta / 1000;
+    const g = this.heartGfx;
+    g.clear();
+
+    // --- defense turbines: lethal spin unless dead (frozen = not reached) ----
+    for (const tb of this.turbines) {
+      if (tb.dead) continue;
+      tb.rotor.rotation += tb.spin * dt;
+      sfx.turbineWhirr(tb.x, tb.y); // rate-limited low whirr
+      for (const p of this.players) {
+        if (p.dead || p.invuln > 0 || p.carriedBy) continue;
+        if (Math.abs(p.x - tb.x) < 30 && p.y > tb.y - 80) {
+          if (p.bubbleT > 0) this.popBubble(p, true);
+          else { sfx.laserZap(p.x, p.y); this.killPlayer(p); }
+        }
+      }
+    }
+
+    // --- the power-down + Bolt rescue timeline -------------------------------
+    if (H.state === "down") { this.updateHeartDown(time, delta); return; }
+
+    // --- iris tracking (cosmetic — gated per the ?animoff=1 conventions) -----
+    if (this.anim && this.anim.enabled) {
+      const tx = this.nearestAlivePlayerX(H.x);
+      const ty = 13 * TILE;
+      const d = Math.hypot(tx - H.x, ty - H.y) || 1;
+      const r = H.dazzle > 0 ? 4 : 13; // squints toward centre while dazzled
+      const k = Math.min(1, dt * 6);
+      H.iris.x += (H.x + ((tx - H.x) / d) * r - H.iris.x) * k;
+      H.iris.y += (H.y + ((ty - H.y) / d) * r - H.iris.y) * k;
+    }
+
+    // --- REELING: post-expose safe window (no attacks, lid shut) -------------
+    if (H.state === "reeling") {
+      H.reelT -= delta;
+      H.lid.setScale(1, Math.min(1, H.lid.scaleY + dt * 4)); // lid slams shut
+      if (H.reelT <= 0) {
+        H.state = "fight";
+        H.glare.state = "cool";
+        H.glare.t = 1400;
+        sfx.heartAlarm(H.x, H.y); // "I can SEE again" re-arm telegraph
+      }
+      return;
+    }
+
+    // --- BLIND: a held cone ON the eye fills the dazzle meter ----------------
+    // While lit the eye SQUINTS — its glare cycle is HELD (it cannot aim into
+    // the light), which is both the kid-fair read and what makes the blind
+    // stance safe to hold. Dazzle drains slowly unlit (never resets to zero
+    // in one beat; re-attempts are unlimited — the battery recharges).
+    let lit = false;
+    for (const p of this.players) {
+      if (p.dead || !p.beamOn) continue;
+      if (this.coneHits(p, H.x, H.y)) { lit = true; break; }
+    }
+    if (lit) {
+      H.dazzle = Math.min(PHYS.heartBlindMs, H.dazzle + delta);
+      H.lid.setScale(1, Math.min(0.55, H.lid.scaleY + dt * 2)); // pained squint
+      H._squintCd -= delta;
+      if (H._squintCd <= 0) { sfx.heartSquint(H.x, H.y); H._squintCd = 420; }
+      if (H.dazzle >= PHYS.heartBlindMs) { this.exposeHeartCore(); return; }
+    } else {
+      if (H.dazzle > 0) H.dazzle = Math.max(0, H.dazzle - delta * PHYS.heartDrain);
+      H.lid.setScale(1, Math.max(0, H.lid.scaleY - dt * 2.5));
+    }
+    // dazzle meter over the eye (meaning-bearing — drawn both tiers, like the
+    // ice-door melt fill)
+    if (H.dazzle > 0) {
+      const frac = H.dazzle / PHYS.heartBlindMs;
+      g.fillStyle(COLORS.hudBg, 0.88).fillRect(H.x - 41, H.y - 74, 82, 9);
+      g.fillStyle(0xffe08a, 0.95).fillRect(H.x - 40, H.y - 73, Math.max(1, 80 * frac), 7);
+    }
+
+    // --- the GLARE attack: aim-follow -> lock -> strike column -> cool -------
+    // Crane-telegraph rhythm: the warning stripes are visible for the whole
+    // aim (2.3s) + lock (0.75s) before the 0.5s strike — dodge by stepping out
+    // of the 104px column. HELD while the eye is lit (see above).
+    const G = H.glare;
+    const scale = HEART.stageScale[Math.min(2, H.coresTaken)];
+    if (!lit) G.t -= delta;
+    const floorY = 14 * TILE;
+    switch (G.state) {
+      case "cool":
+        if (G.t <= 0 && !lit) {
+          // the eye only ENGAGES while a live robot is actually inside its
+          // clamp band — the arena mouth (west of tile 34) is a true safe
+          // pocket (kid-fair regroup spot; the column never camps the edge)
+          let inBand = false;
+          for (const p of this.players) {
+            if (!p.dead && p.x >= H.minX - 40 && p.x <= H.maxX + 40) { inBand = true; break; }
+          }
+          if (inBand) {
+            G.state = "aim";
+            G.t = HEART.aimMs * scale;
+            G.x = Phaser.Math.Clamp(this.nearestAlivePlayerX(H.x), H.minX, H.maxX);
+          }
+        }
+        break;
+      case "aim": {
+        // the column drifts after the nearest robot (slow enough to outwalk)
+        const want = Phaser.Math.Clamp(this.nearestAlivePlayerX(G.x), H.minX, H.maxX);
+        G.x += Phaser.Math.Clamp(want - G.x, -HEART.aimSpeed * dt, HEART.aimSpeed * dt);
+        this.drawGlareColumn(g, G.x, H.y + 40, floorY, 0.1, time);
+        if (G.t <= 0 && !lit) {
+          G.state = "lock";
+          G.t = HEART.lockMs;
+          G.lockX = G.x;
+          sfx.heartAlarm(H.x, H.y);
+        }
+        break;
+      }
+      case "lock":
+        // the gaze tracer: the glare visibly comes FROM the eye
+        g.lineStyle(3, COLORS.magenta, 0.35).lineBetween(H.x, H.y + 8, G.lockX, H.y + 44);
+        this.drawGlareColumn(g, G.lockX, H.y + 40, floorY, 0.24, time);
+        if (G.t <= 0) {
+          G.state = "strike";
+          G.t = HEART.strikeMs;
+          sfx.heartGlare(G.lockX, floorY);
+          this.camShake(140, 0.003);
+        }
+        break;
+      case "strike": {
+        // the strike beam: a hot gaze tracer from the eye into a violet
+        // column (glow sheath + hot core), eye level down to the floor
+        g.lineStyle(6, 0x8f7bff, 0.5).lineBetween(H.x, H.y + 8, G.lockX, H.y + 34);
+        g.lineStyle(2.5, 0xffd7f4, 0.85).lineBetween(H.x, H.y + 8, G.lockX, H.y + 34);
+        g.fillStyle(0x8f7bff, 0.3).fillRect(G.lockX - HEART.glareHalfW, H.y + 30, HEART.glareHalfW * 2, floorY - H.y - 30);
+        g.fillStyle(0xffd7f4, 0.85).fillRect(G.lockX - 7, H.y + 30, 14, floorY - H.y - 30);
+        g.fillStyle(0xff4dd2, 0.5).fillCircle(G.lockX, floorY - 4, 18);
+        for (const p of this.players) {
+          if (p.dead || p.invuln > 0 || p.carriedBy) continue;
+          if (Math.abs(p.x - G.lockX) < HEART.glareHalfW && p.y > H.y) {
+            if (p.bubbleT > 0) this.popBubble(p, true);
+            else { sfx.laserZap(p.x, p.y); this.killPlayer(p); }
+          }
+        }
+        if (G.t <= 0) {
+          G.state = "cool";
+          G.t = HEART.coolMs * scale;
+        }
+        break;
+      }
+    }
+  }
+
+  // hazard warning stripes for the glare column (the crane's telegraph look)
+  drawGlareColumn(g, x, top, bottom, alpha, time) {
+    const HEART = GameScene.HEART;
+    const w = HEART.glareHalfW * 2;
+    const h = bottom - top;
+    if (h <= 0) return;
+    for (let sx = x - w / 2; sx < x + w / 2; sx += 16) {
+      g.fillStyle(COLORS.magenta, alpha).fillRect(sx, top, 8, h);
+    }
+    const pulse = alpha + 0.12 * Math.sin(time / 90);
+    g.lineStyle(2, COLORS.magenta, Math.min(0.8, pulse * 2.4)).strokeRect(x - w / 2, top, w, h);
+  }
+
+  // Exposed-core touches (runs every frame, INCLUDING mid-freeze — that IS the
+  // design: turbines held while the live robot reaches the core).
+  checkHeartCores() {
+    const H = this.heart;
+    for (const st of H.stations) {
+      if (!st.exposed || st.taken) continue;
+      for (const p of this.players) {
+        if (p.dead || p.carriedBy) continue;
+        if (Math.abs(p.x - st.x) < 44 && Math.abs(p.y - st.y) < 64) {
+          this.takeHeartCore(st);
+          break;
+        }
+      }
+    }
+  }
+
+  // The beam finished blinding the eye: the CURRENT station's vent blows off.
+  // PERMANENT (monotonic — a missed follow-up run never re-arms the vent).
+  exposeHeartCore() {
+    const H = this.heart;
+    const st = H.stations[H.coresTaken];
+    if (!st || st.exposed) return;
+    st.exposed = true;
+    H.dazzle = 0;
+    H.state = "reeling"; // the guaranteed freeze+run head start
+    H.reelT = PHYS.heartReelMs;
+    sfx.ventBlow(st.x, st.y);
+    this.boom.explode(this.fxBudget(12), st.x, st.y - 8);
+    this.craneSmoke.explode(this.fxBudget(8), st.x, st.y - 10);
+    // the armored hatch flips off and away (the crane plate-yank pattern)
+    this.tweens.add({
+      targets: st.vent, x: st.x + Phaser.Math.Between(-120, 120), y: st.y - 190,
+      angle: 640, alpha: 0, duration: 700, onComplete: () => st.vent.destroy(),
+    });
+    // warning pulse-rings on the exposed core — escalating tint per stage
+    // (REUSES the crane's pod_ring set: the game's one boss vocabulary)
+    const ringTex = H.coresTaken >= 2 ? "pod_ring_c2" : H.coresTaken >= 1 ? "pod_ring_c1" : "pod_ring";
+    st.ring = this.add.image(st.x, st.y - 4, ringTex).setDepth(DEPTH.entity - 1).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({ targets: st.ring, scale: { from: 0.5, to: 1.7 }, alpha: { from: 0.75, to: 0 }, duration: 900, repeat: -1 });
+    const lines = [
+      { text: "KOBI: MY VENT! A cooling core is SHOWING! Turbines — SPIN! Guard it with your whole SPIN!", mood: "angry" },
+      { text: "KOBI: Stop LOOKING at my insides! I am at 67% smug and FALLING!", mood: "angry" },
+      { text: "KOBI: NOT THE LAST ONE. I need that one to stay ANGRY. Being angry is all the warm I have!", mood: "angry" },
+    ];
+    this.game.events.emit("bb:blip", lines[Math.min(2, H.coresTaken)]);
+  }
+
+  // A robot reached an exposed core: UNPLUGGED (never re-plugs). That
+  // station's turbines power down forever; the third core starts the finale.
+  takeHeartCore(st) {
+    const H = this.heart;
+    st.taken = true;
+    H.coresTaken++;
+    sfx.heartUnplug(st.x, st.y);
+    this.boom.explode(this.fxBudget(14), st.x, st.y - 6);
+    this.starBurst.explode(this.fxBudget(8), st.x, st.y - 10);
+    if (st.ring) { this.tweens.killTweensOf(st.ring); st.ring.destroy(); st.ring = null; }
+    st.core.setTexture("heart_core_dead");
+    for (const tb of this.turbines) {
+      if (tb.station === st.idx && !tb.dead) {
+        tb.dead = true;
+        tb.rotor.setTexture("turbine_rotor_dead");
+        this.craneSmoke.explode(this.fxBudget(6), tb.x, tb.y - 30);
+        sfx.liftStop(tb.x, tb.y); // the spin-down clunk
+      }
+    }
+    this.camShake(180, 0.003);
+    if (H.coresTaken >= 3) { this.heartPowerDown(); return; }
+    const lines = [
+      { text: "KOBI: UNPLUGGED?! That was my FAVORITE tantrum coil. I feel... 12% calmer. DISGUSTING.", mood: "angry" },
+      { text: "KOBI: Two cores down. My rage is BUFFERING. Wait. WAIT. I was SAVING that rage for later!", mood: "angry" },
+    ];
+    this.game.events.emit("bb:blip", lines[Math.min(1, H.coresTaken - 1)]);
+  }
+
+  // Third core out: KOBI is unplugged MID-TANTRUM — the staged, non-violent
+  // power-down (the crane defeat's staging + the A11 defeated mood), then the
+  // Bolt rescue. The timeline runs on downT in updateHeartDown.
+  heartPowerDown() {
+    const H = this.heart;
+    H.state = "down";
+    H.downT = 0;
+    H.downStep = 0;
+    this.heartDefeated = true;
+    if (this.heartGfx) this.heartGfx.clear(); // drop any freeze-held glare painting
+    setMusicLayer("tension", false); // tantrum over -> the calm coda
+    sfx.heartDown(H.x, H.y);
+    this.camShake(500, 0.006);
+    this.craneSmoke.explode(this.fxBudget(20), H.x, H.y);
+    this.sparks.explode(this.fxBudget(18), H.x, H.y + 20);
+    // the lid droops shut over ~1.2s; the iris greys out beneath it
+    this.tweens.add({ targets: H.lid, scaleY: 1, duration: 1200, ease: "sine.inOut" });
+    H.iris.setTexture("kobi_iris_dead");
+    this.game.events.emit("bb:blip", { text: "KOBI: NO. NO NO NO. I am having a TANTRUM and you cannot just UNPLUG a—", mood: "angry" });
+  }
+
+  // The power-down + rescue timeline (state "down"): tantrum cut short ->
+  // deflation -> the cage pops -> Bolt BOUNDS to the buddies -> resolved
+  // (the exit's needs.heart opens). Freeze-gated with everything else; the
+  // timeline simply resumes if someone casts mid-cinematic.
+  updateHeartDown(time, delta) {
+    const H = this.heart;
+    const HEART = GameScene.HEART;
+    H.downT += delta;
+    if (H.downStep === 0 && H.downT > 3000) {
+      H.downStep = 1;
+      this.game.events.emit("bb:blip", { text: "KOBI: ...oh. It is quiet. The dark is leaving. The dark SAID it would never leave.", mood: "defeated" });
+    }
+    if (H.downStep === 1 && H.downT > 5200) {
+      H.downStep = 2;
+      // the cage pops open and Bolt bounds out (the A11 cameo silhouette,
+      // scripted — no body, no collision; pure display-list motion)
+      H.cage.setTexture("bolt_cage_open");
+      sfx.door(H.cage.x, H.cage.y);
+      this.boom.explode(this.fxBudget(8), H.cage.x, H.cage.y - 10);
+      H.bolt = this.add.image(H.cage.x, H.cage.y + 6, "bolt_pup").setDepth(DEPTH.player + 1);
+      H.boltFree = true;
+      sfx.boltYip(H.cage.x, H.cage.y);
+      this.game.events.emit("bb:blip", { text: "KOBI: The puppy is out. He is doing the WIGGLE. ...Nobody ever did the wiggle for me.", mood: "defeated" });
+    }
+    if (H.downStep === 2 && H.bolt) {
+      // Bolt bounds toward the nearest live buddy: frame-rate-independent
+      // hops (x at boltSpeed, y a |sin| bounce over the floor line)
+      const dt = delta / 1000;
+      const targetX = this.nearestAlivePlayerX(H.bolt.x);
+      const dx = targetX - H.bolt.x;
+      const floorY = 14 * TILE - 18;
+      H._boltPhase = (H._boltPhase || 0) + dt * 7;
+      if (Math.abs(dx) > 56 && H.downT < 16000) {
+        H.bolt.x += Phaser.Math.Clamp(dx, -HEART.boltSpeed * dt, HEART.boltSpeed * dt);
+        H.bolt.y = floorY - Math.abs(Math.sin(H._boltPhase)) * 30;
+        H.bolt.setFlipX(dx > 0); // the bolt_pup art faces LEFT at rest
+      } else {
+        // home! (or the 16s fallback if the buddies keep sprinting away —
+        // the resolution can never be outrun into a strand)
+        H.downStep = 3;
+        H.bolt.y = floorY;
+        this.heartResolved = true; // the exit's needs.heart opens NOW
+        this.starBurst.explode(this.fxBudget(10), H.bolt.x, H.bolt.y - 14);
+        sfx.boltYip(H.bolt.x, H.bolt.y);
+        // a happy settled wiggle, forever (one pooled tween)
+        this.tweens.add({ targets: H.bolt, angle: { from: -6, to: 6 }, duration: 260, yoyo: true, repeat: -1, ease: "sine.inOut" });
+        this.game.events.emit("bb:blip", { text: "KOBI: Take him home. He was a very good... guest. It will be nice here. Quiet. VERY quiet. Extremely quiet.", mood: "defeated" });
+      }
+    }
+  }
+
   // --- death & respawn --------------------------------------------------------
   killPlayer(p) {
     if (p.dead || p.invuln > 0 || this.complete) return;
@@ -3515,6 +3916,11 @@ export default class GameScene extends Phaser.Scene {
       const ang = Math.atan2(this.crane.body.y - oy, this.crane.body.x - ox);
       return { tokens: [{ icon: "arrow", angle: ang }], caption: "STOP THE CRANE FIRST" };
     }
+    // W3W4 L43: the finale exit before the resolution — point back at the eye
+    if (n.heart && !this.heartResolved && this.heart) {
+      const ang = Math.atan2(this.heart.y - oy, this.heart.x - ox);
+      return { tokens: [{ icon: "arrow", angle: ang }], caption: this.heartDefeated ? "WAIT FOR BOLT" : "UNPLUG K.O.B.I. FIRST" };
+    }
     return null;
   }
 
@@ -3694,6 +4100,9 @@ export default class GameScene extends Phaser.Scene {
     if (needs.keys && ((door && door.keysGiven) || 0) < needs.keys) return false;
     if (needs.opened && !needs.opened.every((id) => this.opened.has(id))) return false;
     if (needs.crane && !this.craneDefeated) return false;
+    // W3W4 L43: the finale exit waits for the WHOLE resolution — cores unplugged
+    // AND Bolt home with the buddies (heartResolved latches, never un-sets).
+    if (needs.heart && !this.heartResolved) return false;
     if (needs.wardens && !needs.wardens.every((id) => this.wardens.find((w) => w.id === id)?.defeated)) return false;
     return true;
   }
@@ -4602,6 +5011,7 @@ export default class GameScene extends Phaser.Scene {
     });
 
     this.updateCrane(delta);
+    this.updateHeart(time, delta); // W3W4 L43: inert unless the 4-3 boss exists
     this.updateWorld2(time, delta, dt);
     this.updateWorld3(time, delta, dt); // W3W4 M3: early-returns unless W3 content is present
     this.updateWorld4(time, delta, dt); // W3W4 M4: early-returns unless W4 content is present
@@ -5749,6 +6159,8 @@ export default class GameScene extends Phaser.Scene {
     this.tickers.forEach((t) => targets.push(t.img));
     this.gloomies.forEach((gl) => targets.push(gl.img));
     this.rotBridges.forEach((rb) => targets.push(rb.hub));
+    // W3W4 L43: live turbines frost over while held (dead ones stay bare)
+    this.turbines.forEach((tb) => { if (!tb.dead) targets.push(tb.rotor); });
     for (let i = 0; i < this._iceOverlays.length; i++) {
       const ov = this._iceOverlays[i];
       const t = targets[i];
@@ -6784,6 +7196,155 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
+  // W3W4 L43: the KOBI-heart finale texture set (4-3 only), baked lazily with
+  // its own guard — 4-1/4-2 and the shipped boot path bake nothing new. Same
+  // conventions as ensureW3/W4Textures: all DRAWN, Canvas-safe, state changes
+  // are texture swaps (never tint).
+  ensureHeartTextures() {
+    if (this.textures.exists("kobi_housing")) return;
+    const make = (key, w, h, draw) => {
+      const g = this.make.graphics({ add: false });
+      draw(g, w, h);
+      g.generateTexture(key, w, h);
+      g.destroy();
+    };
+    // THE EYE HOUSING: armored violet casing around a great white sclera —
+    // KOBI's title/hub/crane eye vocabulary at boss scale.
+    make("kobi_housing", 150, 128, (g) => {
+      g.fillStyle(0x1c1430, 0.98).fillRoundedRect(2, 2, 146, 124, 26);
+      g.lineStyle(3, 0x8f7bff, 0.9).strokeRoundedRect(2, 2, 146, 124, 26);
+      g.lineStyle(1.5, 0x35f0ff, 0.4).strokeRoundedRect(8, 8, 134, 112, 20);
+      // rivet studs on the casing
+      g.fillStyle(0x5a4a9a);
+      [[16, 16], [134, 16], [16, 112], [134, 112]].forEach(([x, y]) => g.fillCircle(x, y, 3.4));
+      // vents on the casing sides (the "this thing runs HOT" read)
+      g.fillStyle(0x0c0818, 0.9);
+      for (let i = 0; i < 3; i++) { g.fillRect(10, 48 + i * 12, 14, 5); g.fillRect(126, 48 + i * 12, 14, 5); }
+      // the sclera
+      g.fillStyle(0x1a1020, 1).fillCircle(75, 64, 50); // socket
+      g.fillStyle(0xf6f0ff, 1).fillCircle(75, 64, 44); // sclera
+      g.lineStyle(3, 0xff4dd2, 0.95).strokeCircle(75, 64, 50); // mood ring (gloat magenta)
+      // faint cooling cables running off the casing bottom
+      g.lineStyle(3, 0x39415e, 0.9);
+      g.lineBetween(50, 126, 44, 118); g.lineBetween(100, 126, 106, 118);
+    });
+    // the iris (live magenta-red / powered-down grey) — tracked in updateHeart
+    const irisTex = (dead) => (g) => {
+      g.fillStyle(dead ? 0x7d8fb8 : 0xff3b30, 1).fillCircle(16, 16, 15);
+      g.fillStyle(dead ? 0x2a3350 : 0x120306, 1).fillCircle(16, 16, 7);
+      if (!dead) g.fillStyle(0xffffff, 0.9).fillCircle(11, 10, 3.4);
+    };
+    make("kobi_iris", 32, 32, irisTex(false));
+    make("kobi_iris_dead", 32, 32, irisTex(true));
+    // the eyelid: a housing-toned cap scaled down over the sclera (squint/shut)
+    make("kobi_lid", 104, 92, (g) => {
+      g.fillStyle(0x241a3e, 0.98).fillRoundedRect(0, 0, 104, 92, { tl: 48, tr: 48, bl: 8, br: 8 });
+      g.lineStyle(2.5, 0x8f7bff, 0.8).strokeRoundedRect(1, 1, 102, 90, { tl: 47, tr: 47, bl: 8, br: 8 });
+      // lashes-as-bolts along the lid edge
+      g.fillStyle(0x5a4a9a);
+      for (let x = 16; x < 100; x += 18) g.fillRect(x, 84, 5, 6);
+    });
+    // cooling-core station: armored vent hatch (blown off on expose)
+    make("heart_vent", 62, 56, (g) => {
+      g.fillStyle(0x2a2058, 0.98).fillRoundedRect(1, 1, 60, 54, 8);
+      g.lineStyle(2.5, 0x8f7bff, 0.95).strokeRoundedRect(1, 1, 60, 54, 8);
+      g.fillStyle(0x0c0818, 0.9);
+      for (let i = 0; i < 4; i++) g.fillRect(9, 9 + i * 11, 44, 5); // louver slats
+      g.fillStyle(0xff4dd2, 0.9).fillCircle(31, 50, 2.6); // KOBI-Labs pilot dot
+      g.fillStyle(0x5a4a9a);
+      [[7, 7], [55, 7], [7, 49], [55, 49]].forEach(([x, y]) => g.fillCircle(x, y, 2.6));
+    });
+    // the cooling core itself: a warm heart-plug on a cable (live / unplugged)
+    const coreTex = (dead) => (g) => {
+      // the socket cradle
+      g.fillStyle(0x1c2742).fillRoundedRect(6, 34, 40, 14, 4);
+      g.lineStyle(2, dead ? 0x39415e : 0x8f7bff).strokeRoundedRect(6, 34, 40, 14, 4);
+      if (dead) {
+        // unplugged: the empty cradle + the cord flopped out, light off
+        g.lineStyle(3, 0x39415e, 0.95);
+        g.lineBetween(26, 36, 40, 22); g.lineBetween(40, 22, 48, 26);
+        g.fillStyle(0x39415e).fillCircle(49, 27, 4);
+      } else {
+        // live: a rounded amber "tantrum coil" heart-plug, glowing
+        g.fillStyle(0xffd24d, 0.25).fillCircle(26, 20, 18);
+        g.fillStyle(0xffb347, 1).fillRoundedRect(14, 8, 24, 28, 10);
+        g.lineStyle(2, 0xffe0a8, 0.95).strokeRoundedRect(14, 8, 24, 28, 10);
+        g.fillStyle(0xfff6d8, 0.9).fillCircle(22, 16, 3.2);
+        g.lineStyle(2, 0xff5566, 0.9);
+        g.lineBetween(19, 26, 26, 20); g.lineBetween(26, 20, 33, 26); // the "heartbeat" tick
+      }
+    };
+    make("heart_core", 52, 50, coreTex(false));
+    make("heart_core_dead", 52, 50, coreTex(true));
+    // defense turbine: base column + guard cage
+    make("turbine", 34, 76, (g) => {
+      g.fillStyle(0x1c2742).fillRoundedRect(4, 62, 26, 12, 3); // foot
+      g.fillStyle(0x2a3350).fillRect(13, 6, 8, 60);            // pole
+      g.lineStyle(1.5, 0x44548c).strokeRect(13, 6, 8, 60);
+      g.fillStyle(0xff5566, 0.9).fillCircle(17, 68, 2.6);      // live pilot lamp
+      g.lineStyle(2, 0x39415e, 0.9);
+      g.strokeCircle(17, 8, 6); // rotor hub seat
+    });
+    // the rotor: three fan blades (live hot-tipped / dead grey)
+    const rotorTex = (dead) => (g) => {
+      const c = 30;
+      g.fillStyle(dead ? 0x2a3350 : 0x39415e, 1);
+      for (let i = 0; i < 3; i++) {
+        const a = (i / 3) * Math.PI * 2;
+        const bx = c + Math.cos(a) * 22, by = c + Math.sin(a) * 22;
+        const px2 = c + Math.cos(a + 0.5) * 10, py2 = c + Math.sin(a + 0.5) * 10;
+        const px3 = c + Math.cos(a - 0.5) * 10, py3 = c + Math.sin(a - 0.5) * 10;
+        g.fillTriangle(bx, by, px2, py2, px3, py3);
+        if (!dead) {
+          g.fillStyle(0xff5566, 0.95).fillCircle(bx, by, 3.4);
+          g.fillStyle(0x39415e, 1);
+        }
+      }
+      g.fillStyle(dead ? 0x39415e : 0x6b78a8).fillCircle(c, c, 7);
+      g.fillStyle(dead ? 0x1c2742 : 0xff5566).fillCircle(c, c, 3);
+    };
+    make("turbine_rotor", 60, 60, rotorTex(false));
+    make("turbine_rotor_dead", 60, 60, rotorTex(true));
+    // Bolt's cage (shut / popped open) + Bolt himself (the A11/title puppy
+    // silhouette vocabulary, side view, facing left toward the buddies)
+    const cageTex = (open) => (g) => {
+      g.fillStyle(0x1c2742).fillRect(0, 48, 56, 8); // base
+      if (!open) {
+        g.lineStyle(3, 0x8892b8);
+        for (let x = 6; x <= 50; x += 11) g.lineBetween(x, 6, x, 48);
+        g.lineStyle(4, 0x6b78a8).strokeRoundedRect(2, 2, 52, 48, 8);
+        g.fillStyle(0xffb347, 0.9).fillCircle(28, 10, 2.6); // Bolt's tail-light through the bars
+      } else {
+        // door flung open: the frame + a swung-aside gate
+        g.lineStyle(4, 0x6b78a8).strokeRoundedRect(2, 2, 52, 48, 8);
+        g.lineStyle(3, 0x8892b8);
+        g.lineBetween(52, 8, 66, 20); g.lineBetween(52, 26, 66, 34); // the open gate leaf
+        g.fillStyle(0x59ff9c, 0.9).fillCircle(28, 10, 2.6); // lock lamp gone green
+      }
+    };
+    make("bolt_cage", 68, 56, cageTex(false));
+    make("bolt_cage_open", 68, 56, cageTex(true));
+    make("bolt_pup", 50, 36, (g) => {
+      const body = 0xd9dee8, dark = 0x8b93a8, collar = 0xffb347;
+      // stub legs
+      g.fillStyle(dark);
+      [8, 16, 30, 38].forEach((lx) => g.fillRoundedRect(lx, 26, 6, 8, 2));
+      // body + haunch + head + snout (faces LEFT, toward the buddies)
+      g.fillStyle(body).fillRoundedRect(8, 10, 36, 17, 8);
+      g.fillStyle(body).fillCircle(40, 18, 9);
+      g.fillStyle(body).fillCircle(12, 9, 10);
+      g.fillStyle(body).fillRoundedRect(0, 8, 10, 9, 4);
+      g.fillStyle(dark).fillCircle(1.6, 12, 2.2); // nose
+      // collar + tail-tip light + ear + eye
+      g.fillStyle(collar).fillRect(18, 10, 4, 17);
+      g.fillStyle(dark).fillTriangle(14, 0, 20, 2, 16, 10); // ear
+      g.fillStyle(0x243046).fillCircle(9, 8, 2.6);
+      g.fillStyle(0xffffff, 0.95).fillCircle(8, 7, 1);
+      g.fillStyle(body).fillRoundedRect(44, 6, 5, 14, 2.5); // tail up
+      g.fillStyle(collar).fillCircle(46.5, 5, 3); // amber tail-light
+    });
+  }
+
   showExitWaiting(idx) {
     const c = this.exitLabel;
     if (idx < 0 || c.waitIdx === idx) return;
@@ -6869,6 +7430,9 @@ export default class GameScene extends Phaser.Scene {
       this.game.events.emit("bb:complete", {
         index: this.levelIndex, id: this.def.id, name: this.def.name, cores: this.coresGot,
         newlyUnlocked, tutorial: !!this.def.tutorial, returnToHub: this.returnToHub, stats,
+        // W3W4 L43: the campaign finale — the clear overlay's continue routes
+        // to the Epilogue scene instead of the hub (dev sandboxes never do).
+        finale: !!this.def.finale && !this.def.dev,
       });
     });
   }

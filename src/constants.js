@@ -130,6 +130,14 @@ export const PHYS = {
   ghostGlowMs: 1500,   // invisible-platform afterglow after the beam leaves (ms)
   iceMeltMs: 2200,     // beam exposure needed to melt an ice door (ms)
   glowRadius: 120,     // a robot's own glow radius inside dark zones (px, kid-fair)
+  // --- W3W4 L43: KOBI-heart finale tuning -----------------------------------
+  // Read ONLY by the 4-3 boss paths (the `kobiheart`/`turbine` ents), which no
+  // other level spawns — shipped levels untouched.
+  heartBlindMs: 2600,  // sustained beam-on-eye needed to expose a cooling core
+  heartDrain: 0.35,    // dazzle decay rate while unlit (fraction of accrual — a
+                       //  paused blind loses ground slowly, never resets)
+  heartReelMs: 4000,   // eye reel (no attacks) after a core exposes — the
+                       //  guaranteed head start for the freeze + run
 };
 
 export const DEPTH = {

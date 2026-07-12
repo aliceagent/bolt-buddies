@@ -23,7 +23,7 @@ export const now = () => Date.now();
 
 // level id -> registry index (mirrors beat runner; tutorial is appended LAST = 12)
 export const LEVEL_INDEX = {
-  "1-1": 0, "1-2": 1, "1-3": 2, "2-1": 3, "2-2": 4, "2-3": 5, "3-1": 6, "3-2": 7, "3-3": 8, "4-1": 9, "4-2": 10, tut: 12,
+  "1-1": 0, "1-2": 1, "1-3": 2, "2-1": 3, "2-2": 4, "2-3": 5, "3-1": 6, "3-2": 7, "3-3": 8, "4-1": 9, "4-2": 10, "4-3": 11, tut: 12,
 };
 
 // Assignment A: P1 takes the first (grapple/phase/magnet/freeze) pedestal. Roles
@@ -37,7 +37,9 @@ export async function startLevel(page, levelIndex) {
   await page.evaluate((i) => {
     localStorage.clear();
     const m = window.__BB.game.scene;
-    ["UI", "Game", "Title", "Hub"].forEach((k) => m.stop(k));
+    // W3W4 L43: stop a lingering Epilogue too (the 4-3 epilogue scenario ends
+    // on the Title; a failed run must not leak into the next scenario).
+    ["UI", "Game", "Title", "Hub", "Epilogue"].forEach((k) => m.stop(k));
     m.start("Game", { levelIndex: i });
   }, levelIndex);
   await sleep(1600);

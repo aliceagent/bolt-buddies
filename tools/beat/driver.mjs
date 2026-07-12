@@ -106,10 +106,15 @@ export class Driver {
         inWater: !!p.inWater, airMs: p.airMs || 0,
         // W3W4 L41: freeze/beam state (0/false on W1-W3 levels — pure reads)
         freezeCd: p.freezeCd || 0, beamOn: !!p.beamOn, beamMs: p.beamMs || 0,
-        blocked: {
-          left: p.body.blocked.left, right: p.body.blocked.right,
-          down: p.body.blocked.down, up: p.body.blocked.up,
-        },
+        // W3W4 L43: body-null-safe — the 4-3 route legitimately outlives the
+        // Game scene (clear overlay -> Epilogue -> Title), and a stopped
+        // scene's players have destroyed bodies; reads must not throw there.
+        blocked: p.body
+          ? {
+              left: p.body.blocked.left, right: p.body.blocked.right,
+              down: p.body.blocked.down, up: p.body.blocked.up,
+            }
+          : { left: false, right: false, down: false, up: false },
       });
       return {
         id: s.def.id,
@@ -153,6 +158,23 @@ export class Driver {
         lasers: (s.lasers || []).map((L) => ({
           x: L.x, tx: L.x / T, angle: L.angle, dir: L.dir, mode: L.mode,
         })),
+        // W3W4 L43: the KOBI-heart boss reads (null everywhere but 4-3 — pure reads)
+        heart: s.heart
+          ? {
+              state: s.heart.state, dazzle: s.heart.dazzle, reelT: s.heart.reelT,
+              coresTaken: s.heart.coresTaken, boltFree: !!s.heart.boltFree,
+              glare: {
+                state: s.heart.glare.state, t: s.heart.glare.t,
+                x: s.heart.glare.x, lockX: s.heart.glare.lockX,
+              },
+              stations: s.heart.stations.map((st) => ({
+                x: st.x, tx: st.x / T, exposed: st.exposed, taken: st.taken,
+              })),
+            }
+          : null,
+        heartDefeated: !!s.heartDefeated,
+        heartResolved: !!s.heartResolved,
+        turbines: (s.turbines || []).map((tb) => ({ x: tb.x, tx: tb.x / T, station: tb.station, dead: tb.dead })),
         // W3W4 L31: world-3 entity reads (empty arrays on W1-W2 levels)
         crates: (s.crates || []).map((c) => ({ x: c.img.x, y: c.img.y, tx: c.img.x / T, held: !!c.heldBy })),
         jellies: (s.jellies || []).map((j) => ({ x: j.img.x, y: j.img.y, tx: j.img.x / T, state: j.state })),

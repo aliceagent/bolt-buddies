@@ -516,6 +516,27 @@ export const sfx = {
   tickerDash: (x, y) => { const v = pv(x, y); if (v > 0) { const p = panForX(x); slide(300, 760, 0.18, "sawtooth", 0.04 * v, p); noise(0.12, { type: "bandpass", freq: 1900, q: 1.4, vol: 0.02 * v, pan: p }); } },
   laserZap: (x, y) => { const v = pv(x, y); if (v > 0) { const p = panForX(x); tone(980, 0.12, "sawtooth", 0.045 * v, -640, p); noise(0.09, { type: "highpass", freq: 3000, vol: 0.03 * v, pan: p }); } },
 
+  // --- W3W4 L43: KOBI's Heart (the 4-3 finale boss + rescue) ----------------
+  // Same conventions as every boss voice set (crane family): telegraphs are
+  // two-tone and rate-limited, hits sit ~0.045-0.06, positional voices ride
+  // proximity. Nothing here fires unless 4-3's kobiheart/turbine ents exist.
+  //   turbineWhirr 0.02    y   defense-turbine spin bed (rate-limited)
+  //   heartAlarm   0.04    y   glare lock / re-arm two-tone telegraph
+  //   heartGlare   0.06    y   the glare strike column lands
+  //   heartSquint  0.024   y   the eye strains under the beam (rate-limited)
+  //   ventBlow     0.05    y   a cooling vent blows off (core exposed)
+  //   heartUnplug  0.05    y   a core is unplugged (cord-pull + soft chime)
+  //   heartDown    0.06    y   the whole heart powers down mid-tantrum
+  //   boltYip      0.045   y   Bolt's happy two-note yip
+  turbineWhirr: (x, y) => { if (!rateLimit("turbineWhirr", 420)) return; const v = 0.02 * pv(x, y); if (v > 0) tone(120 + Math.random() * 18, 0.34, "sawtooth", v, 26, panForX(x)); },
+  heartAlarm: (x, y) => { const v = pv(x, y); if (v > 0) { const p = panForX(x); tone(620, 0.12, "square", 0.04 * v, 0, p); setTimeout(() => tone(430, 0.16, "square", 0.04 * v, 0, p), 140); } },
+  heartGlare: (x, y) => { const v = pv(x, y); if (v > 0) { const p = panForX(x); slide(1200, 180, 0.34, "sawtooth", 0.06 * v, p); noise(0.22, { type: "highpass", freq: 2400, vol: 0.035 * v, pan: p }); } },
+  heartSquint: (x, y) => { if (!rateLimit("heartSquint", 380)) return; const v = 0.024 * pv(x, y); if (v > 0) slide(880, 1240, 0.16, "sine", v, panForX(x)); },
+  ventBlow: (x, y) => { const v = pv(x, y); if (v > 0) { const p = panForX(x); tone(220, 0.1, "square", 0.05 * v, -140, p); noise(0.3, { type: "bandpass", freq: 1100, q: 1.2, vol: 0.04 * v, pan: p }); setTimeout(() => noise(0.14, { type: "highpass", freq: 3400, vol: 0.024 * v, pan: p }), 90); } },
+  heartUnplug: (x, y) => { const v = pv(x, y); if (v > 0) { const p = panForX(x); slide(700, 190, 0.24, "sawtooth", 0.05 * v, p); setTimeout(() => { tone(523, 0.1, "sine", 0.04 * v, 0, p); tone(659, 0.14, "sine", 0.032 * v, 0, p); }, 200); } },
+  heartDown: (x, y) => { const v = pv(x, y); if (v > 0) { const p = panForX(x); slide(520, 60, 1.4, "sawtooth", 0.06 * v, p); [0, 180, 380, 620, 900].forEach((d, i) => setTimeout(() => tone(360 - i * 50, 0.07, "square", 0.03 * v, -60, p), d)); setTimeout(() => noise(0.5, { type: "lowpass", freq: 320, vol: 0.03 * v, pan: p }), 300); } },
+  boltYip: (x, y) => { const v = pv(x, y); if (v > 0) { const p = panForX(x); tone(880, 0.07, "square", 0.045 * v, 260, p); setTimeout(() => tone(1180, 0.09, "square", 0.04 * v, 180, p), 110); } },
+
   // --- UI / meta -----------------------------------------------------------
   menuMove: () => tone(660, 0.04, "square", 0.03),
   menuSelect: () => { tone(523, 0.07, "square", 0.04); setTimeout(() => tone(784, 0.1, "square", 0.04), 60); },

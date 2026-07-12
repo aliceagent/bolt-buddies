@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { COLORS, WORLD_THEMES, FONT, FS, TEXT } from "../constants.js";
 import { LEVELS, WORLD_INFO, KOBI_HUB_LINES } from "../levels/registry.js";
-import { loadSave, totalCores } from "../save.js";
+import { loadSave, totalCores, campaignComplete } from "../save.js";
 import { getRecord, fmtClock } from "../ux.js";
 import { addGradient, addMotes } from "../backdrop.js";
 import { initAudio, sfx, installMute, playTrack, playJingle } from "../audio.js";
@@ -49,6 +49,10 @@ export default class HubScene extends Phaser.Scene {
     }).setOrigin(0.5);
     // cores counter — chip with a mini core icon + a pooled count-up on entry
     this.buildCoresChip(W / 2, 82, totalCores(this.save), 36);
+    // W3W4 L43: campaign complete (all 12 chambers, read from `unlocked`) —
+    // a small "RESCUED!" flourish beside the cores chip: Bolt's silhouette dot
+    // + amber tail-light, home. All-nodes-cleared checkmarks already show.
+    if (campaignComplete(this.save)) this.buildRescuedChip(W / 2 + 236, 82);
 
     // wing panels in a 2x2 grid
     this.nodes = [];
@@ -414,6 +418,30 @@ export default class HubScene extends Phaser.Scene {
         onComplete: () => label.setText(finalStr),
       });
     }
+  }
+
+  // W3W4 L43: the campaign-complete flourish — a compact "BOLT RESCUED!" chip
+  // (hudBg plate + a tiny puppy glyph with his amber tail-light) in the cores
+  // chip's established language. Purely presentational.
+  buildRescuedChip(cx, cy) {
+    const label = this.add.text(0, 0, "BOLT RESCUED!", {
+      fontFamily: FONT, fontSize: FS.small, fontStyle: "bold", color: "#ffd9a0",
+    }).setOrigin(0, 0.5).setVisible(false);
+    const iconW = 30, padX = 12;
+    const cw = iconW + label.width + padX * 2;
+    const x0 = cx - cw / 2;
+    const g = this.add.graphics();
+    g.fillStyle(COLORS.hudBg, 0.85).fillRoundedRect(x0, cy - 15, cw, 30, 9);
+    g.lineStyle(1.5, 0xffb347, 0.7).strokeRoundedRect(x0, cy - 15, cw, 30, 9);
+    // the tiny home-safe puppy glyph (title vocabulary, 20px)
+    const gx = x0 + padX + 9;
+    g.fillStyle(0xd9dee8, 1).fillRoundedRect(gx - 8, cy - 3, 15, 7, 3); // body
+    g.fillStyle(0xd9dee8, 1).fillCircle(gx + 7, cy - 3, 4);             // head
+    g.fillStyle(0x8b93a8, 1).fillTriangle(gx + 4, cy - 10, gx + 8, cy - 9, gx + 6, cy - 4); // ear
+    g.fillStyle(0xffb347, 1).fillCircle(gx - 9, cy - 7, 2.2);           // tail-light
+    label.setPosition(x0 + padX + iconW, cy).setVisible(true);
+    label.setAlpha(0);
+    this.tweens.add({ targets: label, alpha: 1, duration: 500, delay: 300 });
   }
 
   // Low silhouette skyline behind the bottom ticker band — a fixed, built-once

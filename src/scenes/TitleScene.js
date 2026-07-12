@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { COLORS, WORLD_THEMES, FONT, FS, TEXT } from "../constants.js";
 import { addGradient, addMotes } from "../backdrop.js";
 import { LEVELS } from "../levels/registry.js";
-import { loadSave, storeSave, totalCores } from "../save.js";
+import { loadSave, storeSave, totalCores, campaignComplete } from "../save.js";
 import { initAudio, sfx, playTrack, installMute } from "../audio.js";
 import { pads, showPadToast } from "../pad.js";
 import { tutorialDone, uxFlashScale } from "../ux.js";
@@ -261,6 +261,24 @@ export default class TitleScene extends Phaser.Scene {
     this.robotBlink(boop, "robot_o");
 
     this.buildBolt(W / 2, y + 10);
+
+    // W3W4 L43: campaign complete (read from the save's unlocked counter) —
+    // Bolt sits WITH the robots for good, so the title acknowledges it with a
+    // small warm chip under the cast + a permanently delighted tail.
+    if (campaignComplete()) {
+      const chip = this.add.container(W / 2, y + 66).setDepth(1);
+      const label = this.add.text(0, 0, "♥ BOLT IS HOME — thanks for playing!", {
+        fontFamily: FONT, fontSize: FS.small, fontStyle: "bold", color: "#ffd9a0",
+      }).setOrigin(0.5);
+      const cg = this.add.graphics();
+      cg.fillStyle(COLORS.hudBg, 0.85).fillRoundedRect(-label.width / 2 - 14, -13, label.width + 28, 26, 9);
+      cg.lineStyle(1.5, ACCENT, 0.7).strokeRoundedRect(-label.width / 2 - 14, -13, label.width + 28, 26, 9);
+      chip.add([cg, label]);
+      chip.setAlpha(0);
+      this.tweens.add({ targets: chip, alpha: 1, duration: 600, delay: 500 });
+      // the wag never fully settles once he's home (tops the excitement up)
+      this.time.addEvent({ delay: 2600, loop: true, callback: () => { if (this.bolt) this.bolt.excite = Math.max(this.bolt.excite, 0.5); } });
+    }
   }
 
   robotBlink(img, base) {

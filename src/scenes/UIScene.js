@@ -254,7 +254,10 @@ export default class UIScene extends Phaser.Scene {
         this.completed = info; // set synchronously (before animation) — continue stays instant
         const tut = !!info.tutorial; // Sprint 10: tutorial variant — no save, back to Title
         this.overlay.setVisible(true);
-        this.winTitle.setText(tut ? "ORIENTATION COMPLETE!" : "CHAMBER CLEAR!");
+        // W3W4 L43: the finale's overlay is the SAME clear flow (stats/cores/
+        // records/continue all identical — the finishLevel contract holds),
+        // only the headline changes; continueFromClear routes to the Epilogue.
+        this.winTitle.setText(info.finale ? "BOLT RESCUED!" : tut ? "ORIENTATION COMPLETE!" : "CHAMBER CLEAR!");
         this.winTitle.setFontSize(tut ? "38px" : "44px");
         this.winSub.setText(tut ? "You survived K.O.B.I.'s safety briefing." : `"${info.name}" — data-cores found:`);
         // tutorial hides the data-core reader + progress tag (nothing is saved)
@@ -342,7 +345,11 @@ export default class UIScene extends Phaser.Scene {
       // U10 (F6): a tutorial launched from the first-run interstitial returns to
       // the HUB, not Title (returnToHub set on the Game scene). Menu-launched
       // tutorials keep returning to Title (this.completed.returnToHub is false).
-      if (tut && this.completed.returnToHub) this.scene.start("Hub");
+      // W3W4 L43: the campaign finale (4-3) continues into the Epilogue scene
+      // (playground + credits) instead of the hub — the tutorial's custom
+      // post-complete routing, applied to the ending.
+      if (this.completed.finale) this.scene.start("Epilogue");
+      else if (tut && this.completed.returnToHub) this.scene.start("Hub");
       else if (tut) this.scene.start("Title");
       else this.scene.start("Hub", { sel: next, unlock, iris: true });
       this.scene.stop();

@@ -8,6 +8,7 @@ import PauseScene from "./scenes/PauseScene.js";
 import SettingsScene from "./scenes/SettingsScene.js";
 import OnboardScene from "./scenes/OnboardScene.js";
 import WalkthroughScene from "./scenes/WalkthroughScene.js";
+import EpilogueScene from "./scenes/EpilogueScene.js";
 import MuteScene from "./scenes/MuteScene.js";
 import { engineState } from "./audio/engine.js";
 import { musicState } from "./audio/music.js";
@@ -36,7 +37,9 @@ const game = new Phaser.Game({
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [BootScene, TitleScene, HubScene, GameScene, UIScene, PauseScene, SettingsScene, OnboardScene, WalkthroughScene, MuteScene],
+  // W3W4 L43: EpilogueScene appended (the 4-3 clear-overlay continue routes
+  // there; every other scene-key sequence is unchanged).
+  scene: [BootScene, TitleScene, HubScene, GameScene, UIScene, PauseScene, SettingsScene, OnboardScene, WalkthroughScene, EpilogueScene, MuteScene],
 });
 
 // Global mute dropdown: launch the always-on-top overlay once the game is booted

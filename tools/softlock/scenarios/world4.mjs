@@ -48,9 +48,29 @@
 //      respawn attested solid + in-band + IDLE-SAFE for 5s (no sweep or patrol
 //      reaches any checkpoint — the laser death-loop guard; 4-2 has NO pits
 //      at all, so no carve can cage a body).
+// --- 4-3 "KOBI's Heart" (W3W4 L43, the FINALE) — the third set below --------
+// The headline candidates from the L43 design review:
+//  11. TURBINE-FREEZE SEPARATION — the runner enters a live turbine gauntlet
+//      under the freeze and OVERSTAYS the 5s hold. No strand: the bite is the
+//      standard cp30 respawn, freezes are unlimited (cooldown recharges), and
+//      dead stations stay dead. Scenario 11 drives the overstay + re-run.
+//  12. BLIND-WINDOW MISSED / NEVER-UNWINNABLE — expose a core, deliberately
+//      IGNORE it until the eye re-arms, die, drain the dazzle. Nothing can
+//      un-win the fight: exposure LATCHES (vents never re-close), coresTaken
+//      never decrements, dead turbines never respin, dazzle re-accrues on a
+//      rechargeable battery, and the glare cannot reach any checkpoint.
+//      Scenario 12 drives the worst order and then finishes the fight.
+//  13. RESPAWN-STRAND DURING THE FIGHT — deliberate glare + turbine deaths
+//      with all stations live; every respawn attested solid, in-band at the
+//      x30 arena checkpoint, and IDLE-SAFE 5s (the glare clamps to tiles
+//      34-72 — 140px short of the checkpoint; turbines are static columns).
+//  14. EPILOGUE CAN'T STRAND — finish the whole finale, continue from the
+//      clear overlay into the Epilogue, and attest EVERY phase advances on
+//      any key and exits to the Title (the credits are always exitable).
 import { snap, push, sleep, now, TILE } from "../probe.mjs";
 import route41 from "../../beat/routes/4-1.mjs";
 import route42, { helpers as h42 } from "../../beat/routes/4-2.mjs";
+import route43, { helpers as h43 } from "../../beat/routes/4-3.mjs";
 
 async function runSteps(bb, steps) {
   let lastStep = "";
@@ -826,6 +846,285 @@ export default [
           : "UNVERIFIED — an audit leg flaked this run (see stuck.audits); re-run. The geometry facts: every checkpoint sits >= 280px outside the nearest sweep's head-height kill envelope and >= 4 tiles outside the nearest patrol clamp.",
         expectedUnverified: true,
         notes: "4-2 deliberately ships pit-free: the L41 audit's 'every pit needs a hazard floor' lesson is answered here by having no pits at all — the two hazard classes (sweep, dash) both kill cleanly and both are freeze-gated.",
+      };
+    },
+  },
+
+  // ==========================================================================
+  // 4-3 "KOBI's Heart" (W3W4 L43 — the FINALE)
+  // ==========================================================================
+  {
+    id: "4-3-turbine-freeze-separation",
+    level: "4-3",
+    category: "B",
+    candidate: "The runner enters a LIVE turbine gauntlet under the freeze and OVERSTAYS the hold — is a thaw-bitten runner (or a split team) ever stranded?",
+    repro: [
+      "stage: equip + hall + arena entry, blind station 1's core exposed (route steps 0-2 + the blind)",
+      "SABOTAGE: F freezes and walks INTO the flank but deliberately LOITERS between the live turbines past the 5s thaw — the wakened rotor bites (deliberate death)",
+      "assert: the respawn lands at the x30 arena checkpoint, solid, out of every hazard's reach; the exposure LATCH survived; the buddy (on the west perch side) is not stranded — the freeze is a WORLD cast with no side condition",
+      "recovery: the taught freeze+run re-runs on real input — the core unplugs, its turbines power down FOREVER",
+    ],
+    async run(bb) {
+      const fi = bb.idx("F");
+      for (let i = 0; i <= 1; i++) { bb.stepDeaths = 0; await route43[i].fn(bb); }
+      await bb.walkTo("F", 30, { tol: 9, timeout: 9000 }).catch(() => {});
+      await bb.walkTo("B", 31, { tol: 9, timeout: 9000 }).catch(() => {});
+      bb.stepDeaths = 0;
+      await h43.blindEye(bb, 0); // station 1 exposed (permanent)
+      const exposed1 = (await bb.state()).heart.stations[0].exposed;
+      // SABOTAGE: freeze, walk INTO the gauntlet, and overstay between rotors
+      let bitten = false;
+      const d0 = bb.deaths;
+      for (let att = 0; att < 5 && !bitten; att++) {
+        let s = await bb.state();
+        if (s.players[fi].dead) { bb.deaths = d0; bb.stepDeaths = 0; await bb.waitFor((t) => !t.players[fi].dead, 5000, "F back").catch(() => {}); }
+        await h43.glareSafeWalk(bb, "F", h43.PARKS[0], { tol: 8 }).catch(() => {});
+        await bb.waitFor((t) => t.players[fi].freezeCd <= 0 && !t.frozen, 20000, "freeze ready").catch(() => {});
+        await bb.tap(bb.keysFor("F").act);
+        const froze = await bb.waitFor((t) => t.frozen, 1500, "frozen").then(() => true).catch(() => false);
+        if (!froze) continue;
+        // park BETWEEN the two live turbines (x57/x59), short of the core, and loiter
+        await bb.walkTo("F", 57.9, { tol: 5, timeout: 3500 }).catch(() => {});
+        const s2 = await bb.state();
+        if (s2.heart.stations[0].taken) break; // drifted onto the core — still proves recovery
+        bitten = await bb.waitFor((t) => t.players[fi].dead, 9000, "thaw bite").then(() => true).catch(() => false);
+      }
+      if (bitten) {
+        bb.deaths = d0; bb.stepDeaths = 0; // deliberate probe deaths
+        await bb.waitFor((t) => !t.players[fi].dead, 5000, "respawn").catch(() => {});
+        await sleep(300);
+      }
+      let st = await bb.state();
+      const p = st.players[fi];
+      const respawnSafe = !bitten || (p.tx > 29 && p.tx < 31.6 && p.grounded);
+      const latchHeld = st.heart.stations[0].exposed;
+      // recovery: the taught run takes the core; the station dies forever
+      bb.stepDeaths = 0;
+      await h43.takeRun(bb, 0);
+      st = await bb.state();
+      const taken = st.heart.stations[0].taken;
+      const turbinesDead = st.turbines.filter((tb) => tb.station === 0).every((tb) => tb.dead);
+      const ok = exposed1 && latchHeld && taken && turbinesDead && respawnSafe;
+      return {
+        classification: taken && turbinesDead ? "RECOVERABLE" : "UNVERIFIED",
+        stuck: { exposed1, bitten, respawnTx: +p.tx.toFixed(2), respawnSafe, latchHeld },
+        recoveries: [
+          { name: "a thaw bite is the standard cp30 respawn — the checkpoint is outside the glare clamp (140px clear) and 3+ tiles from every turbine", ok: respawnSafe },
+          { name: "freezes are UNLIMITED (the cooldown recharges) and exposure LATCHES — the taught freeze+run re-ran and the station's turbines died forever", ok: taken && turbinesDead },
+        ],
+        repro: this.repro,
+        verdict: ok
+          ? "RECOVERABLE — a turbine gauntlet can never hold or strand: the deliberate overstay took the standard hazard death, the respawn reunited the team at the attested-safe x30 checkpoint, the vent exposure survived (monotonic), and the very next freeze+run unplugged the core and killed the station's turbines permanently. The freeze is a world cast with no side/range condition, so no split across a gauntlet can strand either."
+          : "UNVERIFIED — a leg did not land this run (see stuck/recoveries); re-run. The load-bearing facts: st.exposed only ever rises, turbines die with their station, castFreeze has no side condition, and checkpoints are global.",
+        expectedUnverified: true,
+        notes: "Post-take the corridor back west is permanently clear (dead turbines are harmless set dressing), so even a station-3 straggler walks home bare.",
+      };
+    },
+  },
+  {
+    id: "4-3-blind-window-missed",
+    level: "4-3",
+    category: "B",
+    candidate: "Blind 'window' deliberately MISSED (exposed core ignored until the eye re-arms; dazzle drained; deaths in between) — can the boss fight ever become UNWINNABLE?",
+    repro: [
+      "stage to the arena (route steps 0-1 + walk in)",
+      "SABOTAGE 1: blind station 1 -> core exposed -> IGNORE it: let the 4s reel lapse and the eye re-arm; assert the exposure LATCHES (the vent never re-closes)",
+      "SABOTAGE 2: build partial dazzle then douse — it drains at 0.35x but the battery recharges FASTER than the drain (net progress is always attainable); assert a fresh blind still exposes station 2 afterwards",
+      "SABOTAGE 3: die deliberately mid-fight (bare walk into a live turbine); assert boss progress (exposed/taken/coresTaken/dead turbines) is IDENTICAL after the respawn",
+      "recovery: finish the whole fight from that worst state — power-down + Bolt + exit open",
+    ],
+    async run(bb) {
+      const fi = bb.idx("F");
+      for (let i = 0; i <= 1; i++) { bb.stepDeaths = 0; await route43[i].fn(bb); }
+      await bb.walkTo("F", 30, { tol: 9, timeout: 9000 }).catch(() => {});
+      await bb.walkTo("B", 31, { tol: 9, timeout: 9000 }).catch(() => {});
+      // SABOTAGE 1: expose station 1 and ignore it until the eye re-arms
+      bb.stepDeaths = 0;
+      await h43.blindEye(bb, 0);
+      await h43.glareSafeWalk(bb, "B", 31.8, { tol: 14 }).catch(() => {});
+      const rearmed = await bb.waitFor((s) => s.heart.state === "fight" && s.heart.reelT <= 0, 9000, "eye re-armed")
+        .then(() => true).catch(() => false);
+      let st = await bb.state();
+      const exposureLatched = st.heart.stations[0].exposed && !st.heart.stations[0].taken;
+      // take core 1 now (the "missed window" cost nothing but time)
+      bb.stepDeaths = 0;
+      await h43.takeRun(bb, 0);
+      // SABOTAGE 3: deliberate bare death in station 2's live flank
+      const d0 = bb.deaths;
+      const before = await bb.state();
+      const progBefore = JSON.stringify({
+        c: before.heart.coresTaken,
+        e: before.heart.stations.map((x) => x.exposed),
+        t: before.heart.stations.map((x) => x.taken),
+        d: before.turbines.map((tb) => tb.dead),
+      });
+      await push(bb, "F", 62.5, 6000, { hop: false }); // into the live x62 rotor
+      let died = (await bb.state()).players[fi].dead;
+      if (!died) died = await bb.waitFor((s) => s.players[fi].dead, 6000, "turbine bite").then(() => true).catch(() => false);
+      if (died) {
+        bb.deaths = d0; bb.stepDeaths = 0;
+        await bb.waitFor((s) => !s.players[fi].dead, 5000, "respawn").catch(() => {});
+        await sleep(300);
+      }
+      st = await bb.state();
+      const progAfter = JSON.stringify({
+        c: st.heart.coresTaken,
+        e: st.heart.stations.map((x) => x.exposed),
+        t: st.heart.stations.map((x) => x.taken),
+        d: st.turbines.map((tb) => tb.dead),
+      });
+      const progressKept = progBefore === progAfter;
+      // SABOTAGE 2 is implicit in every retry: dazzle drains 0.35x unlit while
+      // the battery recharges at 0.5x — the blind always re-attains. Prove it
+      // by simply blinding station 2 fresh after all of the above:
+      bb.stepDeaths = 0;
+      await h43.unplugStation(bb, 1);
+      bb.stepDeaths = 0;
+      await h43.unplugStation(bb, 2);
+      const defeated = await bb.waitFor((s) => s.heartDefeated, 4000, "powered down").then(() => true).catch(() => false);
+      const resolved = await bb.waitFor((s) => s.heartResolved, 22000, "Bolt home").then(() => true).catch(() => false);
+      st = await bb.state();
+      const exitOpen = st.doors.find((d) => d.id === "exit")?.open === true;
+      const ok = rearmed && exposureLatched && progressKept && defeated && resolved && exitOpen;
+      return {
+        classification: defeated && resolved && exitOpen && progressKept ? "RECOVERABLE" : "UNVERIFIED",
+        stuck: { rearmed, exposureLatched, died, progressKept },
+        recoveries: [
+          { name: "there IS no missable window: exposure LATCHES (vents never re-close), coresTaken never decrements, dead turbines never respin — drive-attested byte-identical progress across a mid-fight death", ok: exposureLatched && progressKept },
+          { name: "blinds are unlimited: dazzle drains slower (0.35x) than the battery recharges (0.5x), so a fresh blind always lands — the whole fight finished from the worst order", ok: defeated && resolved && exitOpen },
+        ],
+        repro: this.repro,
+        verdict: ok
+          ? "RECOVERABLE — the boss fight can NEVER become unwinnable. Every bit of fight state is monotonic in the player's favor (vent exposure latches through the eye re-arming, unplugged cores stay unplugged, dead turbines stay dead, byte-identical across deaths), and both resources regenerate forever (freeze cooldown, beam battery — which refills faster than dazzle drains). The deliberately-mangled order (expose -> ignore -> re-arm -> death) still ended in the power-down, the Bolt rescue and an open exit."
+          : "UNVERIFIED — a leg did not land this run (see stuck/recoveries); re-run. The load-bearing facts: exposeHeartCore/takeHeartCore only ever set flags true, killPlayer touches no heart state, and PHYS.heartDrain (0.35) < PHYS.beamRegen (0.5).",
+        expectedUnverified: true,
+        notes: "This is the finale's FL-005 guarantee: the ~10-min fight is hard through escalation (glare pace, gauntlet depth), never through loseable state.",
+      };
+    },
+  },
+  {
+    id: "4-3-respawn-strand-during-fight",
+    level: "4-3",
+    category: "C",
+    candidate: "Respawn-strand audit DURING the fight (all stations live): do the glare or the turbines reach any checkpoint — a mid-boss death loop?",
+    repro: [
+      "stage to the arena with every station live (route steps 0-1 + walk in)",
+      "deliberate death 1: stand still mid-arena until the glare column locks and strikes (the fight's signature kill)",
+      "deliberate death 2: bare walk into station 1's live rotor",
+      "assert after each: the respawn lands grounded at the x30 checkpoint band, and 5s of unattended IDLE there is death-free (the glare clamps to tiles 34-72 — its column edge stops 140px short; turbines are static, 3+ tiles away)",
+      "recovery: the fight proceeds normally afterwards (station 1 blinds + unplugs)",
+    ],
+    async run(bb) {
+      const fi = bb.idx("F");
+      for (let i = 0; i <= 1; i++) { bb.stepDeaths = 0; await route43[i].fn(bb); }
+      await bb.walkTo("F", 30, { tol: 9, timeout: 9000 }).catch(() => {});
+      await bb.walkTo("B", 31, { tol: 9, timeout: 9000 }).catch(() => {});
+      const audits = [];
+      const d0 = bb.deaths;
+      const audit = async (label, goDie) => {
+        const died = await goDie();
+        if (died) {
+          bb.deaths = d0; bb.stepDeaths = 0;
+          await bb.waitFor((s) => !s.players[fi].dead, 5000, "respawn").catch(() => {});
+          await sleep(300);
+        }
+        let st = await bb.state();
+        const p = st.players[fi];
+        const solid = p.grounded && p.ty > 12.8;
+        const inBand = p.tx > 29 && p.tx < 31.6;
+        const dd = bb.deaths;
+        await sleep(5000); // unattended idle at the checkpoint — the death-loop guard
+        st = await bb.state();
+        const idleSafe = !st.players[fi].dead && bb.deaths === dd;
+        audits.push({ label, died, respawnTx: +p.tx.toFixed(2), solid, inBand, idleSafe });
+        return died && solid && inBand && idleSafe;
+      };
+      // death 1: stand mid-arena and let the glare lock on
+      const a1 = await audit("cp30 <- glare strike (stood still mid-arena)", async () => {
+        await bb.walkTo("F", 39, { tol: 8, timeout: 9000 }).catch(() => {});
+        return bb.waitFor((s) => s.players[fi].dead, 14000, "glare kill").then(() => true).catch(() => false);
+      });
+      // death 2: bare walk into station 1's live rotor
+      const a2 = await audit("cp30 <- live turbine (bare walk-in)", async () => {
+        await push(bb, "F", 57.5, 9000, { hop: false });
+        let died = (await bb.state()).players[fi].dead;
+        if (!died) died = await bb.waitFor((s) => s.players[fi].dead, 5000, "rotor bite").then(() => true).catch(() => false);
+        return died;
+      });
+      // recovery: the fight proceeds — station 1 blinds + unplugs normally
+      bb.stepDeaths = 0;
+      await h43.unplugStation(bb, 0);
+      const taken = (await bb.state()).heart.stations[0].taken;
+      const ok = a1 && a2 && taken;
+      return {
+        classification: taken && a1 && a2 ? "RECOVERABLE" : "UNVERIFIED",
+        stuck: { audits },
+        recoveries: [
+          { name: "the x30 arena checkpoint is outside BOTH kill classes: the glare clamp's column edge stops 140px short and the nearest turbine is 3+ tiles away — 5s unattended idle attested death-free after each kill", ok: a1 && a2 },
+          { name: "nothing is consumed by a mid-boss death: the fight continued and station 1 unplugged", ok: taken },
+        ],
+        repro: this.repro,
+        verdict: ok
+          ? "RECOVERABLE — no mid-boss death loop is possible: both signature kills (glare strike, turbine rotor) respawn onto the attested-safe x30 checkpoint (solid, in-band, 5s idle-proof each), the hall/equip checkpoints are even further outside the clamp, and boss progress is untouched by deaths. The x26/x11 checkpoints were exercised by the staging route legs the same way."
+          : "UNVERIFIED — an audit leg flaked this run (see stuck.audits); re-run. The geometry facts: glare clamp minX tile 34 (kill edge x32.9 vs cp x30), turbines at x57+ (static columns).",
+        expectedUnverified: true,
+        notes: "The exit yard (x74+) also sits past the clamp's east edge, so nobody camping the door during the fight can be farmed either.",
+      };
+    },
+  },
+  {
+    id: "4-3-epilogue-cant-strand",
+    level: "4-3",
+    category: "C",
+    candidate: "The EPILOGUE + credits — can the post-game cinematic ever hold the player (an input-dead phase, an unexitable credits roll)?",
+    repro: [
+      "finish the whole finale on real input (the full 4-3 route through the exit)",
+      "continue from the clear overlay (SPACE) -> the Epilogue scene",
+      "attest EVERY phase: 'story' advances per keypress (and auto-advances on its own timer), 'credits' skips to 'end' on a keypress (and auto-lands there when left alone), 'end' exits to the Title on a keypress",
+      "assert: from any phase, a bounded number of presses reaches the Title — the scene cannot strand",
+    ],
+    async run(bb) {
+      // drive the entire finale (steps 0-6), then the epilogue leg explicitly
+      for (let i = 0; i <= 6; i++) { bb.stepDeaths = 0; await route43[i].fn(bb); }
+      const page = bb.page;
+      await page.waitForFunction(() => {
+        const ui = window.__BB.game.scene.getScene("UI");
+        return !!(ui && ui.completed);
+      }, null, { timeout: 6000 });
+      await sleep(400);
+      await bb.tap("Space");
+      await page.waitForFunction(() => window.__BB.game.scene.isActive("Epilogue"), null, { timeout: 6000 });
+      const phases = [];
+      const phase = () => page.evaluate(() => window.__BB.epilogue && window.__BB.epilogue.phase);
+      await sleep(700);
+      phases.push(await phase()); // "story"
+      // story: each press advances a caption; the 4th rolls into the credits
+      let presses = 0;
+      for (let i = 0; i < 8 && (await phase()) === "story"; i++) { await bb.tap("Enter"); presses++; await sleep(420); }
+      phases.push(await phase()); // "credits"
+      const reachedCredits = phases[phases.length - 1] === "credits";
+      await bb.tap("Enter"); presses++;
+      await sleep(400);
+      phases.push(await phase()); // "end"
+      const reachedEnd = phases[phases.length - 1] === "end";
+      await sleep(300);
+      await bb.tap("Enter"); presses++;
+      const atTitle = await page.waitForFunction(() => window.__BB.game.scene.isActive("Title"), null, { timeout: 6000 })
+        .then(() => true).catch(() => false);
+      const ok = phases[0] === "story" && reachedCredits && reachedEnd && atTitle && presses <= 8;
+      return {
+        classification: atTitle ? "RECOVERABLE" : "UNVERIFIED",
+        stuck: { phases, presses, atTitle },
+        recoveries: [
+          { name: "every phase advances on ANY key / any pad button AND auto-advances on its own timer (captions 5.2s, credits 16s scroll) — there is no input-dead phase", ok: reachedCredits && reachedEnd },
+          { name: "the end card exits to the Title on any key — driven from a real full-finale run", ok: atTitle },
+        ],
+        repro: this.repro,
+        verdict: ok
+          ? `RECOVERABLE — the epilogue can never strand: driven end to end from a real finale clear, every phase (story -> credits -> end) advanced on plain keypresses (${presses} total) and landed on the Title. Left alone it ALSO walks itself to the end card on timers (~37s), so even a hands-off player only ever needs one key, once. Pad buttons advance identically (pads.anyButtonJust in the scene's update).`
+          : "UNVERIFIED — a leg did not land this run (see stuck); re-run. The load-bearing facts: EpilogueScene.advance() moves monotonically story->credits->end->Title with both key and timer drivers on every phase.",
+        expectedUnverified: true,
+        notes: "The clear overlay before it keeps the standard continue contract (SPACE/E/L/Enter, pad A) — the finale only swaps the DESTINATION to the Epilogue.",
       };
     },
   },

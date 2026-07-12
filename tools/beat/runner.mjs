@@ -22,8 +22,8 @@ const CHROMIUM = process.env.BB_CHROMIUM || "/opt/pw-browsers/chromium";
 const RUN_BUDGET_MS = 4 * 60 * 1000; // 4 minutes per run
 
 // level id -> registry index
-const LEVEL_INDEX = { "1-1": 0, "1-2": 1, "1-3": 2, "2-1": 3, "2-2": 4, "2-3": 5, "3-1": 6, "3-2": 7, "3-3": 8, "4-1": 9, "4-2": 10 };
-const DEFAULT_LEVELS = ["1-1", "1-2", "1-3", "2-1", "2-2", "2-3", "3-1", "3-2", "3-3", "4-1", "4-2"]; // full 22-run matrix
+const LEVEL_INDEX = { "1-1": 0, "1-2": 1, "1-3": 2, "2-1": 3, "2-2": 4, "2-3": 5, "3-1": 6, "3-2": 7, "3-3": 8, "4-1": 9, "4-2": 10, "4-3": 11 };
+const DEFAULT_LEVELS = ["1-1", "1-2", "1-3", "2-1", "2-2", "2-3", "3-1", "3-2", "3-3", "4-1", "4-2", "4-3"]; // full 24-run matrix
 
 // Both role assignments. Roles are abstract (G=grapple, H=heavy); the runner maps
 // each to a player index. "A" = P1 takes the first (grapple) pedestal; "B" swaps.
@@ -64,7 +64,10 @@ async function startLevel(page, levelIndex) {
   await page.evaluate((i) => {
     localStorage.clear();
     const m = window.__BB.game.scene;
-    ["UI", "Game", "Title", "Hub"].forEach((k) => m.stop(k));
+    // W3W4 L43: "Epilogue" joins the stop list — the 4-3 route ends on the
+    // Title via the epilogue, so a failed run mid-epilogue must not leak into
+    // the next run. Stopping an inactive scene is a no-op.
+    ["UI", "Game", "Title", "Hub", "Epilogue"].forEach((k) => m.stop(k));
     m.start("Game", { levelIndex: i });
   }, levelIndex);
   await sleep(1600); // let the scene warm up
@@ -117,7 +120,10 @@ async function runOne(page, id, assignment, full) {
     await page.keyboard.up(c).catch(() => {});
   }
   let complete = false;
-  try { complete = (await bb.state())?.complete === true; } catch { /* page gone */ }
+  // Direct scalar read (not bb.state()): the 4-3 route legitimately ends on
+  // the Title (clear -> Epilogue -> credits -> Title), and a stopped Game
+  // scene keeps its `complete` flag while deeper state() reads would throw.
+  try { complete = await page.evaluate(() => window.__BB.scene && window.__BB.scene.complete === true); } catch { /* page gone */ }
   // SL2: the passive watchdog's peak tier reached during THIS run (should be 0 —
   // the suite progresses fast, so a correct watchdog never raises). Reported
   // SEPARATELY from PASS/FAIL so an env beat-flake is never conflated with a

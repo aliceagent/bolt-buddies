@@ -772,6 +772,130 @@ const TRACKS = {
     ],
   },
 
+  // w4l3 — 4-3 "KOBI's Heart" (W3W4 L43): the FINALE. Extends the w4 family
+  // (C-minor root/scale) but pushed to a 96-BPM confrontation with the w1l3
+  // boss grammar: a `tension` layer (urgent 16th arp + snare rolls) ON while
+  // KOBI's heart still runs and OFF at the power-down — leaving a slow, kind
+  // coda under the Bolt rescue. The lead is KOBI's own music-box sine, singing
+  // his lonely w4 motif over war drums: the fight IS him, the calm after is
+  // him too. 36 bars (intro/A/B/A'/coda), sectioned so it never loops a cell.
+  w4l3: {
+    bpm: 96, root: 48, scale: [0, 2, 3, 5, 7, 8, 10],
+    leadType: "sine", leadVol: 0.034, leadLen: 1.1,
+    arpType: "triangle", arpVol: 0.015, arpLen: 1.0,
+    bassType: "triangle", bassVol: 0.088, bassLen: 3.0,
+    kickVol: 0.095, snareVol: 0.045, hatVol: 0.016, padVol: 0.032, padCut: 2100,
+    tensionArpVol: 0.019,
+    sections: [
+      {
+        name: "intro", bars: 4,
+        pads: [pad(CH.CmLo), pad(CH.AbLo), pad(CH.CmLo), pad(CH.GLo)],
+        bass: [b2(36, 43), b2(32, 39), b2(36, 43), b2(31, 38)],
+        lead: [row({ 8: 72 }), row({ 8: 68 }), row({ 8: 75 }), row({ 4: 74 })],
+        drums: [D.tick, D.kickHat, D.tick, D.drive],
+        tensionArp: [s16([72, 75, 79, 75, 72, 75, 79, 84, 72, 75, 79, 75, 72, 75, 79, 84])],
+        tensionDrums: [D.snareRoll],
+      },
+      {
+        name: "A", bars: 8,
+        pads: [pad(CH.CmLo), pad(CH.AbLo), pad(CH.Eb), pad(CH.GLo)],
+        bass: [e8([36, 36, 43, 36, 36, 43, 39, 43]), e8([32, 32, 39, 32, 32, 39, 36, 39]),
+          e8([39, 39, 46, 39, 39, 46, 43, 46]), e8([31, 31, 38, 31, 31, 38, 34, 38])],
+        lead: [row({ 0: 75, 8: 72 }), row({ 0: 72, 8: 68 }), row({ 0: 79, 8: 75 }), row({ 0: 74, 8: 70 })],
+        drums: [D.drive, D.back, D.drive, D.drive],
+        tensionArp: [
+          s16([72, 75, 79, 84, 79, 75, 72, 75, 72, 75, 79, 84, 79, 75, 72, 75]),
+          s16([68, 72, 75, 80, 75, 72, 68, 72, 68, 72, 75, 80, 75, 72, 68, 72]),
+          s16([75, 79, 82, 87, 82, 79, 75, 79, 75, 79, 82, 87, 82, 79, 75, 79]),
+          s16([67, 70, 74, 79, 74, 70, 67, 70, 67, 70, 74, 79, 74, 70, 67, 70]),
+        ],
+        tensionDrums: [D.snareRoll, D.snareRoll2, D.snareRoll, D.snareRoll2],
+      },
+      {
+        name: "B", bars: 8,
+        pads: [pad(CH.Fm), pad(CH.CmLo), pad(CH.AbLo), pad(CH.Bb)],
+        bass: [e8([41, 41, 48, 41, 41, 48, 44, 48]), e8([36, 36, 43, 36, 36, 43, 39, 43]),
+          e8([32, 32, 39, 32, 32, 39, 36, 39]), e8([34, 34, 41, 34, 34, 41, 38, 41])],
+        lead: [row({ 0: 80, 6: 77, 12: 75 }), row({ 0: 75, 6: 72, 12: 68 }),
+          row({ 0: 80, 6: 84, 12: 80 }), row({ 0: 77, 8: 74 })],
+        drums: [D.drive, D.drive, D.drive, D.back],
+        tensionArp: [
+          s16([77, 80, 84, 80, 77, 80, 84, 89, 77, 80, 84, 80, 77, 80, 84, 89]),
+          s16([72, 75, 79, 75, 72, 75, 79, 84, 72, 75, 79, 75, 72, 75, 79, 84]),
+          s16([68, 72, 75, 72, 68, 72, 75, 80, 68, 72, 75, 72, 68, 72, 75, 80]),
+          s16([70, 74, 77, 74, 70, 74, 77, 82, 70, 74, 77, 74, 70, 74, 77, 82]),
+        ],
+        tensionDrums: [D.snareRoll2, D.snareRoll, D.snareRoll2, D.snareRoll],
+      },
+      {
+        name: "A'", bars: 8,
+        pads: [pad(CH.CmLo), pad(CH.AbLo), pad(CH.Eb), pad(CH.Bb)],
+        bass: [e8([36, 48, 36, 43, 36, 46, 43, 36]), e8([32, 44, 32, 39, 32, 43, 39, 32]),
+          e8([39, 51, 39, 46, 39, 43, 46, 39]), e8([34, 46, 34, 41, 34, 44, 41, 34])],
+        lead: [row({ 0: 84, 4: 79, 8: 84, 12: 87 }), row({ 0: 80, 4: 75, 8: 80 }),
+          row({ 0: 82, 4: 79, 8: 82, 12: 87 }), row({ 0: 79, 8: 74 })],
+        drums: [D.drive, D.drive, D.drive, D.drive],
+        tensionArp: [
+          s16([72, 75, 79, 84, 87, 84, 79, 75, 72, 75, 79, 84, 87, 84, 79, 75]),
+          s16([68, 72, 75, 80, 84, 80, 75, 72, 68, 72, 75, 80, 84, 80, 75, 72]),
+          s16([75, 79, 82, 87, 91, 87, 82, 79, 75, 79, 82, 87, 91, 87, 82, 79]),
+          s16([70, 74, 77, 82, 86, 82, 77, 74, 70, 74, 77, 82, 86, 82, 77, 74]),
+        ],
+        tensionDrums: [D.snareRoll, D.snareRoll2, D.snareRoll, D.snareRoll2],
+      },
+      {
+        // the coda under the power-down + rescue: tension OFF leaves just this
+        name: "coda", bars: 8,
+        pads: [pad(CH.CmLo), pad(CH.AbLo), pad(CH.Eb), pad(CH.CmLo)],
+        bass: [b2(36, 43), b2(32, 39), b2(39, 46), b2(36, 48)],
+        lead: [row({ 4: 75 }), row({ 8: 72 }), row({ 4: 79, 12: 75 }), row({ 0: 72 })],
+        drums: [D.softKick, D.none, D.offhat, D.none],
+        tensionArp: [q(72, 75, 79, 75), q(68, 72, 75, 72), q(70, 74, 77, 74), q(72, 75, 79, 84)],
+        tensionDrums: [D.hats, D.offhat, D.hats, D.offhat],
+      },
+    ],
+  },
+
+  // epilogue — the playground night + credits (W3W4 L43). The emotional payoff:
+  // everything resolves HOME to C MAJOR (the title's key — the game ends where
+  // it began, warm), 72 BPM, a music-box sine lullaby over soft pads and barely-
+  // there brushes. KOBI's music-box timbre carries the melody — he writes the
+  // credits music now. 28 bars (A/B/tail), gentle enough to loop under credits.
+  epilogue: {
+    bpm: 72, root: 60, scale: [0, 2, 4, 5, 7, 9, 11],
+    leadType: "sine", leadVol: 0.036, leadLen: 1.4,
+    arpType: "triangle", arpVol: 0.014, arpLen: 1.6,
+    bassType: "triangle", bassVol: 0.06, bassLen: 3.6,
+    kickVol: 0.045, snareVol: 0.012, hatVol: 0.011, padVol: 0.03, padCut: 1800,
+    sections: [
+      {
+        name: "A", bars: 8,
+        pads: [pad(CH.C), pad(CH.Am), pad(CH.F), pad(CH.G)],
+        bass: [b2(36, 43), b2(45, 52), b2(41, 48), b2(43, 50)],
+        lead: [row({ 0: 76, 8: 79 }), row({ 0: 72, 8: 76 }), row({ 0: 77, 8: 81 }), row({ 0: 74, 8: 71 })],
+        arp: [row({ 4: 60, 12: 64 }), row({ 4: 57, 12: 60 }), row({ 4: 53, 12: 57 }), row({ 4: 55, 12: 59 })],
+        drums: [D.none, D.softKick, D.none, D.offhat],
+      },
+      {
+        name: "B", bars: 8,
+        pads: [pad(CH.F), pad(CH.C), pad(CH.Dm), pad(CH.G)],
+        bass: [b2(41, 48), b2(36, 43), b2(38, 45), b2(43, 50)],
+        lead: [row({ 0: 81, 6: 79, 12: 77 }), row({ 0: 76, 8: 72 }),
+          row({ 0: 74, 6: 77, 12: 81 }), row({ 0: 79, 8: 76, 14: 74 })],
+        arp: [row({ 2: 65, 10: 69 }), row({ 2: 64, 10: 67 }), row({ 2: 62, 10: 65 }), row({ 2: 59, 10: 62 })],
+        drums: [D.softKick, D.none, D.softKick, D.offhat],
+      },
+      {
+        name: "tail", bars: 12,
+        pads: [pad(CH.Am), pad(CH.F), pad(CH.C), pad(CH.G)],
+        bass: [b2(45, 52), b2(41, 48), b2(36, 43), b2(43, 50)],
+        lead: [row({ 4: 76 }), row({ 8: 77 }), row({ 4: 79, 12: 76 }), row({ 8: 74 })],
+        arp: [row({ 0: 57, 8: 60 }), row({ 0: 53, 8: 57 }), row({ 0: 60, 8: 64 }), row({ 0: 55, 8: 62 })],
+        drums: [D.none, D.offhat, D.none, D.softKick],
+      },
+    ],
+  },
+
   // w3l1 — 3-1 "Attract Mode" (W3W4 L31): the Magnet Works floor track. Extends
   // the w3 electro-funk identity (same C-minor-pentatonic root/scale family) but
   // a distinct mix per the S2 per-level conventions: brighter 116 BPM, a snappy
@@ -983,9 +1107,10 @@ const LEVEL_TRACK = {
   "2-1": "w2l1", "2-2": "w2l2", "2-3": "w2l3",
   // W3W4 L31/L32/L33: all three Magnet Works chambers have composed tracks.
   "3-1": "w3l1", "3-2": "w3l2", "3-3": "w3l3",
-  // W3W4 L41/L42: 4-1 and 4-2 get their composed chamber tracks; 4-3 stays on
-  // the w4 base until L43 composes the finale.
-  "4-1": "w4l1", "4-2": "w4l2", "4-3": "w4",
+  // W3W4 L41/L42/L43: all three Dark Core chambers have composed tracks — 4-3
+  // is the finale boss track (tension layer ON while the heart runs, OFF at
+  // the power-down, w1l3-style); the Epilogue scene plays "epilogue" itself.
+  "4-1": "w4l1", "4-2": "w4l2", "4-3": "w4l3",
   // W3W4 M3: the dev-only World-3 mechanics sandbox reuses the w3 track (the
   // "wire the LEVEL music registry for world 3" entry — 3-1..3-3 above were
   // already mapped; this makes the sandbox exercise the same reuse path).
