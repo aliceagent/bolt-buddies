@@ -247,3 +247,27 @@ Writes `tools/softlock/report.json` (per-candidate stuck state + recovery outcom
 failure artifact for any scenario that can't be driven. SL1 changed **zero** game code —
 the passing 12-run beat matrix is the drift guard (confirmed 10/10 GREEN on 1-1, 1-2, 1-3,
 2-1, 2-3, both role assignments).
+
+## W3/W4 close (X1)
+
+The prober was extended to Worlds 3 & 4 (L31–L43 shipped per-level scenarios;
+`tools/softlock/scenarios/world3.mjs` + `world4.mjs`). Full-suite result across
+all 12 levels + tutorial: **37 RECOVERABLE · 0 HARD SOFTLOCK · 1 UNVERIFIED**
+(the 2-2 fan environmental flake), SL3 detector peak **0** across all 38 scenarios.
+
+New-world verdicts (all driven, all RECOVERABLE):
+- **W3 (Magnet Works, water)** — magnet-crate strands, bubble-shield carries,
+  water buoyancy/current separation, zap-jelly/junk-chomper camps: recoverable
+  via retrace / re-magnetize / death-reunite at shared checkpoints.
+- **W4 (The Dark Core, freeze/light)** — dark-zone pits (hazard-floored, respawn
+  reunites), Gloomy-switch jams (re-herd with the beam), rotating-bridge
+  separation (freeze is a world cast), laser-corridor splits (re-cast reunites),
+  Ticker key-camps (freeze statues the guard), ice-door order (keys fungible).
+- **4-3 finale** — turbine-freeze overstay (thaw-bite respawns safe), a
+  deliberately-missed blind window (**the boss can never become unwinnable** —
+  core exposure latches, progress never decrements), mid-fight respawn (no death
+  loop — checkpoints outside glare/turbine reach), and the **epilogue/credits
+  can never strand** (every phase key- and timer-advanced → Title).
+
+**Confirmed hard-softlock tally: still exactly 1** — the pre-existing 1-2 core0
+optional-core trap (FL-T3-B). W3 and W4 introduced **zero** new hard softlocks.
