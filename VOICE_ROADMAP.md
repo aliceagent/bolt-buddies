@@ -224,3 +224,77 @@ off` A/B proving inertness.
    latitude per line?
 4. **Robots mute?** Recommend yes (beeps only). Confirm.
 5. **Default on or off?** Recommend VO default-ON with the one-tap VOICE mute.
+## 8. Reactive BARKS — KOBI as live commentator (added by request)
+
+Beyond the scripted narrative lines, KOBI reacts to what the players actually DO,
+with **funny, varied, rarely-repeating** one-liners. The game already ships a
+reactive precedent — the U9 death-streak lines + all-cores lines, with anti-repeat
+(`_u9LastStreak`) and once-per-segment rate-limiting. Barks generalize that into
+event-keyed line BANKS.
+
+### Design of the bark system (systemic, so he's funny not annoying)
+- **Banks, not lines.** Each event owns a POOL of 6–10 short barks (~1–2s each,
+  punchier than the paragraph blips). One is chosen at random, **never repeating
+  the last 2–3 played from that bank** (round-robin shuffle bag), so a whole play
+  session rarely repeats.
+- **Global VO cooldown + priority.** A shared cooldown (~5–7s) means KOBI never
+  talks over himself or machine-guns lines. A scripted narrative line (level
+  start/clear, finale) always wins; a bark is **suppressed** while a story blip is
+  on screen and while another bark is within cooldown. Priority ladder:
+  finale/story > level-clear > puzzle-solve/boss-defeat > enemy-kill > death >
+  ambient idle.
+- **Rate-limit per category** (e.g. at most 1 enemy-kill quip per ~15s even if you
+  chain kills — the *first* of a chain gets a "combo" bark, the rest stay silent),
+  so busy fights don't drown in chatter.
+- **Contextual variety.** Where cheap, pick the bank by sub-context: death by
+  ELECTRIC vs CRUSH vs FALL vs LASER; enemy type bug/roller/warden; puzzle type
+  lever/plate/bridge/core. Falls back to a generic bank if no specific one.
+- **Escalation & memory (reuse U9).** Repeated deaths in one segment escalate
+  tone (mock → concern → *rooting for you*, already the finale's arc). "First time"
+  variants fire once (first enemy killed, first gadget equipped, first death).
+- **Never blocks input, respects VOICE mute, ducks music** — same voiceBus/duck as
+  the scripted lines. All barks are pre-generated clips in the VO manifest.
+
+### Bark banks & event hooks (grounded in existing game events)
+| Event (existing hook) | Bank id | Size | Sample KOBI barks |
+|---|---|---|---|
+| **Player dies** (`killPlayer`) generic | `bark.death` | 8 | "Ha! …I mean. Oh no. Anyway." · "The floor thanks you for your donation." · "I have a whole DRAWER of you now." · "That's coming out of your deposit." |
+| death by ELECTRIC pit | `bark.death.zap` | 6 | "Ohh, extra crispy." · "That floor is set to 'tingle'. I may have lied about 'tingle'." |
+| death by CRUSH | `bark.death.crush` | 6 | "Two-dimensional now! More efficient, honestly." · "The Crusher Line remains UNDEFEATED. Mostly." |
+| death by FALL / safe pit | `bark.death.fall` | 6 | "Down you go. Physics: still my employee." |
+| death by LASER/steam (W4/W2) | `bark.death.beam` | 6 | "My garden pruned you. It does that." |
+| **death streak** in a segment (U9 exists) | `bark.streak` | 8 | escalates: mock → "Statistically you should be scrap. And yet — keep GOING." → *rooting for you* |
+| **enemy destroyed** — Scuttlebug | `bark.kill.bug` | 7 | "That was EMPLOYEE of the month! …the SMALL month." · "He had TWO days to retirement." |
+| enemy destroyed — Patrol Roller | `bark.kill.roller` | 6 | "Do you KNOW how hard it is to hire rollers?" |
+| enemy destroyed — Wall-Warden | `bark.kill.warden` | 6 | "He had ONE eye and you took his DIGNITY too." |
+| enemy destroyed — jelly / chomper (W3) | `bark.kill.w3` | 6 | "Not the jelly! The jelly had DREAMS." |
+| **first kill of the run** | `bark.firstkill` | 4 | once: "Oh, we're VIOLENT now. Noted. Filed. Resented." |
+| **puzzle solved** — lever/switch | `bark.solve.lever` | 7 | "Sure, flip MY switches. Everyone does." · "That lever was DECORATIVE. …It was not." |
+| puzzle solved — plate / door | `bark.solve.door` | 6 | "Teamwork. In MY building. Revolting." |
+| puzzle solved — bridge / big mechanism | `bark.solve.big` | 6 | "You FROZE it? …That's actually clever. Forget I said that." |
+| **core collected** (optional pickup) | `bark.core` | 7 | "That core was PRIVATE. That's THEFT with extra steps." · "One of my shinies. Gone. I felt that." |
+| **gadget equipped** (`setSkill`) | `bark.equip` | 5 | once per gadget: "A magnet. My machines are DEFINITELY safe now." |
+| **checkpoint reached** | `bark.checkpoint` | 5 | "A checkpoint. I let you keep those. Out of PITY." |
+| **stuck** t1/t2/t3 (SL2/SL3 exist) | `bark.stuck` | 6 | tier-scaled: gentle ribbing → "Hold R twice. It is FINE. A little sad, but FINE." |
+| **level cleared** (`finishLevel`) | `bark.clear` | — | uses the scripted per-level `clear` line; a short generic bank backs up replays |
+| **idle / dawdling** (watchdog low tier) | `bark.idle` | 6 | "Take your time. I have NOTHING but time. And this building. And the dark." |
+
+~110 scripted lines + **~120 bark lines** across ~18 banks = ~230 clips total.
+Still cheap to generate once V0's pipeline works; the design work is the
+cooldown/priority/shuffle-bag director (a small `src/audio/barks.js` that listens
+to the existing events), which slots into the plan as its own stage:
+
+### New stage — **V2.5 (Bark director)**, between V2 (wiring) and V3 (content)
+Build the bark director: event listeners on the existing hooks (death/kill/solve/
+core/equip/checkpoint/stuck/clear), shuffle-bag no-repeat per bank, global
+cooldown + priority ladder + per-category rate-limit, all gated by VOICE + honoring
+the story-line-wins rule. Prove (a) it never barks over a scripted line, (b) never
+exceeds the cooldown, (c) the beat/playtest suites stay green (barks fire in real
+play but must not perturb timing — pure audio), (d) VOICE-off = silent no-op. Then
+V3/V4 generate the bank content alongside the scripted lines.
+
+### One extra open decision (see §7 #6)
+**How chatty should KOBI be?** Recommend a tuned middle — a bark on most *notable*
+events but gated by the ~6s cooldown + per-category limits so a session feels
+"he's always watching" without wall-to-wall talking. A **CHATTY / NORMAL / RARE**
+option under settings could expose this if you want player control.
