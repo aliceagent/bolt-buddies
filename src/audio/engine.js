@@ -143,6 +143,16 @@ export function initAudio() {
       masterGain.gain.value = settings.muted ? 0 : MASTER;
       musicBus.gain.value = settings.musicMuted ? 0 : settings.music * (ducked ? 0.7 : 1) * (pauseDucked ? 0.5 : 1) * (sadMode ? SAD_MUSIC_GAIN : 1);
       sfxBus.gain.value = settings.sfxMuted ? 0 : settings.sfx;
+      // Dev-only capture tap (tools/capture_walkthrough.mjs): publish references to
+      // the live ctx + master output so the walkthrough recorder can add its own
+      // MediaStreamAudioDestinationNode alongside the normal destination. This is
+      // purely additive — it connects/mutates/disconnects NOTHING and is never read
+      // by gameplay or any audio path, so normal play is byte-for-byte unchanged.
+      try {
+        if (typeof window !== "undefined" && window.__BB && window.__BB.audio) {
+          window.__BB.audio._captureTap = { ctx, masterGain };
+        }
+      } catch (e) { /* window/__BB absent — nothing to publish */ }
     } catch (e) {
       ctx = null; // audio unsupported — game stays silent
     }
