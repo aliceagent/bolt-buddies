@@ -335,3 +335,33 @@ option under settings could expose this if you want player control.
 director) are game-code and can start WITHOUT the key (they play clips when
 present; silent no-op otherwise). V0 sample generation + V3/V4 audio content need
 the `XAI_API_KEY`.
+
+---
+
+## 10. V0 RESULT — xAI TTS confirmed & characterized (done)
+
+**xAI text-to-speech WORKS.** Verified live with the provided key.
+
+- **Endpoint:** `POST https://api.x.ai/v1/tts` (Bearer auth). NOT the OpenAI-compat
+  `/v1/audio/speech` — that returns 403 "Team is not authorized" for this account.
+- **Request schema:** `{ "text": "...", "language": "en", "voice": "<id>",
+  "instructions": "<delivery direction>" }`. `text` + `language` are REQUIRED;
+  `voice` + `instructions` (+ `emotion`, `speed`) are accepted. **`instructions`
+  steers delivery** — so KOBI's "manic robotic building-AI" and the Narrator's
+  "warm British storybook" personas ride on top of the base voice.
+- **Response:** raw **MP3, 24 kHz mono, 128 kbps** (`audio/mpeg`) — game-ready as-is;
+  optional `loudnorm` pass for level consistency (needs ffmpeg, which is apt-
+  installable but does NOT survive container restarts — reinstall per session, or
+  skip since the clips are usable raw).
+- **Voice catalog** (`GET /v1/tts/voices`): 26 named voices, gender-tagged only (no
+  accent labels) — 7 female (ara, carina, celeste, eve, iris, luna, ursa), 19 male.
+  Accent/character must be auditioned + steered via `instructions`.
+- **Audition sent (V0 gate):** KOBI line × {rex, cosmo, zagan}; Narrator epilogue
+  line × {eve, iris, luna}. **Awaiting the pick** (one KOBI voice + one Narrator
+  voice) before generating the full cast.
+
+**`gen_vo.mjs` design is now unblocked:** POST each script line with its speaker's
+locked voice + persona `instructions` → save `public/vo/<id>.mp3` → optional
+loudnorm. Idempotent + cached. KOBI robotic sheen, if the base voice isn't
+synthetic enough, is a light post-process (ffmpeg ring-mod/comb) layered on the
+chosen voice — decided after the audition pick.
