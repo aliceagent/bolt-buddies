@@ -365,3 +365,5 @@ locked voice + persona `instructions` → save `public/vo/<id>.mp3` → optional
 loudnorm. Idempotent + cached. KOBI robotic sheen, if the base voice isn't
 synthetic enough, is a light post-process (ffmpeg ring-mod/comb) layered on the
 chosen voice — decided after the audition pick.
+
+### Voices LOCKED: KOBI = `cosmo`, Narrator = `luna` (xAI /v1/tts). Persona via `instructions`.
