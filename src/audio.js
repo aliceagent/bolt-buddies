@@ -32,7 +32,14 @@ export {
   pauseDuck,
   setSadMusic,
   engineState,
+  setVoiceVolume,
+  setVoiceMuted,
+  toggleVoiceMuted,
+  isVoiceMuted,
+  voDuck,
 } from "./audio/engine.js";
+
+export { playVO, playForText, voIdForText, voKey, stopVO, voState } from "./audio/vo.js";
 
 export {
   sfx, tone, noise, slide, rateLimit, kobi,

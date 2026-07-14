@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { COLORS, WORLD_THEMES, FONT, FS, TEXT } from "../constants.js";
 import { LEVELS } from "../levels/registry.js";
-import { sfx, installMute, duckMusic } from "../audio.js";
+import { sfx, installMute, duckMusic, playForText, stopVO } from "../audio.js";
 import { uxTextSpeed } from "../ux.js";
 import { pads } from "../pad.js";
 import { drawIris, irisMaxR } from "../ui/kit.js";
@@ -316,6 +316,7 @@ export default class UIScene extends Phaser.Scene {
     Object.entries(this.h).forEach(([k, fn]) => E.on(`bb:${k}`, fn));
     this.events.once("shutdown", () => {
       Object.entries(this.h).forEach(([k, fn]) => E.off(`bb:${k}`, fn));
+      stopVO(); // never let a spoken line bleed across a scene swap
       duckMusic(false); // never leave the bus ducked after the HUD is gone
     });
 
@@ -685,6 +686,9 @@ export default class UIScene extends Phaser.Scene {
       this.blipGlow.setAlpha(0.15);
       this.blipGlowTween.restart();
       duckMusic(true); // duck the music bus while KOBI types
+      // VO: speak the matching pre-generated line (if one exists) over the caption.
+      // No-op when VOICE is muted or no clip matches — the caption always shows.
+      playForText(this.blipActive.text);
     }
     const b = this.blipActive;
     // P9: KOBI's iris wanders while idle, snaps toward the text while he types.

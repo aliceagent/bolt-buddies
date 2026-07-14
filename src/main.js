@@ -13,6 +13,7 @@ import MuteScene from "./scenes/MuteScene.js";
 import { engineState } from "./audio/engine.js";
 import { musicState } from "./audio/music.js";
 import { sfx, sfxCounts, resetSfxCounts, kobi, panForX, setListener } from "./audio/sfx.js";
+import { playVO, playForText, voIdForText, voState } from "./audio/vo.js";
 
 const game = new Phaser.Game({
   // ?canvas=1 forces the canvas renderer (the automated playtest uses it —
@@ -79,3 +80,6 @@ window.__BB.audio = { engine: engineState, music: musicState };
 // panForX + setListener let the S5 audio test verify positional stereo panning
 // (±0.3 clamp) deterministically without needing a live camera.
 window.__BB.audio.sfx = { voices: sfx, kobi, counts: sfxCounts, reset: resetSfxCounts, panForX, setListener };
+// VO test surface (tools/playtest_vo.mjs): trigger a clip by id or caption text,
+// resolve a caption -> clip id, and read the live player state ({ playing, id }).
+window.__BB.audio.vo = { play: playVO, playForText, idForText: voIdForText, state: voState };

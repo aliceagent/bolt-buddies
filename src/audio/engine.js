@@ -1,9 +1,20 @@
-// Audio engine — one AudioContext, a master gain and two buses.
+// Audio engine — one AudioContext, a master gain and three buses.
 //
 //   AudioContext
 //   └── masterGain            (mute toggles this to 0 / 1)
-//       ├── musicBus          (music volume; ducks to 0.7x while a KOBI blip types)
-//       └── sfxBus            (sfx volume)
+//       ├── musicBus          (music volume; ducks to 0.7x while a KOBI blip types,
+//       │                      and deeper to VO_DUCK while a spoken line plays)
+//       ├── sfxBus            (sfx volume)
+//       └── voiceBus          (spoken VO — KOBI + Narrator; own mute + volume)
+//
+// VOICE (VO) MODEL: voiceBus is a third sibling of sfxBus. Spoken lines (xAI TTS,
+// pre-generated to public/vo/<id>.mp3) play through it. It has its own `voice`
+// volume and `voiceMuted` flag (default UNMUTED — "voice on by default"). While a
+// VO clip plays, the music bus ducks harder than the plain blip duck (VO_DUCK)
+// so speech stays intelligible; the duck is a separate flag from the blip/pause/
+// sad ducks so they all stack cleanly. Everything here is ADDITIVE — with no VO
+// playing and default settings, the music/sfx/master formulas are byte-identical
+// to before, so every existing audio-suite assertion stays green.
 //
 // Autoplay-safe: the context is created lazily and only on the first initAudio()
 // call — which the scenes fire from their keydown handlers. Nothing here creates
@@ -25,7 +36,12 @@ const STORAGE_KEY = "bolt-buddies-audio-v1";
 // "MUTE ALL" row on too, and M toggles both flags at once. masterGain still
 // drops to 0 whenever derived-muted is true (keeps the old master-kill behaviour
 // and the audio suite's masterGain->0 assertion green).
-const DEFAULTS = { music: 0.45, sfx: 0.8, musicMuted: false, sfxMuted: false, muted: false };
+// `voice` is the spoken-VO bus level (its own slider-able volume, default 1.0 so
+// speech sits clearly over the ducked music). `voiceMuted` defaults false — the
+// locked decision is "voice ON by default". These are extra keys; the master mute
+// model (musicMuted && sfxMuted) is deliberately UNCHANGED — VOICE is a separate
+// opt-out, so muting music+sfx does NOT silence speech and vice-versa.
+const DEFAULTS = { music: 0.45, sfx: 0.8, voice: 1.0, musicMuted: false, sfxMuted: false, voiceMuted: false, muted: false };
 
 // Master ceiling (Sound Sprint S5): the unmuted masterGain sits at 0.8, not 1.0,
 // so the summed output keeps headroom below full scale even when many voices +
@@ -42,7 +58,13 @@ let masterGain = null;
 let limiter = null;
 let musicBus = null;
 let sfxBus = null;
+let voiceBus = null;
 let ducked = false;
+// VO duck: while a spoken line plays, the music bus dips harder than the plain
+// KOBI-blip duck so the voice stays intelligible. Separate flag from `ducked` /
+// `pauseDucked` / `sadMode` so all four ducks multiply independently.
+let voDucked = false;
+const VO_DUCK = 0.35; // music-bus multiplier while a VO clip is speaking
 // Dedicated pause duck (S4): the in-game pause overlay drops the music bus to
 // 0.5x while paused WITHOUT touching the saved music volume. Independent of the
 // KOBI-blip `ducked` flag so the two can stack cleanly.
@@ -99,8 +121,9 @@ function applySettings() {
   if (!ctx) return;
   const t = ctx.currentTime;
   masterGain.gain.setTargetAtTime(settings.muted ? 0 : MASTER, t, 0.008);
-  musicBus.gain.setTargetAtTime(settings.musicMuted ? 0 : settings.music * (ducked ? 0.7 : 1) * (pauseDucked ? 0.5 : 1) * (sadMode ? SAD_MUSIC_GAIN : 1), t, 0.02);
+  musicBus.gain.setTargetAtTime(settings.musicMuted ? 0 : settings.music * (ducked ? 0.7 : 1) * (pauseDucked ? 0.5 : 1) * (sadMode ? SAD_MUSIC_GAIN : 1) * (voDucked ? VO_DUCK : 1), t, 0.02);
   sfxBus.gain.setTargetAtTime(settings.sfxMuted ? 0 : settings.sfx, t, 0.02);
+  if (voiceBus) voiceBus.gain.setTargetAtTime(settings.voiceMuted ? 0 : settings.voice, t, 0.02);
 }
 
 // Keep the derived master flag in sync with the two per-bus flags. Called from
@@ -117,6 +140,7 @@ export function initAudio() {
       masterGain = ctx.createGain();
       musicBus = ctx.createGain();
       sfxBus = ctx.createGain();
+      voiceBus = ctx.createGain();
       // Limiter safeguard: a fast-attack compressor with a hard-ish ratio just
       // below 0 dBFS. It never colours normal levels (nothing crosses -3 dB in
       // isolation); it only catches the rare moment when many voices sum past
@@ -137,12 +161,14 @@ export function initAudio() {
       musicBus.connect(musicFilter);
       musicFilter.connect(masterGain);
       sfxBus.connect(masterGain);
+      voiceBus.connect(masterGain);
       masterGain.connect(limiter);
       limiter.connect(ctx.destination);
       // set gains immediately (no ramp) so the very first note is at the right level
       masterGain.gain.value = settings.muted ? 0 : MASTER;
-      musicBus.gain.value = settings.musicMuted ? 0 : settings.music * (ducked ? 0.7 : 1) * (pauseDucked ? 0.5 : 1) * (sadMode ? SAD_MUSIC_GAIN : 1);
+      musicBus.gain.value = settings.musicMuted ? 0 : settings.music * (ducked ? 0.7 : 1) * (pauseDucked ? 0.5 : 1) * (sadMode ? SAD_MUSIC_GAIN : 1) * (voDucked ? VO_DUCK : 1);
       sfxBus.gain.value = settings.sfxMuted ? 0 : settings.sfx;
+      voiceBus.gain.value = settings.voiceMuted ? 0 : settings.voice;
       // Dev-only capture tap (tools/capture_walkthrough.mjs): publish references to
       // the live ctx + master output so the walkthrough recorder can add its own
       // MediaStreamAudioDestinationNode alongside the normal destination. This is
@@ -170,6 +196,9 @@ export function getMusicBus() {
 export function getSfxBus() {
   return sfxBus;
 }
+export function getVoiceBus() {
+  return voiceBus;
+}
 
 // --- public settings API ---------------------------------------------------
 export function setMusicVolume(v) {
@@ -181,6 +210,24 @@ export function setSfxVolume(v) {
   settings.sfx = clamp01(v);
   saveSettings();
   applySettings();
+}
+export function setVoiceVolume(v) {
+  settings.voice = clamp01(v);
+  saveSettings();
+  applySettings();
+}
+// --- VOICE (VO) mute — a SEPARATE opt-out from music/sfx (voice on by default) --
+export function setVoiceMuted(b) {
+  settings.voiceMuted = !!b;
+  saveSettings();
+  applySettings();
+}
+export function toggleVoiceMuted() {
+  setVoiceMuted(!settings.voiceMuted);
+  return settings.voiceMuted;
+}
+export function isVoiceMuted() {
+  return settings.voiceMuted;
 }
 // --- MUTE ALL (master) -------------------------------------------------------
 // setMuted / toggleMute drive BOTH per-bus flags together (the derived master).
@@ -238,6 +285,12 @@ export function duckMusic(on) {
   ducked = !!on;
   applySettings();
 }
+// VO duck: dip the music bus to VO_DUCK while a spoken line is playing so the
+// voice stays clear. Independent of the blip/pause/sad ducks (they all stack).
+export function voDuck(on) {
+  voDucked = !!on;
+  applySettings();
+}
 // SL7: toggle the tier-3 "cold hard truth" sad-music treatment. On → dip the music
 // bus + close the lowpass to SAD_LP_HZ (muffled/somber). Off → restore the bus gain
 // and re-open the lowpass to transparent, i.e. exactly normal playback. Reversible,
@@ -271,6 +324,8 @@ export function engineState() {
     masterGain: masterGain ? masterGain.gain.value : null,
     musicBus: musicBus ? musicBus.gain.value : null,
     sfxBus: sfxBus ? sfxBus.gain.value : null,
+    voiceBus: voiceBus ? voiceBus.gain.value : null,
+    voDucked,
     sadMode,
     musicLP: musicFilter ? musicFilter.frequency.value : null,
   };

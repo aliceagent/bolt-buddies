@@ -1,0 +1,68 @@
+{
+  "tut_start": {
+    "hash": "5cdccce4bfb5361e",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 139776
+  },
+  "tut_hazard": {
+    "hash": "ee09db00b273eb8f",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 135168
+  },
+  "tut_gadget": {
+    "hash": "28d0d9c021ad4f92",
+    "voice": "cosmo",
+    "emotion": "neutral",
+    "bytes": 94464
+  },
+  "tut_teamwork": {
+    "hash": "840c222f97cd3370",
+    "voice": "cosmo",
+    "emotion": "annoyed",
+    "bytes": 125952
+  },
+  "tut_restart": {
+    "hash": "def38bd10d68d398",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 151680
+  },
+  "tut_clear": {
+    "hash": "1b10474fb383169b",
+    "voice": "cosmo",
+    "emotion": "annoyed",
+    "bytes": 76800
+  },
+  "l1_1_start": {
+    "hash": "57844d26e19374cb",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 109440
+  },
+  "l1_1_skills": {
+    "hash": "59d6dc0c7c2134cf",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 99072
+  },
+  "l1_1_clear": {
+    "hash": "6332841551e4d056",
+    "voice": "cosmo",
+    "emotion": "annoyed",
+    "bytes": 101760
+  },
+  "l1_2_start": {
+    "hash": "5e3f977f2e5988dd",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 100608
+  },
+  "l1_3_start": {
+    "hash": "a4755f58775714cb",
+    "voice": "cosmo",
+    "emotion": "excited",
+    "bytes": 143616
+  }
+}
