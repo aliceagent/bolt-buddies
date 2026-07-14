@@ -298,3 +298,14 @@ V3/V4 generate the bank content alongside the scripted lines.
 events but gated by the ~6s cooldown + per-category limits so a session feels
 "he's always watching" without wall-to-wall talking. A **CHATTY / NORMAL / RARE**
 option under settings could expose this if you want player control.
+
+---
+
+## 9. Decisions log
+- **#6 Chattiness → LOCKED: "tuned middle."** Bark on most *notable* events, gated by
+  a ~6s global VO cooldown + per-category rate-limits + shuffle-bag no-repeat, so
+  KOBI reads as "always watching" without wall-to-wall talk. No player-facing
+  CHATTY/NORMAL/RARE setting unless requested later; the tuning lives in constants.
+- Pending: #1 xAI TTS key/endpoint (the hard blocker for audio), #2 two voices,
+  #3 adapt-for-speech latitude, #4 robots mute, #5 default-on. Proceeding on the
+  recommended defaults for #2–#5 unless overridden; #1 still required to generate.
