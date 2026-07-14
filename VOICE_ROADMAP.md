@@ -322,3 +322,16 @@ option under settings could expose this if you want player control.
 - **#4 robots mute / #5 default-on:** proceeding on the recommended defaults
   (Beep & Boop stay wordless; VO ships ON with the one-tap VOICE mute) unless
   overridden.
+
+### Decisions log — FINAL (all six locked)
+1. xAI TTS: **YES** — need `XAI_API_KEY` + endpoint to generate (only remaining blocker).
+2. Two voices: **KOBI = robot**, **Narrator = British woman**.
+3. Spoken take **adapted for speech**; captions stay verbatim.
+4. Beep & Boop: **MUTE** (wordless — confirmed).
+5. VO: **default ON** (with one-tap VOICE mute — confirmed).
+6. Barks: **tuned middle** (cooldown + rate-limit + no-repeat).
+
+**Ready to build.** V1 (voiceBus + VOICE mute), V2 (event wiring), and V2.5 (bark
+director) are game-code and can start WITHOUT the key (they play clips when
+present; silent no-op otherwise). V0 sample generation + V3/V4 audio content need
+the `XAI_API_KEY`.
