@@ -309,3 +309,16 @@ option under settings could expose this if you want player control.
 - Pending: #1 xAI TTS key/endpoint (the hard blocker for audio), #2 two voices,
   #3 adapt-for-speech latitude, #4 robots mute, #5 default-on. Proceeding on the
   recommended defaults for #2–#5 unless overridden; #1 still required to generate.
+
+### Decisions log — round 2 (locked)
+- **#1 xAI TTS → YES**, xAI does speech. Still need the `XAI_API_KEY` (+ endpoint/
+  voice-catalog) to actually generate. This is the only remaining hard blocker.
+- **#2 Voices → TWO, cast:** **KOBI = a robot voice** (manic, synthetic, clipped,
+  emphasis spikes on the CAPS); **Narrator = a British woman** (warm, unhurried,
+  storybook — epilogue + credits, and optionally the title hook line). The
+  British-narrator-vs-robot contrast is the emotional device for the ending.
+- **#3 Adapt for speech → YES.** Captions stay verbatim (subtitles); the spoken
+  take is rewritten per-line for natural spoken cadence — trims, beats, breath.
+- **#4 robots mute / #5 default-on:** proceeding on the recommended defaults
+  (Beep & Boop stay wordless; VO ships ON with the one-tap VOICE mute) unless
+  overridden.
