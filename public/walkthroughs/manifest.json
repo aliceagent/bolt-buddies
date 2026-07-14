@@ -8,6 +8,9 @@
     { "id": "2-2", "name": "Steam & Shadows",       "world": 2, "file": "bolt-buddies-2-2-walkthrough.mp4" },
     { "id": "2-3", "name": "The Warden's Maze",     "world": 2, "file": "bolt-buddies-2-3-walkthrough.mp4" },
     { "id": "3-1", "name": "Attract Mode",          "world": 3, "file": "bolt-buddies-3-1-walkthrough.mp4" },
-    { "id": "3-2", "name": "The Flooded Tank",      "world": 3, "file": "bolt-buddies-3-2-walkthrough.mp4" }
+    { "id": "3-2", "name": "The Flooded Tank",      "world": 3, "file": "bolt-buddies-3-2-walkthrough.mp4" },
+    { "id": "3-3", "name": "The Scrap Storm",       "world": 3, "file": "bolt-buddies-3-3-walkthrough.mp4" },
+    { "id": "4-1", "name": "Lights Out",            "world": 4, "file": "bolt-buddies-4-1-walkthrough.mp4" },
+    { "id": "4-2", "name": "The Laser Garden",      "world": 4, "file": "bolt-buddies-4-2-walkthrough.mp4" }
   ]
 }
