@@ -367,3 +367,41 @@ synthetic enough, is a light post-process (ffmpeg ring-mod/comb) layered on the
 chosen voice — decided after the audition pick.
 
 ### Voices LOCKED: KOBI = `cosmo`, Narrator = `luna` (xAI /v1/tts). Persona via `instructions`.
+
+## 11. V1 + V2 SHIPPED (dev 378d001) — engine bus, player, first batch
+
+**Angry recipe LOCKED (range-check, take "D"):** high-intensity KOBI = `emotion:
+"furious"` + CAPITALIZED emphasis words + `speed ≈ 1.05` + explicit "SHOUT/roar,
+losing control, voice cracking" direction. Cosmo holds both the smug-comic and the
+cornered-rage extremes with this recipe → one voice, whole range. Codified as
+`RAGE_EXTRA` in `tools/vo_lines.mjs`.
+
+**V1 — audio-engine voice bus (done).** `src/audio/engine.js` gains a third
+`voiceBus` (sibling of sfxBus), a `voiceMuted` flag (default UNMUTED = voice on),
+a `voice` volume, and `VO_DUCK` (music dips harder while a line speaks; separate
+flag so blip/pause/sad/VO ducks all stack). All additive → existing audio suite
+**29/29, no regression**.
+
+**V2 — player + wiring + generator (done).**
+- `src/audio/vo.js` — one-clip-at-a-time playback through voiceBus, lazy+cached
+  decode, drives voDuck, true no-op under VOICE mute. `voKey()` normalizes a
+  caption → manifest key.
+- Wired at the blip-activation point in `UIScene` (`playForText(blip.text)`),
+  stopVO on scene shutdown. Captions unchanged — VO rides on top.
+- `tools/gen_vo.mjs` + `tools/vo_lines.mjs` — idempotent xAI TTS build step:
+  POST /v1/tts per line → `public/vo/<id>.mp3`, cache by request-hash in
+  `tools/vo_cache.json`, regenerate `src/audio/vo_manifest.js` (caption→id lookup).
+  Key from `$XAI_API_KEY` / scratchpad, NEVER committed. Run: `node tools/gen_vo.mjs`.
+
+**First batch (11 clips):** tutorial ×6 (start, hazard, gadget, teamwork, restart,
+clear) + World 1 (1-1 start/skills/clear, 1-2 start, 1-3 start). KOBI = Cosmo.
+
+**Verified:** `tools/playtest_vo.mjs` 5/5 (voiceBus exists · clip plays · voDuck
+asserts · caption→id · VOICE-mute no-op); real-path live-blip probe PASS (start
+blip speaks through the actual bb:blip→UIScene chain); vite build clean.
+
+**Still to do:** V2.5 bark director (reactive KOBI on death/stuck/kill/solve/clear)
+· V3 remainder of W1–W2 + in-level teaching triggers · V4 W3–W4 + finale (RAGE_EXTRA)
++ Narrator/Luna epilogue · V5 mix/QA + a VOICE toggle in the Settings UI. NOTE: no
+Settings-page VOICE row yet — the engine + mute plumbing exist (setVoiceMuted), the
+UI control is a V5 task.
