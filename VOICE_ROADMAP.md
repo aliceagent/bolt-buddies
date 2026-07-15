@@ -425,3 +425,23 @@ zero physics/timing/finishLevel impact. Verified: build clean, BarkDirector unit
 **Remaining:** V3 in-level teaching-trigger blips (inline trigger.blip lines) ·
 V4 Worlds 3–4 + finale (RAGE_EXTRA) + Luna narrator epilogue · V5 Settings VOICE
 toggle UI + mix/QA. 4-3 epic finale rebuild still parked for Friday.
+
+## 13. V3 COMPLETE + Settings toggle — LIVE (main 4805a9a)
+
+**Worlds 3–4 dialogue + all in-level triggers + Settings VOICE toggle** shipped to
+production. **93 voiced clips total** — the ENTIRE game is voiced except the held
+finale.
+
+- W3–W4 spine (15 clips, hand-tuned): KOBI's arc from manic W3 pride → frightened,
+  lonely vulnerability by 4-2. Finale 4-3 HELD for the Friday rebuild.
+- 25 in-level trigger asides, extracted verbatim from level files (no drift).
+- Settings: new **VOICE** on/off row (setVoiceMuted) — players can turn speech off.
+  Verified 4/4 + panel screenshot; audio suite still 29/29.
+
+**Coverage now:** tutorial ✓ · W1 ✓ · W2 ✓ · W3 ✓ · W4 (4-1,4-2) ✓ · reactive
+barks ✓ · Settings toggle ✓.
+
+**Remaining (all gated on Friday's 4-3 finale rebuild):**
+- V4: the finale (4-3) dialogue with RAGE_EXTRA + the Luna/Narrator epilogue —
+  hold until the finale is rebuilt (its lines will change).
+- V5: final mix/QA polish pass + per-line emotion tuning if desired.
