@@ -405,3 +405,23 @@ blip speaks through the actual bb:blip→UIScene chain); vite build clean.
 + Narrator/Luna epilogue · V5 mix/QA + a VOICE toggle in the Settings UI. NOTE: no
 Settings-page VOICE row yet — the engine + mute plumbing exist (setVoiceMuted), the
 UI control is a V5 task.
+
+## 12. V2.5 SHIPPED to dev (dcfa8b6) — reactive BARK director + batch 2/3 content
+
+**Full scripted spine voiced (batch 2, main 90f8152):** all of Worlds 1–2 +
+tutorial — 28 clips. Live in production.
+
+**Reactive barks (V2.5, dev dcfa8b6 — pending beat smoke before main):** KOBI now
+comments on what players DO. New `src/barks.js` is the single source of truth for
+reactive line text (game + VO build both import it — no drift). Events + pacing:
+  * death (0.45) · enemyKill (0.22) · puzzleSolve (0.7, non-exit gates) · stuck (1.0, tier-1)
+  * global 6.5s cooldown + shuffle-bag no-repeat (seam-guarded) = "tuned middle"
+  * U9 streak/all-cores lines re-homed into barks.js → now voiced too
+25 new clips (death5/enemyKill5/puzzleSolve4/stuck4/streak4/allcores3). Manifest 53.
+Hooks: killPlayer, squishBug, door-open, stuck tier-1. All flow through bb:blip —
+zero physics/timing/finishLevel impact. Verified: build clean, BarkDirector unit
+4/4, VO probe 5/5, audio suite 29/29.
+
+**Remaining:** V3 in-level teaching-trigger blips (inline trigger.blip lines) ·
+V4 Worlds 3–4 + finale (RAGE_EXTRA) + Luna narrator epilogue · V5 Settings VOICE
+toggle UI + mix/QA. 4-3 epic finale rebuild still parked for Friday.
