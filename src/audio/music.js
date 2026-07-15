@@ -22,6 +22,7 @@
 //   padVol/padCut, kickVol/snareVol/hatVol.
 
 import { getCtx, getMusicBus } from "./engine.js";
+import { mp3HasTrack, mp3PlayTrack, mp3StopTrack, mp3State } from "./mp3music.js";
 
 // ---------------------------------------------------------------------------
 // small helpers (all run once at module load — they build DATA, not per-note)
@@ -1358,6 +1359,24 @@ function startTrack(id) {
   const ctx = getCtx();
   const musicBus = getMusicBus();
   if (!ctx || !musicBus || !TRACKS[id]) return;
+  // --- produced-MP3 upgrade -------------------------------------------------
+  // If a real track exists for this id (or its world group), play it through the
+  // music bus INSTEAD of the procedural synth. Silent fallback to synth otherwise,
+  // so the game keeps its current music until MP3s are dropped into public/music/.
+  if (mp3HasTrack(id)) {
+    if (mp3State().id === id && mp3State().playing) return; // already on this track
+    for (const rt of tracks) if (!rt.removeAt) fadeOut(rt, 0.6); // fade any synth out
+    mp3PlayTrack(id); // async load + crossfade; routes through musicBus
+    current = id;
+    playing = true;
+    pendingId = null;
+    jingleId = null;
+    return;
+  }
+  // leaving a produced track for a synth-only one — stop the MP3 so it doesn't
+  // linger under the synth
+  if (mp3State().playing) mp3StopTrack(0.6);
+  // --- procedural synth path (unchanged) ------------------------------------
   const active = tracks.find((rt) => !rt.removeAt);
   if (active && active.id === id) return; // already playing — no-op
   for (const rt of tracks) if (!rt.removeAt) fadeOut(rt, 0.6); // crossfade out the old
@@ -1409,6 +1428,7 @@ export function startPendingMusic() {
 export function stopMusic() {
   const ctx = getCtx();
   if (ctx) for (const rt of tracks) if (!rt.removeAt) fadeOut(rt, 0.4);
+  mp3StopTrack(0.4); // also stop any produced track
   current = null;
   playing = false;
   pendingId = null;
@@ -1495,5 +1515,9 @@ export const musicState = {
   get tension() {
     const rt = tracks.find((r) => !r.removeAt);
     return rt ? rt.layers.tension !== false : null;
+  },
+  // "mp3" while a produced track is playing, else "synth" (the default engine).
+  get source() {
+    return mp3State().playing ? "mp3" : "synth";
   },
 };
