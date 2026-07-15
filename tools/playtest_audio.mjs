@@ -73,11 +73,21 @@ check("M unmutes: masterGain restored to 0.8 ceiling", a3.masterGain > 0.7 && a3
 const s0 = await scene(() => window.__BB.audio.music);
 await page.waitForTimeout(3600); // > 1 bar at 90 BPM (~2.67s/bar)
 const s1 = await scene(() => window.__BB.audio.music);
-check(
-  "section pointer advances over time (bar or section moves)",
-  (s1.bar !== s0.bar || s1.section !== s0.section) && s1.bar >= 0,
-  `from bar=${s0.bar}/sec=${s0.section} to bar=${s1.bar}/sec=${s1.section}`
-);
+if (s1.source === "mp3") {
+  // a produced MP3 track shadows the synth for `title` — the bar/section pointer
+  // is a synth-only concept, so assert the live looping produced track instead.
+  check(
+    "title music active (produced MP3 track loops)",
+    s1.source === "mp3" && s1.playing && s1.current === "title",
+    `source=${s1.source} playing=${s1.playing} current=${s1.current}`
+  );
+} else {
+  check(
+    "section pointer advances over time (bar or section moves)",
+    (s1.bar !== s0.bar || s1.section !== s0.section) && s1.bar >= 0,
+    `from bar=${s0.bar}/sec=${s0.section} to bar=${s1.bar}/sec=${s1.section}`
+  );
+}
 
 // helper: jump straight into a level (ctx already unlocked above)
 const startLevel = async (i) => {
@@ -99,8 +109,18 @@ check("entering 2-2 plays `w2l2`", (await scene(() => window.__BB.audio.music.cu
 // --- check 7: 1-3 crane defeat turns the `tension` layer off ------------------
 await startLevel(2); // 1-3
 check("1-3 plays `w1l3`", (await scene(() => window.__BB.audio.music.current)) === "w1l3", await scene(() => window.__BB.audio.music.current));
-check("1-3 tension layer ON while crane lives", (await scene(() => window.__BB.audio.music.tension)) === true);
-// drive the real crane-defeat code path (3rd pod stomp)
+// The `tension` layer is a SYNTH-only feature. When a produced MP3 track covers
+// World 1 (w1l3 -> w1.mp3), the adaptive layer no longer applies — the produced
+// track carries its own mood. So assert tension only when the synth is active;
+// under a produced track, assert the crane-defeat code path still runs cleanly and
+// music keeps playing.
+const src13 = await scene(() => window.__BB.audio.music.source);
+if (src13 === "mp3") {
+  check("1-3 music active (produced track; synth tension layer N/A)", (await scene(() => window.__BB.audio.music.playing)) === true, `source=${src13}`);
+} else {
+  check("1-3 tension layer ON while crane lives", (await scene(() => window.__BB.audio.music.tension)) === true);
+}
+// drive the real crane-defeat code path (3rd pod stomp) — exercised either way
 await scene(() => {
   const s = window.__BB.scene;
   const c = s.crane;
@@ -110,7 +130,11 @@ await scene(() => {
   s.stompPod(pod);
 });
 await page.waitForTimeout(150);
-check("1-3 crane defeat turns tension layer OFF", (await scene(() => window.__BB.audio.music.tension)) === false, `tension=${await scene(() => window.__BB.audio.music.tension)}`);
+if (src13 === "mp3") {
+  check("1-3 crane defeat handled; music still playing (produced track)", (await scene(() => window.__BB.audio.music.playing)) === true, `source=${src13}`);
+} else {
+  check("1-3 crane defeat turns tension layer OFF", (await scene(() => window.__BB.audio.music.tension)) === false, `tension=${await scene(() => window.__BB.audio.music.tension)}`);
+}
 
 // --- check 3: completing a level switches music to `jingle_clear` -------------
 await startLevel(0); // fresh 1-1
