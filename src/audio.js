@@ -10,10 +10,12 @@
 
 import { initAudio as engineInit } from "./audio/engine.js";
 import { startPendingMusic } from "./audio/music.js";
+import { preloadSfxSamples } from "./audio/sfxsamples.js";
 
 export function initAudio() {
   engineInit();
   startPendingMusic();
+  preloadSfxSamples(); // warm any produced-SFX buffers (no-op when none present)
 }
 
 export {

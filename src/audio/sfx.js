@@ -17,6 +17,7 @@
 //     stay ≤0.055, KOBI blips stay the quietest thing in the mix (~0.012)
 
 import { getCtx, getSfxBus } from "./engine.js";
+import { sfxSampleReady, playSfxSample } from "./sfxsamples.js";
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
@@ -563,3 +564,25 @@ export const sfx = {
   yank: () => { tone(500, 0.15, "sawtooth", 0.05, -350); },
   denied: () => sfx.menuDeny(),
 };
+
+// --- produced-sample upgrade -------------------------------------------------
+// Wrap every voice so that if a produced sample exists for it (public/sfx/<name>),
+// that file plays through the sfxBus INSTEAD of the synth — positional voices keep
+// their pan (panForX) + proximity volume (pv). No sample -> the synth voice runs
+// exactly as before, so the game is unchanged until samples are dropped in. A light
+// per-name rate-limit mirrors the synth voices' anti-machine-gun guard.
+for (const _name of Object.keys(sfx)) {
+  const _orig = sfx[_name];
+  if (typeof _orig !== "function") continue;
+  sfx[_name] = (...args) => {
+    if (sfxSampleReady(_name)) {
+      const [x, y] = args;
+      const vol = (typeof x === "number" && typeof y === "number") ? pv(x, y) : 1;
+      if (vol <= 0) return; // off-screen — same skip the synth path takes
+      if (!rateLimit(`smp:${_name}`, 40)) return;
+      playSfxSample(_name, typeof x === "number" ? panForX(x) : 0, vol);
+      return;
+    }
+    return _orig(...args);
+  };
+}
