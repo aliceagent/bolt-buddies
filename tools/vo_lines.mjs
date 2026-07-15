@@ -19,6 +19,8 @@
 // Voices + personas are LOCKED (VOICE_ROADMAP §2 / decisions log):
 //   KOBI = cosmo, Narrator = luna.
 
+import { BARK_BANKS, STREAK_LINES, ALLCORES_LINES } from "../src/barks.js";
+
 export const VOICES = { KOBI: "cosmo", NARR: "luna" };
 
 // Persona base instructions — every line of a speaker inherits this, then appends
@@ -40,7 +42,7 @@ export const RAGE_EXTRA =
   "He has just been defeated and is LOSING CONTROL. Full-throated fury, voice " +
   "cracking with rage, SHOUT the capitalized words, explosive and desperate.";
 
-export const LINES = [
+const SCRIPTED = [
   // ---- Tutorial ("Orientation Day") — the first voice a new player hears -------
   {
     id: "tut_start", speaker: "KOBI", emotion: "amused",
@@ -219,3 +221,30 @@ export const LINES = [
     extra: "Scandalized disbelief building to a genuine, sputtering shout on 'get out'.",
   },
 ];
+
+// ---- Reactive BARKS (V2.5) — derived from the single source of truth in
+// src/barks.js so a clip's trigger can never drift from what actually fires. Each
+// bark's spoken text is its caption minus the "KOBI:" tag; per-bank emotion +
+// direction shape KOBI's delivery for that moment.
+const stripKobi = (s) => s.replace(/^\s*KOBI:\s*/i, "");
+const BARK_STYLE = {
+  death:       { emotion: "amused",    extra: "Mock-sympathy over a fresh respawn; secretly enjoying it." },
+  enemyKill:   { emotion: "annoyed",   extra: "Theatrical mourning for a squished minion he does not really miss." },
+  puzzleSolve: { emotion: "annoyed",   extra: "Grudging respect — he hates that they solved it." },
+  stuck:       { emotion: "neutral",   extra: "Gentle, a little lonely; a soft nudge, never mean." },
+};
+const bankLines = (bank, style, prefix) =>
+  bank.map((trigger, i) => ({
+    id: `${prefix}_${i + 1}`, speaker: "KOBI", emotion: style.emotion,
+    trigger, speak: stripKobi(trigger), extra: style.extra,
+  }));
+
+const BARKS = [
+  ...Object.entries(BARK_BANKS).flatMap(([event, bank]) =>
+    bankLines(bank, BARK_STYLE[event], `bark_${event}`)),
+  // U9 streak / all-cores reactive lines (fired by GameScene's own no-repeat path)
+  ...bankLines(STREAK_LINES, { emotion: "amused", extra: "Kind-hearted ribbing after a run of deaths; rooting for them despite himself." }, "streak"),
+  ...bankLines(ALLCORES_LINES, { emotion: "surprised", extra: "Reluctantly impressed they took every core; respect he won't admit." }, "allcores"),
+];
+
+export const LINES = [...SCRIPTED, ...BARKS];

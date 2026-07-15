@@ -15,6 +15,7 @@ import { AnimSystem } from "../anim/index.js";
 import { MOTION } from "../anim/motion.js";
 import { ProgressWatchdog } from "../softlock/watchdog.js";
 import { SoftlockDetectors } from "../softlock/detectors.js";
+import { STREAK_LINES as U9_STREAK_LINES, ALLCORES_LINES as U9_ALLCORES_LINES, BarkDirector } from "../barks.js";
 
 const J = Phaser.Input.Keyboard.JustDown;
 
@@ -47,17 +48,8 @@ let throwHintShownSession = false;
 // active one (never interrupts, never touches physics/timing/finishLevel). No new
 // UI. Every line is NO-REPEAT within a browser session via the module-level Set
 // below (in-memory only; resets on page reload — no persistence, by spec).
-const U9_STREAK_LINES = [
-  "KOBI: I have seen TOASTERS do better. The toasters also exploded. You're FINE.",
-  "KOBI: That is a LOT of respawns. Statistically you should be scrap. And yet — keep GOING.",
-  "KOBI: Three tries. I am NOT counting. I am DEFINITELY not counting. ...Try the jump SOONER.",
-  "KOBI: The scrap pile is getting HOPEFUL about you. Prove it WRONG. Please.",
-];
-const U9_ALLCORES_LINES = [
-  "KOBI: ALL three cores?! Those were MY cores. ...Fine. You EARNED the paperwork.",
-  "KOBI: Every core, gone. I should be FURIOUS. I am, regrettably, a little IMPRESSED.",
-  "KOBI: A CLEAN sweep, you greedy little machines. ...I respect it. OFFICIALLY off the record.",
-];
+// U9_STREAK_LINES / U9_ALLCORES_LINES now live in src/barks.js (single source of
+// truth so the VO build voices them too) — imported at the top of this file.
 const u9SessionUsed = new Set(); // no-repeat within this browser session (memory only)
 
 // Pick a still-unused line from a pool and mark it used. Returns null once the
@@ -185,6 +177,9 @@ export default class GameScene extends Phaser.Scene {
     this._u9StreakCount = 0;   // total streak lines fired this scene
     this._u9LastStreak = null; // last streak line fired (cross-segment variety)
     this._u9AllCores = null;   // all-cores respect line fired at finishLevel
+    // Reactive bark director (V2.5): live KOBI commentary on death / stuck / enemy
+    // kill / puzzle solve. Fresh per scene so cooldown + shuffle bags reset on entry.
+    this.barks = new BarkDirector();
 
     // W3W4 M3: World-3 mechanics state. Arrays are reset every create() like the
     // rest of the level state; `_w3` flips true only when a W3 skill/ent/tile is
@@ -2618,6 +2613,9 @@ export default class GameScene extends Phaser.Scene {
     const rig = this.anim && this.anim.rigFor(bug);
     if (rig && rig.onHostRemoved) rig.onHostRemoved();
     bug.destroy();
+    // V2.5: KOBI mourns a minion now and then (rare — 0.22 chance + cooldown, so he
+    // isn't eulogizing every squish).
+    this.barks.fire(this, "enemyKill", { prob: 0.22 });
   }
 
   // P7: stamp a pooled splat decal at (x,y) and fade it over ~2s. Recycles a
@@ -3223,6 +3221,7 @@ export default class GameScene extends Phaser.Scene {
     // line, at most once per segment. Display-only (queued blip); if the session
     // pool is exhausted, u9Pick returns null and the line is simply dropped.
     this._segDeaths++;
+    let firedStreak = false;
     if (this._segDeaths >= 3 && !this._segStreakFired) {
       this._segStreakFired = true;
       const line = u9Pick(U9_STREAK_LINES);
@@ -3230,8 +3229,13 @@ export default class GameScene extends Phaser.Scene {
         this._u9StreakCount++;
         this._u9LastStreak = line;
         this.game.events.emit("bb:blip", line);
+        firedStreak = true;
       }
     }
+    // V2.5: an occasional single-death bark (most deaths pass silently — the
+    // cooldown + 0.45 chance keep it a garnish). Never on the same respawn as a
+    // streak line (that beat already spoke).
+    if (!firedStreak) this.barks.fire(this, "death", { prob: 0.45 });
     if (p.carrying) this.detachCarry(p, p.carrying, false);
     if (p.carriedBy) this.detachCarry(p.carriedBy, p, false);
     // W3: a dying magnet drops its crate; a dying bubble pops silently. Both
@@ -4434,6 +4438,10 @@ export default class GameScene extends Phaser.Scene {
     this._stuckModeShown = mode;
     if (tier === 0) this.hideStuckPrompt();
     else this.showStuckPrompt(mode);
+    // V2.5: on the gentle tier-1 nudge, KOBI adds a warm bark (fires once per
+    // 0->1 transition — the guard above gates re-entry). Higher tiers keep the
+    // firm SL prompt without chatter.
+    if (tier === 1) this.barks.fire(this, "stuck", { prob: 1 });
   }
 
   // --- main loop -----------------------------------------------------------------
@@ -4784,6 +4792,9 @@ export default class GameScene extends Phaser.Scene {
         this.dust.emitParticleAt(d.zone.centerX + TILE * 0.4, fy, 6);
         if (d.isExit) sfx.exitDoor(d.zone.centerX, d.baseY);
         else sfx.door(d.zone.centerX, d.baseY);
+        // V2.5: a mid-level gate opening = the room's lock solved. Skip the exit
+        // door (its clear is covered by the scripted per-level `clear` blip).
+        if (!d.isExit) this.barks.fire(this, "puzzleSolve", { prob: 0.7 });
         this.tweens.add({ targets: d.img, y: d.baseY - d.h + 10, duration: 600, ease: "sine.inOut" });
       } else if (!shouldOpen && d.open) {
         // momentary doors close again — but never on top of someone

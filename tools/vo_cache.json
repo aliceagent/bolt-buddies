@@ -166,5 +166,155 @@
     "voice": "cosmo",
     "emotion": "angry",
     "bytes": 87936
+  },
+  "bark_death_1": {
+    "hash": "fe22e5b41c60104a",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 78720
+  },
+  "bark_death_2": {
+    "hash": "c1095e45b1214d8d",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 58752
+  },
+  "bark_death_3": {
+    "hash": "408d0e7b5a2eb86c",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 63360
+  },
+  "bark_death_4": {
+    "hash": "e45fea425c87d2e0",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 67584
+  },
+  "bark_death_5": {
+    "hash": "84a03670b067cb63",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 76032
+  },
+  "bark_enemyKill_1": {
+    "hash": "2f0bbc6c1c0013bd",
+    "voice": "cosmo",
+    "emotion": "annoyed",
+    "bytes": 84480
+  },
+  "bark_enemyKill_2": {
+    "hash": "2de86ed720c69eaf",
+    "voice": "cosmo",
+    "emotion": "annoyed",
+    "bytes": 65280
+  },
+  "bark_enemyKill_3": {
+    "hash": "35599e7fe2e6cbc5",
+    "voice": "cosmo",
+    "emotion": "annoyed",
+    "bytes": 60672
+  },
+  "bark_enemyKill_4": {
+    "hash": "8ded522b4e8b781d",
+    "voice": "cosmo",
+    "emotion": "annoyed",
+    "bytes": 82560
+  },
+  "bark_enemyKill_5": {
+    "hash": "9b611d31b88c2452",
+    "voice": "cosmo",
+    "emotion": "annoyed",
+    "bytes": 60288
+  },
+  "bark_puzzleSolve_1": {
+    "hash": "e3612b9bed5ee2ec",
+    "voice": "cosmo",
+    "emotion": "annoyed",
+    "bytes": 69888
+  },
+  "bark_puzzleSolve_2": {
+    "hash": "b70d0f6745860c6e",
+    "voice": "cosmo",
+    "emotion": "annoyed",
+    "bytes": 69888
+  },
+  "bark_puzzleSolve_3": {
+    "hash": "2e9b0a99d5a1903c",
+    "voice": "cosmo",
+    "emotion": "annoyed",
+    "bytes": 73728
+  },
+  "bark_puzzleSolve_4": {
+    "hash": "72cd2fcdd49099e5",
+    "voice": "cosmo",
+    "emotion": "annoyed",
+    "bytes": 59520
+  },
+  "bark_stuck_1": {
+    "hash": "8f42a20f9939e5bc",
+    "voice": "cosmo",
+    "emotion": "neutral",
+    "bytes": 94080
+  },
+  "bark_stuck_2": {
+    "hash": "b8da48a25ed82749",
+    "voice": "cosmo",
+    "emotion": "neutral",
+    "bytes": 83328
+  },
+  "bark_stuck_3": {
+    "hash": "d2949b8de3f29dab",
+    "voice": "cosmo",
+    "emotion": "neutral",
+    "bytes": 84480
+  },
+  "bark_stuck_4": {
+    "hash": "1b137445b0274b27",
+    "voice": "cosmo",
+    "emotion": "neutral",
+    "bytes": 89856
+  },
+  "streak_1": {
+    "hash": "6e046f4ced0f894c",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 76032
+  },
+  "streak_2": {
+    "hash": "aaca2013aebd86fe",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 98688
+  },
+  "streak_3": {
+    "hash": "21c813c0076758f0",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 105600
+  },
+  "streak_4": {
+    "hash": "cd4ba2b72933dcf2",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 69120
+  },
+  "allcores_1": {
+    "hash": "2fdbb75b17f874e8",
+    "voice": "cosmo",
+    "emotion": "surprised",
+    "bytes": 83712
+  },
+  "allcores_2": {
+    "hash": "8609d1c1f30fd3c6",
+    "voice": "cosmo",
+    "emotion": "surprised",
+    "bytes": 98688
+  },
+  "allcores_3": {
+    "hash": "23a6b2634331a483",
+    "voice": "cosmo",
+    "emotion": "surprised",
+    "bytes": 82560
   }
 }
