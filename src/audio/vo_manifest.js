@@ -12,5 +12,22 @@ export const VO_LOOKUP = {
   "a grappling hook and a heavy chassis how quaint the lift ahead needs serious weight you know": "l1_1_skills",
   "you cleared one chamber i have eleven more i am not worried not worried": "l1_1_clear",
   "ah the crusher line i flattened four hundred defective toasters here it is my favorite chamber": "l1_2_start",
-  "behold my magnificent crane it has four stars on labreviewsdotcom say hello crane it says hello": "l1_3_start"
+  "behold my magnificent crane it has four stars on labreviewsdotcom say hello crane it says hello": "l1_3_start",
+  "gadgets acquired the gate recognizes you now regrettably": "tut_skills",
+  "robot stacking is forbidden oh you already did it fine": "tut_stack",
+  "one holds the plate the buddy slips through then frees the holder you first then me how touching": "tut_plate",
+  "both robots must walk through no one gets left behind not even especially not the puppy": "tut_both",
+  "the crushers only respect heavy machinery everyone else gets recycled heehee": "l1_2_skills",
+  "impossible those crushers were recently serviced": "l1_2_clear",
+  "its shield plates are unyankable probably do not test that": "l1_3_skills",
+  "fine fine enjoy the maintenance tunnels you little gremlins i mopped them myself": "l1_3_clear",
+  "the maintenance tunnels i mopped them myself do not touch my beautiful patrol rollers": "l2_1_start",
+  "one of you is now very small and one walks through walls i officially hate this wing": "l2_1_skills",
+  "fine fine but the vents get smaller probably i have not checked": "l2_1_clear",
+  "steam shadows atmosphere this chamber has everything mostly steam": "l2_2_start",
+  "hold hands to walk through walls together that is disgustingly adorable": "l2_2_skills",
+  "who turned off my steam that was loadbearing steam": "l2_2_clear",
+  "my wallwardens guard this maze they have one eye each and no peripheral vision it was a budget year": "l2_3_start",
+  "the doors are on timers coordinate or better yet  dont and stay here forever with me": "l2_3_skills",
+  "you threw your friend and they liked it get out get out of my tunnels": "l2_3_clear"
 };

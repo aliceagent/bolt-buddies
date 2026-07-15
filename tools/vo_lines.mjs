@@ -110,4 +110,112 @@ export const LINES = [
     speak: "BEHOLD! My magnificent crane! It has FOUR STARS on LabReviews dot com. Say hello, crane. ...It says hello.",
     extra: "Showman's flourish on 'behold', then a proud pause, then a flat little 'it says hello'.",
   },
+
+  // ---- Tutorial — the lines skipped in batch 1 --------------------------------
+  {
+    id: "tut_skills", speaker: "KOBI", emotion: "annoyed",
+    trigger: "KOBI: Gadgets acquired. The gate RECOGNIZES you now. Regrettably.",
+    speak: "Gadgets acquired. The gate recognizes you now. ...Regrettably.",
+    extra: "A resigned little sigh on the last word.",
+  },
+  {
+    id: "tut_stack", speaker: "KOBI", emotion: "annoyed",
+    trigger: "KOBI: Robot stacking is FORBIDDEN. ...Oh, you already did it. Fine.",
+    speak: "Robot stacking is FORBIDDEN. ...Oh. You already did it. Fine.",
+    extra: "Officious rule-quoting, then a deflated, defeated 'fine'.",
+  },
+  {
+    id: "tut_plate", speaker: "KOBI", emotion: "amused",
+    trigger: "KOBI: One holds the plate, the buddy slips through, THEN frees the holder. You first. Then me. How TOUCHING.",
+    speak: "One holds the plate, the buddy slips through, then frees the holder. You first. Then me. How TOUCHING.",
+    extra: "Sarcastic sweetness dripping off 'touching'.",
+  },
+  {
+    id: "tut_both", speaker: "KOBI", emotion: "neutral",
+    trigger: "KOBI: BOTH robots must walk through. No one gets left behind. Not even... ESPECIALLY not the puppy.",
+    speak: "Both robots must walk through. No one gets left behind. Not even... especially not the puppy.",
+    extra: "Officious, then an odd catch on 'puppy' — a flicker of something he won't admit.",
+  },
+
+  // ---- World 1 — remaining skills/clear ---------------------------------------
+  {
+    id: "l1_2_skills", speaker: "KOBI", emotion: "amused",
+    trigger: "KOBI: The crushers only respect HEAVY machinery. Everyone else gets... recycled. Heehee.",
+    speak: "The crushers only respect HEAVY machinery. Everyone else gets... recycled. Heehee.",
+    extra: "A nasty little giggle on 'heehee', delighted by the threat.",
+  },
+  {
+    id: "l1_2_clear", speaker: "KOBI", emotion: "surprised",
+    trigger: "KOBI: IMPOSSIBLE. Those crushers were RECENTLY SERVICED!",
+    speak: "IMPOSSIBLE. Those crushers were RECENTLY SERVICED!",
+    extra: "Genuine indignant shock, like a manager whose equipment betrayed him.",
+  },
+  {
+    id: "l1_3_skills", speaker: "KOBI", emotion: "amused",
+    trigger: "KOBI: Its shield plates are UN-YANKABLE. Probably. Do not test that.",
+    speak: "Its shield plates are un-yankable. Probably. Do not test that.",
+    extra: "Confident on 'un-yankable', then a nervous walk-back on 'probably'.",
+  },
+  {
+    id: "l1_3_clear", speaker: "KOBI", emotion: "annoyed",
+    trigger: "KOBI: Fine! FINE! Enjoy the Maintenance Tunnels, you little gremlins. I mopped them MYSELF.",
+    speak: "Fine! FINE! Enjoy the Maintenance Tunnels, you little gremlins. I mopped them MYSELF.",
+    extra: "Petulant defeat, then absurd wounded pride about the mopping.",
+  },
+
+  // ---- World 2 — Maintenance Tunnels (phase + tiny) ---------------------------
+  {
+    id: "l2_1_start", speaker: "KOBI", emotion: "annoyed",
+    trigger: "KOBI: The Maintenance Tunnels! I mopped them MYSELF. Do NOT touch my beautiful Patrol Rollers.",
+    speak: "The Maintenance Tunnels! I mopped them MYSELF. Do NOT touch my beautiful Patrol Rollers.",
+    extra: "House-proud and possessive; sharp warning on 'do not touch'.",
+  },
+  {
+    id: "l2_1_skills", speaker: "KOBI", emotion: "annoyed",
+    trigger: "KOBI: One of you is now VERY small, and one walks through WALLS. I officially hate this wing.",
+    speak: "One of you is now VERY small, and one walks through WALLS. I officially hate this wing.",
+    extra: "Exasperated, flatly done with the whole situation.",
+  },
+  {
+    id: "l2_1_clear", speaker: "KOBI", emotion: "annoyed",
+    trigger: "KOBI: Fine. FINE! But the vents get SMALLER. Probably. I have not checked.",
+    speak: "Fine. FINE! But the vents get SMALLER. Probably. I have not checked.",
+    extra: "Empty threat, undercut by an honest admission he never checked.",
+  },
+  {
+    id: "l2_2_start", speaker: "KOBI", emotion: "excited",
+    trigger: "KOBI: Steam! Shadows! Atmosphere! This chamber has EVERYTHING. Mostly steam.",
+    speak: "Steam! Shadows! Atmosphere! This chamber has EVERYTHING. ...Mostly steam.",
+    extra: "Theatrical showman selling the room, then a flat honest 'mostly steam'.",
+  },
+  {
+    id: "l2_2_skills", speaker: "KOBI", emotion: "disgusted",
+    trigger: "KOBI: Hold hands to walk through walls together? That is DISGUSTINGLY adorable.",
+    speak: "Hold hands to walk through walls together? That is DISGUSTINGLY adorable.",
+    extra: "Repulsed by the sweetness, like it physically pains him.",
+  },
+  {
+    id: "l2_2_clear", speaker: "KOBI", emotion: "surprised",
+    trigger: "KOBI: Who turned off my steam?! That was LOAD-BEARING steam!",
+    speak: "Who turned off my steam?! That was LOAD-BEARING steam!",
+    extra: "Indignant panic; the 'load-bearing steam' claim is deadly serious to him.",
+  },
+  {
+    id: "l2_3_start", speaker: "KOBI", emotion: "neutral",
+    trigger: "KOBI: My Wall-Wardens guard this maze. They have ONE eye each and NO peripheral vision. It was a budget year.",
+    speak: "My Wall-Wardens guard this maze. They have ONE eye each and no peripheral vision. ...It was a budget year.",
+    extra: "Proud tour-guide, then a deadpan bureaucratic excuse for the design flaw.",
+  },
+  {
+    id: "l2_3_skills", speaker: "KOBI", emotion: "amused",
+    trigger: "KOBI: The doors are on TIMERS. Coordinate! Or better yet — don't, and stay here forever with me.",
+    speak: "The doors are on TIMERS. Coordinate! Or better yet... don't. And stay here forever. With me.",
+    extra: "Starts brisk, then slows into a lonely, almost hopeful little invitation.",
+  },
+  {
+    id: "l2_3_clear", speaker: "KOBI", emotion: "angry",
+    trigger: "KOBI: You THREW your friend?! ...And they LIKED it?! Get out. GET OUT OF MY TUNNELS.",
+    speak: "You THREW your friend?! ...And they LIKED it?! Get out. GET OUT of my tunnels!",
+    extra: "Scandalized disbelief building to a genuine, sputtering shout on 'get out'.",
+  },
 ];

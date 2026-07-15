@@ -64,5 +64,107 @@
     "voice": "cosmo",
     "emotion": "excited",
     "bytes": 143616
+  },
+  "tut_skills": {
+    "hash": "2087fc3f259def3b",
+    "voice": "cosmo",
+    "emotion": "annoyed",
+    "bytes": 65280
+  },
+  "tut_stack": {
+    "hash": "f9988b9df2136172",
+    "voice": "cosmo",
+    "emotion": "annoyed",
+    "bytes": 76800
+  },
+  "tut_plate": {
+    "hash": "87d8abd11ce2bba4",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 112896
+  },
+  "tut_both": {
+    "hash": "052440a185ded87f",
+    "voice": "cosmo",
+    "emotion": "neutral",
+    "bytes": 99840
+  },
+  "l1_2_skills": {
+    "hash": "cb2373888081d3fa",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 88320
+  },
+  "l1_2_clear": {
+    "hash": "f27e4b58de08c4d9",
+    "voice": "cosmo",
+    "emotion": "surprised",
+    "bytes": 57600
+  },
+  "l1_3_skills": {
+    "hash": "954f33cca590fe92",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 71040
+  },
+  "l1_3_clear": {
+    "hash": "f31cd61c95860744",
+    "voice": "cosmo",
+    "emotion": "annoyed",
+    "bytes": 87936
+  },
+  "l2_1_start": {
+    "hash": "21bd5b189c38b515",
+    "voice": "cosmo",
+    "emotion": "annoyed",
+    "bytes": 90240
+  },
+  "l2_1_skills": {
+    "hash": "503b7590146ec860",
+    "voice": "cosmo",
+    "emotion": "annoyed",
+    "bytes": 90240
+  },
+  "l2_1_clear": {
+    "hash": "d108df0d9b152ca5",
+    "voice": "cosmo",
+    "emotion": "annoyed",
+    "bytes": 81408
+  },
+  "l2_2_start": {
+    "hash": "f3fcfdd4cfc17f77",
+    "voice": "cosmo",
+    "emotion": "excited",
+    "bytes": 82560
+  },
+  "l2_2_skills": {
+    "hash": "8e0400f1873ac46a",
+    "voice": "cosmo",
+    "emotion": "disgusted",
+    "bytes": 76800
+  },
+  "l2_2_clear": {
+    "hash": "c8ee3ab0f4f341a8",
+    "voice": "cosmo",
+    "emotion": "surprised",
+    "bytes": 55680
+  },
+  "l2_3_start": {
+    "hash": "5b60de23ac520c39",
+    "voice": "cosmo",
+    "emotion": "neutral",
+    "bytes": 112512
+  },
+  "l2_3_skills": {
+    "hash": "4b4cfbe9fa2d6457",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 99840
+  },
+  "l2_3_clear": {
+    "hash": "3942b9efc1d54475",
+    "voice": "cosmo",
+    "emotion": "angry",
+    "bytes": 87936
   }
 }
