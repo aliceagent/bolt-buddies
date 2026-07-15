@@ -3,6 +3,7 @@ import { WORLD_THEMES, FONT, FS, TEXT } from "../constants.js";
 import {
   initAudio, sfx, installMute,
   getAudioSettings, setMusicVolume, setSfxVolume, toggleMute,
+  toggleVoiceMuted, isVoiceMuted,
 } from "../audio.js";
 import { pads, showPadToast } from "../pad.js";
 import { getUxOptions, setUxOption } from "../ux.js";
@@ -58,10 +59,10 @@ export default class SettingsScene extends Phaser.Scene {
       fontFamily: FONT, fontSize: FS.mini, fontStyle: "bold", color: hexStr(ACCENT),
     }).setOrigin(0, 0.5).setAlpha(0.9);
 
-    // rows: 0 music, 1 sfx, 2 mute, then U11 comfort rows (3 shake, 4 flash,
-    // 5 hints, 6 text speed), 7 back
+    // rows: 0 music, 1 sfx, 2 mute, 3 VOICE (KOBI/narrator speech on/off), then
+    // U11 comfort rows (4 shake, 5 flash, 6 hints, 7 text speed), 8 back
     this.sel = 0;
-    const rowY = [196, 248, 300, 352, 404, 456, 508, 566];
+    const rowY = [190, 238, 286, 334, 382, 430, 478, 526, 574];
     const labelX = W / 2 - 296;
     const valueX = W / 2 + 44;
     this._rowW = pw - 44;
@@ -79,11 +80,12 @@ export default class SettingsScene extends Phaser.Scene {
     this.rows[0].label.setText("MUSIC VOLUME");
     this.rows[1].label.setText("SFX VOLUME");
     this.rows[2].label.setText("MUTE ALL");
-    this.rows[3].label.setText("SCREEN SHAKE");
-    this.rows[4].label.setText("FLASH EFFECTS");
-    this.rows[5].label.setText("HINTS");
-    this.rows[6].label.setText("TEXT SPEED");
-    this.rows[7].label.setText("BACK");
+    this.rows[3].label.setText("VOICE");
+    this.rows[4].label.setText("SCREEN SHAKE");
+    this.rows[5].label.setText("FLASH EFFECTS");
+    this.rows[6].label.setText("HINTS");
+    this.rows[7].label.setText("TEXT SPEED");
+    this.rows[8].label.setText("BACK");
 
     // key-cap value hints below the panel (shared chip row)
     chipRow(this, W / 2, py + ph + 28, [
@@ -148,24 +150,35 @@ export default class SettingsScene extends Phaser.Scene {
     } else if (this.sel === 2) {
       this.toggleMute();
     } else if (this.sel === 3) {
-      this.cycleOpt("shake", SHAKE_VALS, d);
+      this.toggleVoice();
     } else if (this.sel === 4) {
-      this.cycleOpt("flash", FLASH_VALS, d);
+      this.cycleOpt("shake", SHAKE_VALS, d);
     } else if (this.sel === 5) {
-      this.toggleHints();
+      this.cycleOpt("flash", FLASH_VALS, d);
     } else if (this.sel === 6) {
+      this.toggleHints();
+    } else if (this.sel === 7) {
       this.cycleOpt("textSpeed", SPEED_VALS, d);
     }
   }
 
   activate() {
     if (this.sel === 2) this.toggleMute();
-    else if (this.sel === 3) this.cycleOpt("shake", SHAKE_VALS, 1);
-    else if (this.sel === 4) this.cycleOpt("flash", FLASH_VALS, 1);
-    else if (this.sel === 5) this.toggleHints();
-    else if (this.sel === 6) this.cycleOpt("textSpeed", SPEED_VALS, 1);
-    else if (this.sel === 7) this.back();
+    else if (this.sel === 3) this.toggleVoice();
+    else if (this.sel === 4) this.cycleOpt("shake", SHAKE_VALS, 1);
+    else if (this.sel === 5) this.cycleOpt("flash", FLASH_VALS, 1);
+    else if (this.sel === 6) this.toggleHints();
+    else if (this.sel === 7) this.cycleOpt("textSpeed", SPEED_VALS, 1);
+    else if (this.sel === 8) this.back();
     else { sfx.settingsTick(); } // SPACE on a volume row is a harmless confirm tick
+  }
+
+  // VOICE on/off — flips the spoken-VO mute (a separate opt-out from music/sfx).
+  // "ON" in the UI means voice is ENABLED (voiceMuted === false).
+  toggleVoice() {
+    toggleVoiceMuted();
+    sfx.settingsTick();
+    this.render();
   }
 
   // U11: step a persisted ux-v1 option through its value list (wraps both ways).
@@ -207,12 +220,16 @@ export default class SettingsScene extends Phaser.Scene {
     this.rows[1].value.setText(this.bar(s.sfx));
     this.rows[2].value.setText(s.muted ? "[ ON ]" : "[ off ]");
     this.rows[2].value.setColor(s.muted ? "#ff8a99" : TEXT.bright);
-    this.rows[3].value.setText(this.opt(o.shake));
-    this.rows[4].value.setText(this.opt(o.flash));
-    this.rows[5].value.setText(o.hints ? "[ ON ]" : "[ off ]");
-    this.rows[5].value.setColor(o.hints ? TEXT.bright : TEXT.dim);
-    this.rows[6].value.setText(this.opt(o.textSpeed));
-    this.rows[7].value.setText("");
+    // VOICE: ON = speech enabled (not muted). Green-ish when on, dim when off.
+    const voiceOn = !isVoiceMuted();
+    this.rows[3].value.setText(voiceOn ? "[ ON ]" : "[ off ]");
+    this.rows[3].value.setColor(voiceOn ? TEXT.bright : TEXT.dim);
+    this.rows[4].value.setText(this.opt(o.shake));
+    this.rows[5].value.setText(this.opt(o.flash));
+    this.rows[6].value.setText(o.hints ? "[ ON ]" : "[ off ]");
+    this.rows[6].value.setColor(o.hints ? TEXT.bright : TEXT.dim);
+    this.rows[7].value.setText(this.opt(o.textSpeed));
+    this.rows[8].value.setText("");
   }
 
   opt(v) {

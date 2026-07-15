@@ -220,6 +220,100 @@ const SCRIPTED = [
     speak: "You THREW your friend?! ...And they LIKED it?! Get out. GET OUT of my tunnels!",
     extra: "Scandalized disbelief building to a genuine, sputtering shout on 'get out'.",
   },
+
+  // ---- World 3 — the Flooded Labs (magnet + bubble) — KOBI starts to crack ----
+  {
+    id: "l3_1_start", speaker: "KOBI", emotion: "excited",
+    trigger: "KOBI: The MAGNET WORKS. I BUILT this maze. I am VERY proud of it. The floor is electric because I am VERY proud of that too.",
+    speak: "The MAGNET WORKS. I BUILT this maze. I am VERY proud of it. The floor is electric because I am VERY proud of THAT too.",
+    extra: "Manic inventor's pride, doubling down on 'proud' each time.",
+  },
+  {
+    id: "l3_1_skills", speaker: "KOBI", emotion: "annoyed",
+    trigger: "KOBI: Oh good. A fridge magnet and a soap bubble. My beautiful machines are DEFINITELY safe now.",
+    speak: "Oh good. A fridge magnet and a soap bubble. My beautiful machines are DEFINITELY safe now.",
+    extra: "Withering sarcasm; 'definitely' dripping with doubt.",
+  },
+  {
+    id: "l3_1_clear", speaker: "KOBI", emotion: "annoyed",
+    trigger: "KOBI: You de-electrified MY floor and made friends with MY jelly. FINE. The next room is full of water. I hope you rust.",
+    speak: "You de-electrified MY floor and made friends with MY jelly. FINE. The next room is full of water. I hope you RUST.",
+    extra: "Possessive and petty, spitting the little curse 'I hope you rust'.",
+  },
+  {
+    id: "l3_2_start", speaker: "KOBI", emotion: "annoyed",
+    trigger: "KOBI: The GREAT TANK. 40,000 liters of certified security water. I said I hoped you'd rust and I MEANT it. I mean it MORE now.",
+    speak: "The GREAT TANK. Forty thousand liters of certified security water. I said I hoped you'd rust, and I MEANT it. I mean it MORE now.",
+    extra: "Grandiose then vindictive; leaning harder into the grudge.",
+  },
+  {
+    id: "l3_2_skills", speaker: "KOBI", emotion: "surprised",
+    trigger: "KOBI: Oh no. The bubble is a DIVE SUIT?! And the magnet just... stays dry on MY deck. That is unfair to everyone. Mostly me.",
+    speak: "Oh no. The bubble is a DIVE SUIT?! And the magnet just... stays dry on MY deck. That is unfair to everyone. Mostly ME.",
+    extra: "Dawning dismay, ending in self-pity.",
+  },
+  {
+    id: "l3_2_clear", speaker: "KOBI", emotion: "annoyed",
+    trigger: "KOBI: You drained MY tank, hired MY jelly, and yo-yo'd each other up MY winch. FINE. The next chamber throws SCRAP at you. I am DONE being subtle.",
+    speak: "You drained MY tank, hired MY jelly, and yo-yo'd each other up MY winch. FINE. The next chamber throws SCRAP at you. I am DONE being subtle.",
+    extra: "Mounting exasperation snapping into a threat.",
+  },
+  {
+    id: "l3_3_start", speaker: "KOBI", emotion: "excited",
+    trigger: "KOBI: I reversed the POLARITY of the ENTIRE LAB. Everything not bolted down is now WEATHER. I said I was done being subtle. THIS is me not being subtle.",
+    speak: "I reversed the POLARITY of the ENTIRE LAB. Everything not bolted down is now WEATHER. I said I was done being subtle. THIS is me not being subtle.",
+    extra: "Unhinged mad-scientist glee, fully off the leash.",
+  },
+  {
+    id: "l3_3_skills", speaker: "KOBI", emotion: "surprised",
+    trigger: "KOBI: The magnet wants to CATCH my storm?! And the bubble thinks it's a raincoat?! FINE. My scrap has EXCELLENT aim.",
+    speak: "The magnet wants to CATCH my storm?! And the bubble thinks it's a raincoat?! FINE. My scrap has EXCELLENT aim.",
+    extra: "Incredulous, then a menacing little boast.",
+  },
+  {
+    id: "l3_3_clear", speaker: "KOBI", emotion: "defeated",
+    trigger: "KOBI: You caught my storm, RECYCLED it, and fed my fuse-cores to the WALL SOCKETS. Fine. FINE. I am going somewhere very dark to think. Do NOT follow me. ...You are going to follow me.",
+    speak: "You caught my storm, recycled it, and fed my fuse-cores to the wall sockets. Fine. FINE. I am going somewhere very dark to think. Do not follow me. ...You are going to follow me.",
+    extra: "Deflating from anger into something quiet, lonely, and resigned — the turn toward the ending.",
+  },
+
+  // ---- World 4 — the Dark Core (freeze + beam) — KOBI, cornered and alone -----
+  {
+    id: "l4_1_start", speaker: "KOBI", emotion: "neutral",
+    trigger: "KOBI: Welcome to the DARK CORE. It is dark because I LIKE it dark. The dark does not leave. Neither do visitors. LEAVE.",
+    speak: "Welcome to the Dark Core. It is dark because I LIKE it dark. The dark does not leave. Neither do visitors. ...LEAVE.",
+    extra: "Quieter, colder, more still than before; the bravado thinning.",
+  },
+  {
+    id: "l4_1_skills", speaker: "KOBI", emotion: "annoyed",
+    trigger: "KOBI: A flashlight and a pause button. Wonderful. Time and darkness are my TWO best walls and you brought exactly two things.",
+    speak: "A flashlight and a pause button. Wonderful. Time and darkness are my TWO best walls, and you brought exactly two things.",
+    extra: "Tired sarcasm; he sees where this is going.",
+  },
+  {
+    id: "l4_1_clear", speaker: "KOBI", emotion: "annoyed",
+    trigger: "KOBI: You lit up my dark and FROZE my beautiful spinny bridge. FINE. The next garden is grown entirely from LASERS.",
+    speak: "You lit up my dark and FROZE my beautiful spinny bridge. FINE. The next garden is grown entirely from LASERS.",
+    extra: "Sulking, then a last flourish of threat.",
+  },
+  {
+    id: "l4_2_start", speaker: "KOBI", emotion: "neutral",
+    trigger: "KOBI: You found my LASER GARDEN. Three beds. Three locks. Three guards. I counted them MYSELF, twice, in the dark.",
+    speak: "You found my Laser Garden. Three beds. Three locks. Three guards. I counted them MYSELF. Twice. In the dark.",
+    extra: "Proud but frayed; the 'in the dark' lands lonely.",
+  },
+  {
+    id: "l4_2_skills", speaker: "KOBI", emotion: "annoyed",
+    trigger: "KOBI: The pause button and the flashlight AGAIN. Fine. My garden has thorns that sweep and locks that bite. Gardens are SUPPOSED to be relaxing. This one is NOT.",
+    speak: "The pause button and the flashlight AGAIN. Fine. My garden has thorns that sweep and locks that bite. Gardens are SUPPOSED to be relaxing. This one is NOT.",
+    extra: "Peevish, worn thin.",
+  },
+  {
+    id: "l4_2_clear", speaker: "KOBI", emotion: "defeated",
+    trigger: "KOBI: You picked ALL THREE of my laser blooms... FINE. There is nothing left to guard me but my HEART. Do not come there. It is dark there. Even for me.",
+    speak: "You picked all three of my laser blooms... fine. There is nothing left to guard me but my heart. Do not come there. It is dark there. ...Even for me.",
+    extra: "Almost a whisper — frightened and vulnerable, the mask fully off. Sets up the finale.",
+  },
 ];
 
 // ---- Reactive BARKS (V2.5) — derived from the single source of truth in
@@ -247,4 +341,43 @@ const BARKS = [
   ...bankLines(ALLCORES_LINES, { emotion: "surprised", extra: "Reluctantly impressed they took every core; respect he won't admit." }, "allcores"),
 ];
 
-export const LINES = [...SCRIPTED, ...BARKS];
+// ---- In-level TRIGGER blips — extracted verbatim from the level files so the
+// caption text can never drift. These are the one-shot flavor lines KOBI drops as
+// you cross a zone (t:"trigger" ... blip:"KOBI: ..."). We EXCLUDE the finale
+// (level4_3 — held for the Friday rebuild) and any caption already hand-authored
+// above (tutorial/start/skills/clear), so nothing double-generates.
+import { readFileSync, readdirSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+const _dir = path.dirname(fileURLToPath(import.meta.url));
+const LEVELS_DIR = path.resolve(_dir, "..", "src", "levels");
+const HELD = new Set(["level4_3.js"]); // finale — voiced after the rebuild
+
+function extractTriggerBlips() {
+  const scriptedTriggers = new Set(SCRIPTED.map((l) => l.trigger).filter(Boolean));
+  const out = [];
+  const seen = new Set();
+  for (const file of readdirSync(LEVELS_DIR)) {
+    if (!file.endsWith(".js") || HELD.has(file)) continue;
+    const src = readFileSync(path.join(LEVELS_DIR, file), "utf8");
+    const lvl = file.replace(/\.js$/, "").replace(/^level/, "l").replace(/_/g, "_");
+    // only inline trigger blips: an object literal that has t:"trigger" AND a blip
+    const re = /t:\s*"trigger"[^}]*?blip:\s*"(KOBI:[^"]*)"/g;
+    let m, i = 0;
+    while ((m = re.exec(src))) {
+      const trigger = m[1];
+      if (scriptedTriggers.has(trigger) || seen.has(trigger)) continue;
+      seen.add(trigger);
+      out.push({
+        id: `${lvl}_trig_${++i}`, speaker: "KOBI", emotion: "amused",
+        trigger, speak: trigger.replace(/^\s*KOBI:\s*/i, ""),
+        extra: "A one-shot flavor aside as the robots cross the room — smug, comic, possessive about his lab.",
+      });
+    }
+  }
+  return out;
+}
+
+const TRIGGERS = extractTriggerBlips();
+
+export const LINES = [...SCRIPTED, ...BARKS, ...TRIGGERS];

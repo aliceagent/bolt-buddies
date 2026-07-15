@@ -316,5 +316,245 @@
     "voice": "cosmo",
     "emotion": "surprised",
     "bytes": 82560
+  },
+  "l3_1_start": {
+    "hash": "05237c777be0f171",
+    "voice": "cosmo",
+    "emotion": "excited",
+    "bytes": 122880
+  },
+  "l3_1_skills": {
+    "hash": "c730a4ee3d84759a",
+    "voice": "cosmo",
+    "emotion": "annoyed",
+    "bytes": 89472
+  },
+  "l3_1_clear": {
+    "hash": "7115046b656faf45",
+    "voice": "cosmo",
+    "emotion": "annoyed",
+    "bytes": 122112
+  },
+  "l3_2_start": {
+    "hash": "7012e713bd48e88b",
+    "voice": "cosmo",
+    "emotion": "annoyed",
+    "bytes": 134400
+  },
+  "l3_2_skills": {
+    "hash": "d1c779db93b7043e",
+    "voice": "cosmo",
+    "emotion": "surprised",
+    "bytes": 143616
+  },
+  "l3_2_clear": {
+    "hash": "f983d631bae87523",
+    "voice": "cosmo",
+    "emotion": "annoyed",
+    "bytes": 156288
+  },
+  "l3_3_start": {
+    "hash": "316ed04ce48f7b3d",
+    "voice": "cosmo",
+    "emotion": "excited",
+    "bytes": 147840
+  },
+  "l3_3_skills": {
+    "hash": "6206d513621d3a6a",
+    "voice": "cosmo",
+    "emotion": "surprised",
+    "bytes": 124800
+  },
+  "l3_3_clear": {
+    "hash": "b56c0e4b9ec9fbd5",
+    "voice": "cosmo",
+    "emotion": "defeated",
+    "bytes": 183552
+  },
+  "l4_1_start": {
+    "hash": "a2b88c0b37a99d83",
+    "voice": "cosmo",
+    "emotion": "neutral",
+    "bytes": 126720
+  },
+  "l4_1_skills": {
+    "hash": "618accf3f0ed9f1c",
+    "voice": "cosmo",
+    "emotion": "annoyed",
+    "bytes": 121344
+  },
+  "l4_1_clear": {
+    "hash": "816fdf8b4aa94b09",
+    "voice": "cosmo",
+    "emotion": "annoyed",
+    "bytes": 122112
+  },
+  "l4_2_start": {
+    "hash": "2e4044b3431f5fbc",
+    "voice": "cosmo",
+    "emotion": "neutral",
+    "bytes": 128640
+  },
+  "l4_2_skills": {
+    "hash": "497e2ff6fed8a3cc",
+    "voice": "cosmo",
+    "emotion": "annoyed",
+    "bytes": 163968
+  },
+  "l4_2_clear": {
+    "hash": "e6c2f1701872f47e",
+    "voice": "cosmo",
+    "emotion": "defeated",
+    "bytes": 155904
+  },
+  "l1_1_trig_1": {
+    "hash": "959bbdd51709a98e",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 59136
+  },
+  "l2_1_trig_1": {
+    "hash": "27477d4b2544576b",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 52992
+  },
+  "l3_1_trig_1": {
+    "hash": "32472cb401557f6d",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 85632
+  },
+  "l3_1_trig_2": {
+    "hash": "aef24a0fe09bfd6b",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 98304
+  },
+  "l3_1_trig_3": {
+    "hash": "2d72e6d6eac887c3",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 97152
+  },
+  "l3_2_trig_1": {
+    "hash": "b271b9ab02bd9443",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 96000
+  },
+  "l3_2_trig_2": {
+    "hash": "7d4ee5256b78e3f3",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 112512
+  },
+  "l3_2_trig_3": {
+    "hash": "f1a252e93fef15b8",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 120960
+  },
+  "l3_2_trig_4": {
+    "hash": "38e70dca4cdd67f2",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 97536
+  },
+  "l3_2_trig_5": {
+    "hash": "b8082f111150cd0c",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 105216
+  },
+  "l3_2_trig_6": {
+    "hash": "9f7d4ea001b67915",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 115200
+  },
+  "l3_3_trig_1": {
+    "hash": "3bd534f5f1a934ec",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 124032
+  },
+  "l3_3_trig_2": {
+    "hash": "55175211cf12bd6f",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 107136
+  },
+  "l3_3_trig_3": {
+    "hash": "47ff071150c64a02",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 99456
+  },
+  "l3_3_trig_4": {
+    "hash": "aed13bf1855df876",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 96768
+  },
+  "l3_3_trig_5": {
+    "hash": "75f78f97a9acd3c4",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 100224
+  },
+  "l4_1_trig_1": {
+    "hash": "168cf5e75027f79d",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 76416
+  },
+  "l4_1_trig_2": {
+    "hash": "c675a13b1f8d9123",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 103296
+  },
+  "l4_1_trig_3": {
+    "hash": "e6a451aeb1fcc6a8",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 112512
+  },
+  "l4_1_trig_4": {
+    "hash": "485efa351dfd712b",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 107136
+  },
+  "l4_1_trig_5": {
+    "hash": "e11c02e1b1f5e570",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 80640
+  },
+  "l4_2_trig_1": {
+    "hash": "bfd5587dcb9d26ea",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 130560
+  },
+  "l4_2_trig_2": {
+    "hash": "1ffa2323b27e4550",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 131328
+  },
+  "l4_2_trig_3": {
+    "hash": "9c15e692f2643808",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 153600
+  },
+  "l4_2_trig_4": {
+    "hash": "e6e669c006655feb",
+    "voice": "cosmo",
+    "emotion": "amused",
+    "bytes": 142464
   }
 }
