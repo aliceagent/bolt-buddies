@@ -1098,13 +1098,14 @@ export default [
       const phase = () => page.evaluate(() => window.__BB.epilogue && window.__BB.epilogue.phase);
       await sleep(700);
       phases.push(await phase()); // "story"
-      // PAGE-COUNT-AGNOSTIC walk: every beat/phase advances on any key, so tap
-      // forward until the Title lands, bounded so a strand fails loudly
+      // PAGE-COUNT-AGNOSTIC walk: every beat/phase advances on any key (the
+      // FIN-C reward's medal/album/share screens after the epilogue included),
+      // so tap forward until the Title lands, bounded so a strand fails loudly
       let presses = 0;
       let atTitle = false;
       let reachedCredits = false;
       let reachedEnd = false;
-      for (let i = 0; i < 30 && !atTitle; i++) {
+      for (let i = 0; i < 45 && !atTitle; i++) {
         const p = await phase();
         if (p === "credits" && !reachedCredits) { reachedCredits = true; phases.push(p); }
         if (p === "end" && !reachedEnd) { reachedEnd = true; phases.push(p); }
@@ -1117,7 +1118,7 @@ export default [
         atTitle = await page.waitForFunction(() => window.__BB.game.scene.isActive("Title"), null, { timeout: 6000 })
           .then(() => true).catch(() => false);
       }
-      const ok = phases[0] === "story" && reachedCredits && reachedEnd && atTitle && presses <= 30;
+      const ok = phases[0] === "story" && reachedCredits && reachedEnd && atTitle && presses <= 45;
       return {
         classification: atTitle ? "RECOVERABLE" : "UNVERIFIED",
         stuck: { phases, presses, atTitle },

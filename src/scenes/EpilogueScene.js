@@ -334,7 +334,10 @@ export default class EpilogueScene extends Phaser.Scene {
     this.leaving = true;
     sfx.menuSelect();
     this.cameras.main.fadeOut(500, 4, 6, 20);
-    this.cameras.main.once("camerafadeoutcomplete", () => this.scene.start("Title"));
+    // FIN-C: the epilogue is only ever reached from the finale, so the way out
+    // leads into the earned COMPLETION REWARD (medal -> album -> share card),
+    // which itself exits to the Title on the same strand-proof contract.
+    this.cameras.main.once("camerafadeoutcomplete", () => this.scene.start("Reward"));
   }
 
   // --- shared drawn-cast helpers -----------------------------------------------

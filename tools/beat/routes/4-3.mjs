@@ -294,10 +294,11 @@ export default [
       await bb.page.waitForFunction(() => window.__BB.game.scene.isActive("Epilogue"), null, { timeout: 6000 });
       await bb.page.waitForFunction(() => window.__BB.epilogue && window.__BB.epilogue.phase === "story", null, { timeout: 4000 });
       await sleep(700); // let the fade-in settle
-      // PAGE-COUNT-AGNOSTIC walk: any key advances every beat/phase, so tap
+      // PAGE-COUNT-AGNOSTIC walk: any key advances every beat/phase (including
+      // the FIN-C reward's medal/album/share screens after the credits), so tap
       // forward until the Title lands, bounded so a strand fails loudly
       let atTitle = false;
-      for (let i = 0; i < 30 && !atTitle; i++) {
+      for (let i = 0; i < 45 && !atTitle; i++) {
         atTitle = await bb.page.evaluate(() => window.__BB.game.scene.isActive("Title"));
         if (atTitle) break;
         await bb.tap("Enter");
