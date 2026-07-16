@@ -45,3 +45,4 @@ tools/campaign.report.json
 
 # generated SFX audition page (rebuild with tools/gen_sfx_audition.mjs)
 sfx_audition.build.html
+tools/beat/report.json
