@@ -46,6 +46,55 @@ NOT run the manifest generator, do NOT push to main. Reply with the list and STO
 
 ---
 
+# PHASE 1 DECISION (director) — recorded
+
+The core 10 were auditioned and the director chose a **mixed palette** (not one global
+style):
+
+| sound | pick | style | | sound | pick | style |
+|---|---|---|---|---|---|---|
+| jump | **B** | sleek hi-tech | | core | **A** | cute chunky |
+| land | **A** | cute chunky | | door | **C** | tactile foley |
+| stomp | **B** | sleek hi-tech | | checkpoint | **B** | sleek hi-tech |
+| zip | **C** | tactile foley | | die | **C** | tactile foley |
+| squish | **B** | sleek hi-tech | | menuSelect | **C** | tactile foley |
+
+Emergent logic to carry into Phase 2: **soft / rewarding → A (cute chunky)** ·
+**crisp actions & alerts → B (sleek hi-tech)** · **heavy mechanical / cable / physical →
+C (tactile foley)**.
+
+---
+
+# PHASE 1.5 — extended palette probe (do next, before Phase 2)
+
+Because the palette is a per-sound mix, produce **3 style variants** (same a/b/c
+definitions as Phase 1) of **6 more sounds** that each anchor a big remaining cluster, so
+the mix is grounded beyond the core 10. Same specs and same
+`public/sfx/samples/<name>_<variant>.wav` naming as Phase 1 (18 files total).
+
+- `reel` — ~0.3s. "small motor reeling a cable in"
+  (anchors sustained-mechanical actions: grab, throwIt, tossHigh, lever, lockTurn, plates)
+- `craneSlam` — ~0.35s. "giant crane arm slam, heavy metal impact"
+  (anchors heavy impacts: crush, wardenShove, wardenTopple, podCrunch, stompLaunch)
+- `magnetOn` — ~0.25s. "electromagnet hum engaging"
+  (anchors energy/gadget hums & zaps: magnetOff, bubbleOn, phaseIn, phaseOut, rollerZap)
+- `rollerAlert` — ~0.3s. "robot alert two-note, rising alarm"
+  (anchors alerts/chirps/tones: craneAlarm, buddyBeep, equip, key)
+- `respawn` — ~0.5s. "bright rebuild power-up sparkle, hopeful"
+  (anchors short rewards: pickup, key-get, exitDoor)
+- `coresFanfare` — ~1.5s. "short triumphant collectible fanfare"
+  (anchors the long musical cues: craneDefeat, level-clear — tests how each palette scales)
+
+Keep the three styles clearly distinct per sound. WAV 44.1 kHz, mono, short + DRY,
+normalized peaks ~ -3..-6 dBFS.
+
+Commit: `git checkout dev && git pull --rebase origin dev`, add only the new
+`public/sfx/samples/` files, commit that folder, `git pull --rebase origin dev &&
+git push origin dev`. Do NOT run the manifest generator, do NOT push to main. Reply with
+the list and STOP for the director to lock the final per-sound mix.
+
+---
+
 # PHASE 2 — full set (after the palette is chosen)
 
 Produce the finished one-shot for every sound below, in the chosen palette style,
