@@ -147,7 +147,11 @@ await page.waitForFunction(() => window.__BB.game.scene.isActive("Epilogue"), nu
 await sleep(1600); // fade-in + first caption
 await page.screenshot({ path: `${SHOTS}/l43-epilogue.png` });
 console.log(`shot -> ${SHOTS}/l43-epilogue.png`);
-for (let i = 0; i < 4; i++) { await bb.tap("Enter"); await sleep(420); }
+// storybook is now 7 pages / 18 beats — tap forward until the credits roll
+for (let i = 0; i < 30; i++) {
+  if (await page.evaluate(() => window.__BB.epilogue && window.__BB.epilogue.phase === "credits")) break;
+  await bb.tap("Enter"); await sleep(360);
+}
 await page.waitForFunction(() => window.__BB.epilogue.phase === "credits", null, { timeout: 5000 });
 await sleep(5200); // mid-scroll
 await page.screenshot({ path: `${SHOTS}/l43-credits.png` });
