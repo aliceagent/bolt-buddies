@@ -282,7 +282,7 @@ export default [
     },
   },
   {
-    name: "epilogue: continue -> playground story -> credits -> end -> Title (always exitable)",
+    name: "epilogue: continue -> storybook -> credits -> end -> Title (always exitable)",
     fn: async (bb) => {
       // the clear overlay's continue is armed the moment bb:complete lands
       await bb.page.waitForFunction(() => {
@@ -294,13 +294,15 @@ export default [
       await bb.page.waitForFunction(() => window.__BB.game.scene.isActive("Epilogue"), null, { timeout: 6000 });
       await bb.page.waitForFunction(() => window.__BB.epilogue && window.__BB.epilogue.phase === "story", null, { timeout: 4000 });
       await sleep(700); // let the fade-in settle
-      // any key advances every phase: 4 presses walk the captions into credits
-      for (let i = 0; i < 4; i++) { await bb.tap("Enter"); await sleep(450); }
-      await bb.page.waitForFunction(() => window.__BB.epilogue.phase === "credits", null, { timeout: 4000 });
-      await bb.tap("Enter"); // skip the scroll
-      await bb.page.waitForFunction(() => window.__BB.epilogue.phase === "end", null, { timeout: 4000 });
-      await sleep(300);
-      await bb.tap("Enter"); // "press ACTION to head home"
+      // PAGE-COUNT-AGNOSTIC walk: any key advances every beat/phase, so tap
+      // forward until the Title lands, bounded so a strand fails loudly
+      let atTitle = false;
+      for (let i = 0; i < 30 && !atTitle; i++) {
+        atTitle = await bb.page.evaluate(() => window.__BB.game.scene.isActive("Title"));
+        if (atTitle) break;
+        await bb.tap("Enter");
+        await sleep(450);
+      }
       await bb.page.waitForFunction(() => window.__BB.game.scene.isActive("Title"), null, { timeout: 6000 });
     },
   },

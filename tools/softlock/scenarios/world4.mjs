@@ -1098,30 +1098,36 @@ export default [
       const phase = () => page.evaluate(() => window.__BB.epilogue && window.__BB.epilogue.phase);
       await sleep(700);
       phases.push(await phase()); // "story"
-      // story: each press advances a caption; the 4th rolls into the credits
+      // PAGE-COUNT-AGNOSTIC walk: every beat/phase advances on any key, so tap
+      // forward until the Title lands, bounded so a strand fails loudly
       let presses = 0;
-      for (let i = 0; i < 8 && (await phase()) === "story"; i++) { await bb.tap("Enter"); presses++; await sleep(420); }
-      phases.push(await phase()); // "credits"
-      const reachedCredits = phases[phases.length - 1] === "credits";
-      await bb.tap("Enter"); presses++;
-      await sleep(400);
-      phases.push(await phase()); // "end"
-      const reachedEnd = phases[phases.length - 1] === "end";
-      await sleep(300);
-      await bb.tap("Enter"); presses++;
-      const atTitle = await page.waitForFunction(() => window.__BB.game.scene.isActive("Title"), null, { timeout: 6000 })
-        .then(() => true).catch(() => false);
-      const ok = phases[0] === "story" && reachedCredits && reachedEnd && atTitle && presses <= 8;
+      let atTitle = false;
+      let reachedCredits = false;
+      let reachedEnd = false;
+      for (let i = 0; i < 30 && !atTitle; i++) {
+        const p = await phase();
+        if (p === "credits" && !reachedCredits) { reachedCredits = true; phases.push(p); }
+        if (p === "end" && !reachedEnd) { reachedEnd = true; phases.push(p); }
+        atTitle = await page.evaluate(() => window.__BB.game.scene.isActive("Title"));
+        if (atTitle) break;
+        await bb.tap("Enter"); presses++;
+        await sleep(450);
+      }
+      if (!atTitle) {
+        atTitle = await page.waitForFunction(() => window.__BB.game.scene.isActive("Title"), null, { timeout: 6000 })
+          .then(() => true).catch(() => false);
+      }
+      const ok = phases[0] === "story" && reachedCredits && reachedEnd && atTitle && presses <= 30;
       return {
         classification: atTitle ? "RECOVERABLE" : "UNVERIFIED",
         stuck: { phases, presses, atTitle },
         recoveries: [
-          { name: "every phase advances on ANY key / any pad button AND auto-advances on its own timer (captions 5.2s, credits 16s scroll) — there is no input-dead phase", ok: reachedCredits && reachedEnd },
+          { name: "every phase advances on ANY key / any pad button AND auto-advances on its own timer (per-beat storybook timers, credits 16s scroll, timed post-credits sting) — there is no input-dead phase", ok: reachedCredits && reachedEnd },
           { name: "the end card exits to the Title on any key — driven from a real full-finale run", ok: atTitle },
         ],
         repro: this.repro,
         verdict: ok
-          ? `RECOVERABLE — the epilogue can never strand: driven end to end from a real finale clear, every phase (story -> credits -> end) advanced on plain keypresses (${presses} total) and landed on the Title. Left alone it ALSO walks itself to the end card on timers (~37s), so even a hands-off player only ever needs one key, once. Pad buttons advance identically (pads.anyButtonJust in the scene's update).`
+          ? `RECOVERABLE — the epilogue can never strand: driven end to end from a real finale clear, every phase (story -> credits -> end) advanced on plain keypresses (${presses} total) and landed on the Title. Left alone it ALSO walks itself to the end card on timers (~75s across the storybook pages, credits and sting), so even a hands-off player only ever needs one key, once. Pad buttons advance identically (pads.anyButtonJust in the scene's update).`
           : "UNVERIFIED — a leg did not land this run (see stuck); re-run. The load-bearing facts: EpilogueScene.advance() moves monotonically story->credits->end->Title with both key and timer drivers on every phase.",
         expectedUnverified: true,
         notes: "The clear overlay before it keeps the standard continue contract (SPACE/E/L/Enter, pad A) — the finale only swaps the DESTINATION to the Epilogue.",
