@@ -28,6 +28,9 @@ const KNOWN = new Set([
   "magnetOn", "magnetOff", "bubbleOn", "bubblePop", "splash",
   "menuMove", "menuSelect", "menuDeny", "saveTick", "settingsTick", "muteChirp",
   "pickup", "denied",
+  // finale — KOBI's Heart boss + rescue (see docs/FINALE_AUDIO_BRIEF.md)
+  "heartAlarm", "heartGlare", "heartSquint", "heartUnplug", "heartDown",
+  "ventBlow", "boltYip",
 ]);
 
 async function main() {
