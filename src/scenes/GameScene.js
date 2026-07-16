@@ -3140,9 +3140,12 @@ export default class GameScene extends Phaser.Scene {
     this.game.events.emit("bb:blip", lines[Math.min(1, H.coresTaken - 1)]);
   }
 
-  // Third core out: KOBI is unplugged MID-TANTRUM — the staged, non-violent
-  // power-down (the crane defeat's staging + the A11 defeated mood), then the
-  // Bolt rescue. The timeline runs on downT in updateHeartDown.
+  // Third core out: the FINALE_BIBLE Phase-2 "RUNAWAY TANTRUM" — the twist is
+  // that the eye does NOT power down. The 3rd core is unplugged but the tantrum
+  // keeps spinning; the wall-clamps pop and the eye drifts loose like a balloon.
+  // The scripted ~34s auto-playing cinematic (tantrum -> power-down -> tiny-KOBI
+  // scale reveal -> Bolt rescue -> the TURN-BACK -> carry-out) runs on downT in
+  // updateHeartDown. Attacks are over; nothing here can hurt anyone.
   heartPowerDown() {
     const H = this.heart;
     H.state = "down";
@@ -3150,64 +3153,215 @@ export default class GameScene extends Phaser.Scene {
     H.downStep = 0;
     this.heartDefeated = true;
     if (this.heartGfx) this.heartGfx.clear(); // drop any freeze-held glare painting
-    setMusicLayer("tension", false); // tantrum over -> the calm coda
-    sfx.heartDown(H.x, H.y);
-    this.camShake(500, 0.006);
-    this.craneSmoke.explode(this.fxBudget(20), H.x, H.y);
-    this.sparks.explode(this.fxBudget(18), H.x, H.y + 20);
-    // the lid droops shut over ~1.2s; the iris greys out beneath it
-    this.tweens.add({ targets: H.lid, scaleY: 1, duration: 1200, ease: "sine.inOut" });
-    H.iris.setTexture("kobi_iris_dead");
-    this.game.events.emit("bb:blip", { text: "KOBI: NO. NO NO NO. I am having a TANTRUM and you cannot just UNPLUG a—", mood: "angry" });
+    // FIN-05 / beat 2.0 THE TURN: the wall-clamps blow, the eye stays AWAKE
+    // (no grey iris, no lid, no music change yet — that is the whole twist).
+    sfx.heartAlarm(H.x, H.y);
+    this.camShake(400, 0.006);
+    this.craneSmoke.explode(this.fxBudget(8), H.x, H.y); // wall-clamp pop puff
+    // the eye pops wide open and starts a loose runaway wobble/bob (pooled
+    // repeat tweens on the three rig images — cosmetic only, stays in-arena)
+    this.tweens.killTweensOf([H.housing, H.iris, H.lid]);
+    this.tweens.add({ targets: H.lid, scaleY: 0, duration: 250, ease: "sine.out" });
+    H._wobbleY = this.tweens.add({
+      targets: [H.housing, H.iris, H.lid], y: "-=14",
+      duration: 900, yoyo: true, repeat: -1, ease: "sine.inOut",
+    });
+    H._wobbleX = this.tweens.add({
+      targets: [H.housing, H.iris, H.lid], x: "+=26",
+      duration: 1500, yoyo: true, repeat: -1, ease: "sine.inOut",
+    });
+    this.game.events.emit("bb:blip", { text: "KOBI: THAT WAS MY LAST CORE.", mood: "angry" });
   }
 
-  // The power-down + rescue timeline (state "down"): tantrum cut short ->
-  // deflation -> the cage pops -> Bolt BOUNDS to the buddies -> resolved
-  // (the exit's needs.heart opens). Freeze-gated with everything else; the
+  // The CLIMAX CINEMATIC (state "down", FINALE_BIBLE beats 2.0->2.4): the
+  // runaway tantrum -> the soft click power-down -> the tiny-KOBI scale
+  // reveal -> the cage pops -> Bolt bounds to the buddies -> the TURN-BACK
+  // (the dog decides) -> "Carry me anyway" -> resolved (the exit's
+  // needs.heart opens). ~34-40s, fully auto-playing — no input required, and
+  // a hard 40s fallback forces heartResolved so the level can NEVER strand.
+  // Freeze-gated with everything else (downT += delta accumulation); the
   // timeline simply resumes if someone casts mid-cinematic.
   updateHeartDown(time, delta) {
     const H = this.heart;
     const HEART = GameScene.HEART;
     H.downT += delta;
-    if (H.downStep === 0 && H.downT > 3000) {
-      H.downStep = 1;
-      this.game.events.emit("bb:blip", { text: "KOBI: ...oh. It is quiet. The dark is leaving. The dark SAID it would never leave.", mood: "defeated" });
+    // A scripted cinematic is a TRANSITION, not a stall: hold the SL2
+    // watchdog's stall window at zero while it plays (idle-watching players
+    // are exactly what the scene asks for). Bounded by the 40s fallback
+    // below, so this can never mask a real strand.
+    if (!this.heartResolved && this.watchdog) this.watchdog._stallMs = 0;
+    // HARD FALLBACK: whatever happens, the exit opens within ~40s of the 3rd
+    // core (the cinematic keeps playing cosmetically past it if mid-beat).
+    if (!this.heartResolved && H.downT > 40000) this.heartResolved = true;
+
+    // --- the tantrum cue sheet (bible-exact KOBI lines; eye still AWAKE) ----
+    if (H.downStep === 0 && H.downT > 2500) {
+      H.downStep = 1; // FIN-06
+      this.game.events.emit("bb:blip", { text: "KOBI: Wait. Why is it still spinning. WHY IS IT STILL SPINNING.", mood: "scared" });
     }
-    if (H.downStep === 1 && H.downT > 5200) {
-      H.downStep = 2;
-      // the cage pops open and Bolt bounds out (the A11 cameo silhouette,
-      // scripted — no body, no collision; pure display-list motion)
+    if (H.downStep === 1 && H.downT > 5000) {
+      H.downStep = 2; // FIN-08 + beat 2.1 RECONFIGURE flavor
+      this.ventPuff.explode(this.fxBudget(10), H.x - 60, H.y + 40);
+      this.ventPuff.explode(this.fxBudget(10), H.x + 60, H.y + 40);
+      this.dust.explode(this.fxBudget(8), H.x, 14 * TILE - 6);
+      // the crescent-moon SLEEP button, revealed low behind the eye (drawn)
+      if (!H._sleepBtn) {
+        const bg = this.add.graphics().setDepth(DEPTH.entity).setPosition(H.x, H.y + 44);
+        bg.fillStyle(0x223044, 1).fillCircle(0, 0, 11);
+        bg.lineStyle(2, 0xffe08a, 0.9).strokeCircle(0, 0, 11);
+        bg.fillStyle(0xffe08a, 0.95).fillCircle(1, 0, 6);   // moon disc...
+        bg.fillStyle(0x223044, 1).fillCircle(4, -2, 5.2);    // ...bitten to a crescent
+        bg.setAlpha(0);
+        this.tweens.add({ targets: bg, alpha: 1, duration: 600 });
+        H._btnBob = this.tweens.add({ targets: bg, y: "-=8", duration: 1100, yoyo: true, repeat: -1, ease: "sine.inOut" });
+        H._sleepBtn = bg;
+      }
+      this.game.events.emit("bb:blip", { text: "KOBI: I can't find my OFF switch. I skipped that chapter. It looked BORING.", mood: "scared" });
+    }
+    if (H.downStep === 2 && H.downT > 8000) {
+      H.downStep = 3; // FIN-09
+      this.game.events.emit("bb:blip", { text: "KOBI: It is on my BACK. I do not HAVE arms. WHO DESIGNED THIS.", mood: "angry" });
+    }
+    if (H.downStep === 3 && H.downT > 10500) {
+      H.downStep = 4; // FIN-10
+      this.game.events.emit("bb:blip", { text: "KOBI: ...I designed this.", mood: "defeated" });
+    }
+    if (H.downStep === 4 && H.downT > 13000) {
+      H.downStep = 5; // FIN-19 — the emotional turn
+      this.game.events.emit("bb:blip", { text: "KOBI: NO. WAIT. If I sleep — who watches the door?", mood: "scared" });
+    }
+    if (H.downStep === 5 && H.downT > 15500) {
+      H.downStep = 6; // FIN-20
+      this.game.events.emit("bb:blip", { text: "KOBI: Guarding is my whole personality.", mood: "scared" });
+    }
+    if (H.downStep === 6 && H.downT > 18000) {
+      H.downStep = 7; // FIN-24
+      this.game.events.emit("bb:blip", { text: "KOBI: I have never been OFF. What if I dream of the dark?", mood: "scared" });
+    }
+    if (H.downStep === 7 && H.downT > 20500) {
+      H.downStep = 8; // FIN-25
+      this.game.events.emit("bb:blip", { text: "KOBI: Then press it. Press it before I change my—", mood: "defeated" });
+    }
+
+    // --- THE POWER-DOWN (FIN-26, the softest click) — NOW the eye greys -----
+    if (H.downStep === 8 && H.downT > 22000) {
+      H.downStep = 9;
+      sfx.menuSelect(); // the soft "boop" click
+      sfx.heartDown(H.x, H.y);
+      if (H._wobbleY) { H._wobbleY.stop(); H._wobbleY = null; }
+      if (H._wobbleX) { H._wobbleX.stop(); H._wobbleX = null; }
+      // the eye settles back home as it dims; the lid droops shut over ~1.2s
+      this.tweens.add({ targets: H.housing, x: H.x, y: H.y, duration: 1200, ease: "sine.inOut" });
+      this.tweens.add({ targets: H.iris, x: H.x, y: H.y, duration: 1200, ease: "sine.inOut" });
+      this.tweens.add({ targets: H.lid, x: H.x, y: H.y - 46, scaleY: 1, duration: 1200, ease: "sine.inOut" });
+      H.iris.setTexture("kobi_iris_dead");
+      setMusicLayer("tension", false); // tantrum over -> the calm coda
+      this.camShake(500, 0.006);
+      this.craneSmoke.explode(this.fxBudget(14), H.x, H.y);
+      this.sparks.explode(this.fxBudget(12), H.x, H.y + 20);
+    }
+    if (H.downStep === 9 && H.downT > 23500) {
+      H.downStep = 10; // FIN-27
+      this.game.events.emit("bb:blip", { text: "KOBI: Powering down. Five... four... three... two... one and a half... one and a quarter...", mood: "defeated" });
+    }
+
+    // --- the SCALE REVEAL (FIN-29): the shell was mostly speakers -----------
+    if (H.downStep === 10 && H.downT > 26000) {
+      H.downStep = 11;
+      this.craneSmoke.explode(this.fxBudget(12), H.x, H.y);
+      this.tweens.add({
+        targets: [H.housing, H.iris, H.lid], scale: 0.15, alpha: 0,
+        duration: 900, ease: "sine.in",
+      });
+      if (H._btnBob) { H._btnBob.stop(); H._btnBob = null; }
+      if (H._sleepBtn) this.tweens.add({ targets: H._sleepBtn, alpha: 0, duration: 600 });
+      // the teapot-sized REAL KOBI, drawn tiny near the floor (one graphics)
+      const tg = this.add.graphics().setDepth(DEPTH.player + 1)
+        .setPosition(H.x, 13 * TILE + 6);
+      tg.fillStyle(0x223044, 1).fillRoundedRect(-7, 7, 14, 5, 2); // little base
+      tg.fillStyle(0x141c2e, 1).fillCircle(0, 0, 9);              // dark shell
+      tg.lineStyle(2, 0xffb347, 1).strokeCircle(0, 0, 9);         // amber ring
+      tg.fillStyle(0xf2ead8, 1).fillCircle(0, 0, 5.5);            // pale sclera
+      tg.fillStyle(COLORS.magenta, 1).fillCircle(0, 0, 2.6);      // magenta iris
+      tg.setScale(0);
+      this.tweens.add({ targets: tg, scale: 1, duration: 420, ease: "back.out" });
+      H.tiny = tg;
+      this.game.events.emit("bb:blip", { text: "KOBI: The big me was mostly SPEAKERS.", mood: "defeated" });
+    }
+
+    // --- the cage fail-safe pops: Bolt is FREE (FIN-31) ---------------------
+    if (H.downStep === 11 && H.downT > 28000) {
+      H.downStep = 12;
+      H._boltT0 = H.downT;
       H.cage.setTexture("bolt_cage_open");
       sfx.door(H.cage.x, H.cage.y);
       this.boom.explode(this.fxBudget(8), H.cage.x, H.cage.y - 10);
       H.bolt = this.add.image(H.cage.x, H.cage.y + 6, "bolt_pup").setDepth(DEPTH.player + 1);
       H.boltFree = true;
       sfx.boltYip(H.cage.x, H.cage.y);
-      this.game.events.emit("bb:blip", { text: "KOBI: The puppy is out. He is doing the WIGGLE. ...Nobody ever did the wiggle for me.", mood: "defeated" });
+      this.game.events.emit("bb:blip", { text: "KOBI: Good. The guest is leaving. Guests... leave.", mood: "defeated" });
     }
-    if (H.downStep === 2 && H.bolt) {
-      // Bolt bounds toward the nearest live buddy: frame-rate-independent
-      // hops (x at boltSpeed, y a |sin| bounce over the floor line)
+
+    // Bolt's bounding (both legs): frame-rate-independent hops — x at
+    // boltSpeed, y a |sin| bounce over the floor line.
+    const floorY = 14 * TILE - 18;
+    if (H.downStep === 12 && H.bolt) {
+      // leg 1: OUT — toward the nearest live buddy (the reunion zoomies)
       const dt = delta / 1000;
       const targetX = this.nearestAlivePlayerX(H.bolt.x);
       const dx = targetX - H.bolt.x;
-      const floorY = 14 * TILE - 18;
       H._boltPhase = (H._boltPhase || 0) + dt * 7;
-      if (Math.abs(dx) > 56 && H.downT < 16000) {
+      if (Math.abs(dx) > 56 && H.downT < H._boltT0 + 14000) {
         H.bolt.x += Phaser.Math.Clamp(dx, -HEART.boltSpeed * dt, HEART.boltSpeed * dt);
         H.bolt.y = floorY - Math.abs(Math.sin(H._boltPhase)) * 30;
         H.bolt.setFlipX(dx > 0); // the bolt_pup art faces LEFT at rest
       } else {
-        // home! (or the 16s fallback if the buddies keep sprinting away —
-        // the resolution can never be outrun into a strand)
-        H.downStep = 3;
+        // reached the buddies (or the 14s can't-be-outrun fallback). Bolt
+        // stops... looks back at the tiny lonely KOBI... and DECIDES.
+        H.downStep = 13;
         H.bolt.y = floorY;
-        this.heartResolved = true; // the exit's needs.heart opens NOW
-        this.starBurst.explode(this.fxBudget(10), H.bolt.x, H.bolt.y - 14);
         sfx.boltYip(H.bolt.x, H.bolt.y);
-        // a happy settled wiggle, forever (one pooled tween)
+      }
+    }
+    if (H.downStep === 13 && H.bolt && H.tiny) {
+      // leg 2: the TURN-BACK — Bolt bounds back to tiny KOBI
+      const dt = delta / 1000;
+      const dx = H.tiny.x - H.bolt.x;
+      H._boltPhase = (H._boltPhase || 0) + dt * 7;
+      if (Math.abs(dx) > 26 && H.downT < H._boltT0 + 26000) {
+        H.bolt.x += Phaser.Math.Clamp(dx, -HEART.boltSpeed * dt, HEART.boltSpeed * dt);
+        H.bolt.y = floorY - Math.abs(Math.sin(H._boltPhase)) * 30;
+        H.bolt.setFlipX(dx > 0);
+      } else {
+        H.downStep = 14; // FIN-34 — the lick
+        H.bolt.y = floorY;
+        H._talkT = H.downT;
+        sfx.boltYip(H.bolt.x, H.bolt.y);
+        this.game.events.emit("bb:blip", { text: "KOBI: Your dog is LEAKING on me. ...Do it again.", mood: "angry" });
+      }
+    }
+    if (H.downStep === 14 && H.downT > H._talkT + 1600) {
+      H.downStep = 15; // FIN-36 — the smallest voice
+      this.game.events.emit("bb:blip", { text: "KOBI: ...Carry me anyway.", mood: "scared" });
+    }
+    if (H.downStep === 15 && H.downT > H._talkT + 3200) {
+      H.downStep = 16; // FIN-37 — the carry: tiny KOBI rides up onto Bolt's back
+      if (H.tiny && H.bolt) {
+        this.tweens.add({
+          targets: H.tiny, x: H.bolt.x, y: H.bolt.y - 16,
+          duration: 600, ease: "sine.inOut",
+        });
+      }
+      this.game.events.emit("bb:blip", { text: "KOBI: Onward, steed. This dog is under my PROTECTION now.", mood: "happy" });
+    }
+    if (H.downStep === 16 && H.downT > H._talkT + 4400) {
+      // the carry has settled: RESOLVED (the exit's needs.heart opens NOW),
+      // one celebration, a gentle forever-wiggle — and no further lines.
+      H.downStep = 17;
+      this.heartResolved = true;
+      if (H.bolt) {
+        this.starBurst.explode(this.fxBudget(12), H.bolt.x, H.bolt.y - 14);
         this.tweens.add({ targets: H.bolt, angle: { from: -6, to: 6 }, duration: 260, yoyo: true, repeat: -1, ease: "sine.inOut" });
-        this.game.events.emit("bb:blip", { text: "KOBI: Take him home. He was a very good... guest. It will be nice here. Quiet. VERY quiet. Extremely quiet.", mood: "defeated" });
       }
     }
   }

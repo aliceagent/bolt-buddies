@@ -256,8 +256,8 @@ export default [
       // the exit's needs.heart opens. All attacks are already over. (The
       // timeline is freeze-gated like everything else: a take landing early
       // in the 5s hold delays the cage pop by the hold's remainder.)
-      await bb.waitFor((s) => s.heart.boltFree, 14000, "Bolt is out of the cage");
-      await bb.waitFor((s) => s.heartResolved, 20000, "Bolt home -> resolved");
+      await bb.waitFor((s) => s.heart.boltFree, 40000, "Bolt is out of the cage");
+      await bb.waitFor((s) => s.heartResolved, 60000, "Bolt home -> resolved");
       await bb.waitFor((s) => s.doors.find((d) => d.id === "exit")?.open, 4000, "exit open");
     },
   },

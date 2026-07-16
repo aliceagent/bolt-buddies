@@ -982,7 +982,7 @@ export default [
       bb.stepDeaths = 0;
       await h43.unplugStation(bb, 2);
       const defeated = await bb.waitFor((s) => s.heartDefeated, 4000, "powered down").then(() => true).catch(() => false);
-      const resolved = await bb.waitFor((s) => s.heartResolved, 22000, "Bolt home").then(() => true).catch(() => false);
+      const resolved = await bb.waitFor((s) => s.heartResolved, 60000, "Bolt home").then(() => true).catch(() => false);
       st = await bb.state();
       const exitOpen = st.doors.find((d) => d.id === "exit")?.open === true;
       const ok = rearmed && exposureLatched && progressKept && defeated && resolved && exitOpen;
