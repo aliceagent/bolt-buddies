@@ -95,9 +95,47 @@ the list and STOP for the director to lock the final per-sound mix.
 
 ---
 
-# PHASE 2 — full set (after the palette is chosen)
+# PHASE 2 DECISION — FINAL STYLE MAP (locked by director)
 
-Produce the finished one-shot for every sound below, in the chosen palette style,
+The palette is a per-sound mix. Style key: **A** = cute chunky · **B** = sleek hi-tech ·
+**C** = tactile foley (same a/b/c definitions as Phase 1). Tally: A 13 / B 13 / C 28.
+
+The **16 director-auditioned anchors are ALREADY PROMOTED** to `public/sfx/` from the
+approved palette samples and are live in-engine — **do NOT regenerate these**:
+
+    A: land core coresFanfare magnetOn rollerAlert
+    B: jump stomp squish checkpoint reel
+    C: zip door die menuSelect respawn craneSlam
+
+## Produce these 38 remaining sounds, each in its TAGGED style → `public/sfx/<name>.wav`
+
+    Player   [B] stompLaunch  [C] hangLatch    [B] grab        [C] throwIt     [C] tossHigh
+             [B] hopOff       [A] buddyBeep    [B] phaseIn     [B] phaseOut    [A] equip
+    World    [A] pickup       [A] key          [C] doorClose   [C] exitDoor    [C] lockTurn
+             [C] lever        [C] platePress   [C] plateRelease
+    Enemies  [B] bugBounce    [B] bugBonk      [B] rollerZap   [C] wardenShove [C] wardenTopple
+             [C] crush        [A] craneAlarm   [C] craneYank   [C] podCrunch   [C] craneDefeat
+    Gadgets  [A] magnetOff    [A] bubbleOn     [A] bubblePop   [C] splash
+    UI       [C] menuMove     [C] menuDeny     [C] denied      [C] saveTick    [C] settingsTick
+             [C] muteChirp
+
+Per-sound prompts + durations are in the reference list below — produce each in the style
+tagged above. (`hangLatch` isn't in that list: ~0.15s, "quick mechanical latch / grapple
+hooking onto an anchor, short metallic clink".) Same specs: WAV 44.1 kHz, mono, short +
+DRY, peaks normalized to ~ −3..−6 dBFS, consistent loudness.
+
+Commit: `git checkout dev && git pull --rebase origin dev`; put the 38 WAVs in
+`public/sfx/` (exact names); run **`node tools/gen_sfx_manifest.mjs`** and fix any
+"unknown voice" warnings; `git add public/sfx src/audio/sfxsamples_manifest.js && git
+commit -m "sfx: full set (phase 2)"`; `git pull --rebase origin dev && git push origin
+dev`. Do NOT push to main. Reply with the names added; the main session verifies each
+in-engine and promotes `dev → main`.
+
+---
+
+# PHASE 2 — per-sound generation prompts (reference)
+
+Produce the finished one-shot for every sound below, in its assigned palette style,
 to `public/sfx/` (top level, exact names). Prompts are starting points — adapt to
 the style. Keep them short/dry per the specs.
 

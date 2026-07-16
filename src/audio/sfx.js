@@ -580,6 +580,7 @@ for (const _name of Object.keys(sfx)) {
       const vol = (typeof x === "number" && typeof y === "number") ? pv(x, y) : 1;
       if (vol <= 0) return; // off-screen — same skip the synth path takes
       if (!rateLimit(`smp:${_name}`, 40)) return;
+      bump(_name); // count the fire on the sample path too (parity with synth voices)
       playSfxSample(_name, typeof x === "number" ? panForX(x) : 0, vol);
       return;
     }

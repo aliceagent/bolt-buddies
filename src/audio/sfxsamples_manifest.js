@@ -2,4 +2,21 @@
 // Map of sfx voice name -> file extension for produced samples in public/sfx/.
 // Empty = every sound uses its procedural synth voice (default). Drop
 // public/sfx/<name>.wav (or .mp3) and re-run the generator to populate this.
-export const SFX_SAMPLES = {};
+export const SFX_SAMPLES = {
+  "checkpoint": "wav",
+  "core": "wav",
+  "coresFanfare": "wav",
+  "craneSlam": "wav",
+  "die": "wav",
+  "door": "wav",
+  "jump": "wav",
+  "land": "wav",
+  "magnetOn": "wav",
+  "menuSelect": "wav",
+  "reel": "wav",
+  "respawn": "wav",
+  "rollerAlert": "wav",
+  "squish": "wav",
+  "stomp": "wav",
+  "zip": "wav"
+};
