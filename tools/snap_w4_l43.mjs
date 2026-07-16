@@ -119,13 +119,13 @@ await sleep(1400);
 await shoot("l43-powerdown", 48 * T, 10.5 * T, 1.15);
 
 // the Bolt rescue: cage popped, Bolt mid-bound toward the buddies
-await bb.waitFor((s) => s.heart.boltFree, 14000, "Bolt out");
+await bb.waitFor((s) => s.heart.boltFree, 34000, "Bolt out"); // FIN-A: cage pops ~t28s into the extended cinematic
 await sleep(900);
 {
   const bx = await page.evaluate(() => window.__BB.scene.heart.bolt ? window.__BB.scene.heart.bolt.x : 48 * 48);
   await shoot("l43-bolt-rescue", bx, 12 * T, 1.2);
 }
-await bb.waitFor((s) => s.heartResolved, 20000, "Bolt home");
+await bb.waitFor((s) => s.heartResolved, 48000, "Bolt home"); // FIN-A: resolves at the carry-settle (~t34s, 40s hard fallback)
 await shoot("l43-resolved", 34 * T, 11.5 * T, 1.05);
 
 // --- through the exit: the finale clear overlay ("BOLT RESCUED!") ------------
