@@ -70,8 +70,24 @@ function analyze(s,sr){
 }
 const brightWord=(z)=> z<1200?"deep": z<2200?"warm": z<4000?"mid": z<6500?"bright":"crisp";
 
+// mode: default renders only the sounds still needing an answer (no locked pick);
+// --all renders the full 16 with locked picks pre-seeded.
+const MODE = process.argv.includes("--all") ? "all" : "remaining";
+const LABELS = Object.fromEntries(SOUNDS.map(([n,label]) => [n, label]));
+const RENDER = MODE === "all" ? SOUNDS : SOUNDS.filter(([n]) => !PICKS[n]);
+const SEED   = MODE === "all" ? PICKS : {};
+const LOCKED = MODE === "all" ? {} : PICKS;
+const LOCKMETA = Object.fromEntries(Object.keys(LOCKED).map(n => [n, LABELS[n]]));
+const LEDE = MODE === "all"
+  ? "This is the full set — your <b>10 locked picks</b> (coloured tag) plus the <b>6 new probes</b>. "
+    + "Play a column to hear a whole style, change anything, then copy your decision. "
+    + "Every clip is the real 44.1&nbsp;kHz WAV, normalized to −4.5&nbsp;dBFS."
+  : "Just the <b>" + RENDER.length + " sounds still to decide</b> — one per sound-family the core set didn't cover. "
+    + "Play the three columns to compare styles, then <b>lock a winner for each</b>. Your 10 earlier picks are "
+    + "kept below and still count toward the final decision. Every clip is the real 44.1&nbsp;kHz WAV, −4.5&nbsp;dBFS.";
+
 const DATA={}, AUDIO={}; const warn=[];
-for(const [name] of SOUNDS){
+for(const [name] of RENDER){
   for(const [v] of STYLES){
     const key=`${name}_${v}`, file=path.join(DIR,`${key}.wav`);
     let buf; try{ buf=await fs.readFile(file); }catch{ warn.push(`MISSING ${key}.wav`); continue; }
@@ -85,15 +101,18 @@ for(const [name] of SOUNDS){
 
 const tpl=await fs.readFile(TEMPLATE,"utf8");
 const html=tpl
-  .replace("/*__SOUNDS__*/",JSON.stringify(SOUNDS))
+  .replace("/*__SOUNDS__*/",JSON.stringify(RENDER))
   .replace("/*__STYLES__*/",JSON.stringify(STYLES))
   .replace("/*__DATA__*/",JSON.stringify(DATA))
   .replace("/*__AUDIO__*/",JSON.stringify(AUDIO))
-  .replace("/*__PICKS__*/",JSON.stringify(PICKS));
+  .replace("/*__PICKS__*/",JSON.stringify(SEED))
+  .replace("/*__LOCKED__*/",JSON.stringify(LOCKED))
+  .replace("/*__LOCKMETA__*/",JSON.stringify(LOCKMETA))
+  .replace("/*__LEDE__*/",LEDE);
 await fs.writeFile(OUT,html);
 
 const kb=Math.round((await fs.stat(OUT)).size/1024);
-console.log(`  ${Object.keys(AUDIO).length} clips embedded · ${SOUNDS.length} sounds × ${STYLES.length} styles`);
+console.log(`  mode: ${MODE} · ${Object.keys(AUDIO).length} clips embedded · ${RENDER.length} sounds × ${STYLES.length} styles`);
 console.log(`  wrote ${OUT} (${kb} KB)`);
 if(warn.length){ console.log("  ⚠ warnings:"); warn.forEach(w=>console.log("     "+w)); }
 else console.log("  ✓ all clips 44.1kHz, peaks in -3..-6 dBFS");

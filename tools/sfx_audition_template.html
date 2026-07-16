@@ -58,6 +58,13 @@
   .ioshint{margin:14px 0 0;padding:10px 14px;border-radius:10px;font-size:13.5px;color:var(--muted);
     background:color-mix(in srgb,var(--amber) 10%,var(--panel));border:1px solid color-mix(in srgb,var(--amber) 30%,var(--edge));}
   .ioshint b{color:var(--ink);}
+  .lockstrip{margin:16px 0 0;padding:11px 14px;border-radius:10px;font-size:12.5px;color:var(--muted);
+    background:var(--panel);border:1px solid var(--edge);line-height:2;}
+  .lockstrip .lhead{color:var(--ink);font-weight:640;font-size:13px;margin-right:4px;}
+  .lockstrip .lk{font-family:ui-monospace,monospace;font-size:11.5px;padding:2px 7px;border-radius:6px;margin:0 2px;
+    border:1px solid var(--edge);white-space:nowrap;}
+  .lockstrip .lk b{color:var(--ink);}
+  .lockstrip .lk[data-h="a"]{color:var(--A);} .lockstrip .lk[data-h="b"]{color:var(--B);} .lockstrip .lk[data-h="c"]{color:var(--C);}
 
   section{margin-top:30px;}
   .h2{font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.18em;text-transform:uppercase;
@@ -159,13 +166,12 @@
     </div>
     <button class="themebtn" id="themebtn" type="button">◐ theme</button>
   </header>
-  <p class="lede">Your <b>10 core picks are locked in</b> (shown with a coloured tag). This round adds
-    <b>6 new probe sounds</b> — one per major sound family we hadn't tested yet — so the mixed palette holds
-    up beyond the core set. Play a column to hear a whole style, then <b>lock a winner for each new sound</b>.
-    Every clip is the real 44.1&nbsp;kHz WAV, normalized to −4.5&nbsp;dBFS.</p>
+  <p class="lede">/*__LEDE__*/</p>
 
   <p class="ioshint" id="ioshint" hidden>📱 <b>iPhone:</b> tap any clip once to wake the audio, then if it's still silent
     flip the side <b>ring/silent switch</b> up (orange = silent — web audio follows it) and raise the volume.</p>
+
+  <p class="lockstrip" id="lockstrip" hidden></p>
 
   <section>
     <div class="h2">Hear each palette</div>
@@ -201,7 +207,9 @@
   const STYLES = /*__STYLES__*/;   // [key,name,desc]
   const DATA   = /*__DATA__*/;     // key -> {durMs,zcr,bright}
   const AUDIO  = /*__AUDIO__*/;    // key -> dataURI
-  const SEED   = /*__PICKS__*/;    // name -> "a|b|c" for locked picks
+  const SEED   = /*__PICKS__*/;    // name -> "a|b|c" seeded on rendered rows
+  const LOCKED = /*__LOCKED__*/;   // name -> "a|b|c" for picks NOT rendered (kept for the final map)
+  const LOCKMETA = /*__LOCKMETA__*/; // name -> label, for the summary strip
   const HUE = {a:"var(--A)", b:"var(--B)", c:"var(--C)"};
   const HUEDIM = {a:"var(--A-dim)", b:"var(--B-dim)", c:"var(--C-dim)"};
 
@@ -329,19 +337,31 @@
     }
   }
   document.getElementById("copybtn").addEventListener("click",()=>{
-    const c=counts();
     const styleName=Object.fromEntries(STYLES.map(([v,n])=>[v,n]));
-    const decided={}; SOUNDS.forEach(([n])=>{ if(picks[n]) decided[n]=picks[n]; });
-    const top=Object.entries({a:c.a,b:c.b,c:c.c}).sort((x,y)=>y[1]-x[1])[0][0];
-    const lines=["Bolt Buddies — SFX palette decision (round 2)"];
+    // full 16-sound map = locked (not rendered here) + whatever's picked on-screen
+    const full={...LOCKED}; SOUNDS.forEach(([n])=>{ if(picks[n]) full[n]=picks[n]; });
+    const fc={a:0,b:0,c:0}; Object.values(full).forEach(v=>fc[v]++);
+    const top=Object.entries(fc).sort((x,y)=>y[1]-x[1])[0][0];
+    const undecided=SOUNDS.filter(([n])=>!picks[n]).map(([n])=>n);
+    const lines=["Bolt Buddies — SFX palette decision"];
     lines.push("Base palette: "+top.toUpperCase()+" ("+styleName[top]+")");
-    const over=SOUNDS.filter(([n])=>picks[n] && picks[n]!==top);
-    if(over.length){ lines.push("Overrides:"); over.forEach(([n])=>lines.push("  "+n+" -> "+picks[n].toUpperCase()+" ("+styleName[picks[n]]+")")); }
-    if(c.u>0) lines.push("STILL UNDECIDED: "+SOUNDS.filter(([n])=>!picks[n]).map(([n])=>n).join(", "));
-    lines.push("Full map: "+JSON.stringify(decided));
+    const over=Object.keys(full).filter(n=>full[n]!==top);
+    if(over.length){ lines.push("Overrides:"); over.forEach(n=>lines.push("  "+n+" -> "+full[n].toUpperCase()+" ("+styleName[full[n]]+")")); }
+    if(undecided.length) lines.push("STILL UNDECIDED: "+undecided.join(", "));
+    lines.push("Full map: "+JSON.stringify(full));
     const txt=lines.join("\n");
-    navigator.clipboard?.writeText(txt).then(()=>toast(c.u>0?"Copied — "+c.u+" still undecided":"Decision copied — paste it back to me"),()=>toast("Copy failed — select manually"));
+    navigator.clipboard?.writeText(txt).then(()=>toast(undecided.length?("Copied — "+undecided.length+" still undecided"):"Decision copied — paste it back to me"),()=>toast("Copy failed — select manually"));
   });
+
+  // ---- locked summary strip (picks kept off-screen) ----------------------
+  (function(){
+    const keys=Object.keys(LOCKED); if(!keys.length) return;
+    const el=document.getElementById("lockstrip");
+    el.innerHTML='<span class="lhead">✓ '+keys.length+' already locked from round 1:</span> '+
+      keys.map(n=>'<span class="lk" data-h="'+LOCKED[n]+'"><b>'+(LOCKMETA[n]||n)+'</b> '+LOCKED[n].toUpperCase()+'</span>').join("")+
+      '<span class="lk" style="border:none"> — they’re still in your final decision; change any on the full page if needed.</span>';
+    el.hidden=false;
+  })();
 
   // ---- theme + misc ------------------------------------------------------
   document.getElementById("themebtn").addEventListener("click",()=>{
