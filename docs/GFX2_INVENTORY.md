@@ -56,3 +56,49 @@
   icon_freeze, icon_beam, propStrip4.
 - Finale: kobi_housing, kobi_iris(_dead), kobi_lid, heart_vent, heart_core(_dead),
   turbine(+_rotor,_rotor_dead), bolt_cage(_open), bolt_pup.
+
+## ANIMATION CONTRACT (source: deep anim audit)
+Mechanism: NO sprite-sheets. (b) code transforms on hosts + (c) multi-part rig
+(CharRig, rig.js:150) — pooled overlay Images/Graphics placed per-frame from a
+pose bag. Only true frame cycles: tread0..3 (rig.js:133) and bug legs
+(bug_anim.js:117) — hand-rolled setTexture swaps.
+
+RESTYLE CONTRACT:
+A. Keys unchanged. B. Canvas dims unchanged. C. Origins unchanged (arm_glyph
+0.12,0.5; jelly_tent 0.5,0.08; gloom_wisp 0.5,0.1; ticker_key 0.5,0.82;
+chomper_jaw 0.06,0.4; hosts centered). D. Feature ANCHORS stay put or update
+code in lockstep:
+ 1 player eyes baked (17,23)/(28,23) — player_anim.js:51 EYES{0.5,-1} + pupils
+   lens spacing BootScene:518 (11px apart)
+ 2 antenna tip (22,3) — ANT{0,-21}; 3 tread band y44.5 — TREAD{0,20.5}
+ 4 HOOK{15,-3}; 5 ARM{0,-4}; 7 blink lids y=24 (robot_*_blink)
+ 8 roller eye at local(0,-5) roller_anim:134 + GameScene:5418; wheels ±9,+11
+ 10 crane eye socket tex(66,28) -> EYE_LX=0,EYE_LY=-10 crane_anim:53; lid r10.5
+ 11 warden visor slit x-1..15,y-12 (motion.js:114)
+ 12 bug feelers (±5,-8) under shell top; 13 chomper hinge (-20,+6), origin .06,.4
+ 14 jelly skirt y≈10 (tentacles x -12/-4/4/12); 15 gloomy skirt y≈11 (x -9/0/9)
+ 16 ticker key mount (-14,-6); 17 crusher sigh vent img.y+22
+ 19 lift overlay = liftplat at platform w/h exactly
+Baked-Graphics parts (feelers/klaxon/glint/hook/crane pupil-lid-glow/W3W4 skill
+flashes/Bolt cameo) live in *_anim.js draw fns — restyle by editing those fns.
+KOBI hub/HUD avatars + title Bolt + hub ticker eye + boss eye anims live in
+TitleScene/HubScene/UIScene (not src/anim) — audit separately.
+
+## DRAWN-SCENE / TEST-COUPLING NOTES (source: drawn-UI audit)
+- ui/kit.js: neonPanel/drawRowSelect/keyCap(capW formula)/chipRow/addSkyline/
+  menuBackdrop/drawIris — THE shared panel language; restyle here cascades.
+- constants.js is the token surface: FONT('Courier New'), FS scale, TEXT, COLORS,
+  WORLD_THEMES 1-4, PARTICLES(budget 120), DEPTH bands, SKILL_INFO colors.
+- HARD test couplings to preserve: __BB.menu/onboard/wt/mute/epilogue/reward
+  probes; Mute GLYPH(864,26)+PANEL(716,46,236,214)+row y100/134/168/202+TRACK
+  784..898; Hub nameText "<id>  \"<name>\"" + toast lines; UIScene clear headline
+  texts + this.completed sync + blip bar top y=H-92; menu order (WALKTHROUGHS
+  last); Settings row order 0-8; footer y540.
+- GameScene runtime draws: rope/hintGfx/beamGfx, intro banner(560w @132),
+  item cards, glyph key-caps (drawn colors, no tint), heartGfx glare column
+  (stripes+lock tracer+strike sheath, glareHalfW 52), dazzle meter, beam cones
+  (conelight + conemask erase), darkRT half-res mask, freeze wash, icepanel
+  overlays, coach need-bubbles, SL4 stuck UI (above blip bar).
+- Screenshot tools: gallery2 (master, 45 shots), snap_p2_mute (clicks probe
+  coords), snap_walkthrough, record_finale_video (only Reward coverage),
+  snap_w4_l43 + w3/w4 snaps. Reward needs a snap tool (gap to fill in V8).
