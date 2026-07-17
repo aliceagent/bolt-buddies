@@ -6774,9 +6774,13 @@ export default class GameScene extends Phaser.Scene {
       g.strokeRect(0.5, 40.5, 47, 7);
       g.fillStyle(0x5a6aa0);
       [8, 24, 40].forEach((x) => { g.fillCircle(x, 4, 1.6); g.fillCircle(x, 44, 1.6); });
-      // amber polarity strip on the underside (the "cling here" face)
-      g.fillStyle(0xffb347, 0.85).fillRect(2, 45, 44, 2);
-      g.fillStyle(0xffe0a8, 0.9);
+      // amber polarity strip on the underside (the "cling here" face). The glow
+      // bands span the FULL width (constant along x) so a horizontal run tiles
+      // seamlessly; only the bright core + studs sit inside the flange margins.
+      g.fillStyle(0xffb347, 0.1).fillRect(0, 41, 48, 7); // soft cling underglow
+      g.fillStyle(0xffb347, 0.22).fillRect(0, 44, 48, 4); // inner glow
+      g.fillStyle(0xffb347, 0.9).fillRect(0, 45, 48, 2); // hot polarity line
+      g.fillStyle(0xffe0a8, 0.95);
       for (let x = 6; x < 48; x += 12) g.fillRect(x, 44.4, 3, 1.2);
     });
     // metal crate: plated box with an X cross-brace + magnet-dot corners.
@@ -6787,8 +6791,12 @@ export default class GameScene extends Phaser.Scene {
       g.lineStyle(3, 0x4a5578);
       g.lineBetween(6, 6, 40, 40);
       g.lineBetween(40, 6, 6, 40);
-      g.fillStyle(0xffb347, 0.9);
-      [[8, 8], [38, 8], [8, 38], [38, 38]].forEach(([x, y]) => g.fillCircle(x, y, 2.4));
+      // amber magnet-dot corners with a soft cling glow
+      [[8, 8], [38, 8], [8, 38], [38, 38]].forEach(([x, y]) => {
+        g.fillStyle(0xffb347, 0.16).fillCircle(x, y, 5.5);
+        g.fillStyle(0xffb347, 0.95).fillCircle(x, y, 2.4);
+        g.fillStyle(0xffe0a8, 0.9).fillCircle(x - 0.7, y - 0.7, 1);
+      });
       g.fillStyle(0x8fa3d9, 0.5).fillRect(5, 5, 36, 3); // top sheen
     });
     // magnetic switch: bracket + horseshoe coil + status lamp (off/on states).
@@ -6805,11 +6813,18 @@ export default class GameScene extends Phaser.Scene {
       g.lineBetween(26.5, 18, 26.5, 26);
       g.fillStyle(0xeaf2ff, 0.95);
       g.fillRect(6.5, 22, 6, 4); g.fillRect(23.5, 22, 6, 4); // pole shoes
-      // status lamp
-      g.fillStyle(on ? 0x59ff9c : 0xff5566, on ? 1 : 0.9).fillCircle(18, 34, 3.4);
+      if (on) { // energised: amber field glow around the coil
+        g.fillStyle(0xffb347, 0.14).fillCircle(18, 18, 15);
+      }
+      // status lamp with a haloed glow (green=on / red=off)
+      const lampC = on ? 0x59ff9c : 0xff5566;
+      g.fillStyle(lampC, on ? 0.3 : 0.18).fillCircle(18, 34, 6.5);
+      g.fillStyle(lampC, on ? 1 : 0.9).fillCircle(18, 34, 3.4);
       g.fillStyle(0xffffff, 0.85).fillCircle(17, 33, 1.1);
-      if (on) { // energised arcs
-        g.lineStyle(1.5, 0xffe0a8, 0.9);
+      if (on) { // energised arcs, each with a soft glow underlay
+        g.lineStyle(3.5, 0xffe0a8, 0.22);
+        g.lineBetween(12, 12, 8, 6); g.lineBetween(18, 8, 18, 3); g.lineBetween(24, 12, 28, 6);
+        g.lineStyle(1.5, 0xfff2cf, 0.95);
         g.lineBetween(12, 12, 8, 6); g.lineBetween(18, 8, 18, 3); g.lineBetween(24, 12, 28, 6);
       }
     };
@@ -6818,8 +6833,11 @@ export default class GameScene extends Phaser.Scene {
     // vent updraft grille — the 2-2 fan family drawn in W3 amber.
     make("vent3", 48, 22, (g) => {
       g.fillStyle(0x2a3350).fillRect(0, 10, 48, 12);
-      g.lineStyle(2, 0xffb347, 0.9).strokeRect(1, 11, 46, 10);
-      g.fillStyle(0xffb347, 0.9).fillTriangle(24, 0, 16, 12, 32, 12);
+      g.lineStyle(6, 0xffb347, 0.12).strokeRect(1, 11, 46, 10); // grille halo
+      g.lineStyle(2, 0xffb347, 0.95).strokeRect(1, 11, 46, 10);
+      g.fillStyle(0xffb347, 0.18).fillTriangle(24, -3, 12, 13, 36, 13); // updraft bloom
+      g.fillStyle(0xffb347, 0.95).fillTriangle(24, 0, 16, 12, 32, 12);
+      g.fillStyle(0xffe9c0, 0.9).fillTriangle(24, 3, 20, 11, 28, 11); // hot core
     });
     // bubble shell: translucency baked in (Canvas-safe); ADD blend on WebGL.
     make("bubbleshell", 76, 76, (g) => {
@@ -6828,10 +6846,16 @@ export default class GameScene extends Phaser.Scene {
         g.fillCircle(38, 38, r);
       }
       g.fillStyle(0xbfeaff, 0.1).fillCircle(38, 38, 30);
-      g.lineStyle(2.5, 0xcdeeff, 0.7).strokeCircle(38, 38, 33);
-      g.lineStyle(1.5, 0xffffff, 0.8);
-      g.beginPath(); g.arc(38, 38, 27, Math.PI * 1.15, Math.PI * 1.55); g.strokePath(); // glint arc
-      g.fillStyle(0xffffff, 0.85).fillCircle(27, 26, 2.2);
+      g.lineStyle(4, 0xcdeeff, 0.12).strokeCircle(38, 38, 33); // outer rim glow
+      g.lineStyle(2.5, 0xcdeeff, 0.75).strokeCircle(38, 38, 33);
+      g.lineStyle(1.5, 0x9fe0ff, 0.5).strokeCircle(38, 38, 30); // inner glass wall
+      // twin glint arcs (a fuller glass read) + specular dabs
+      g.lineStyle(2, 0xffffff, 0.85);
+      g.beginPath(); g.arc(38, 38, 27, Math.PI * 1.12, Math.PI * 1.58); g.strokePath();
+      g.lineStyle(1.2, 0xffffff, 0.5);
+      g.beginPath(); g.arc(38, 38, 22, Math.PI * 0.15, Math.PI * 0.4); g.strokePath();
+      g.fillStyle(0xffffff, 0.9).fillCircle(27, 26, 2.4);
+      g.fillStyle(0xffffff, 0.5).fillCircle(50, 30, 1.4);
     });
     // zap-jelly: a friendly electric dome (base / happy socketed face) + glow.
     const jelly = (happy) => (g) => {
@@ -6868,12 +6892,19 @@ export default class GameScene extends Phaser.Scene {
     const socket = (on) => (g) => {
       g.fillStyle(0x1c2742).fillRect(14, 30, 16, 12); // stem
       g.fillStyle(0x2a3350).fillRoundedRect(4, 34, 36, 8, 3);
+      if (on) { // powered cradle glow behind the ring
+        g.lineStyle(7, 0x59ff9c, 0.12);
+        g.beginPath(); g.arc(22, 20, 15, Math.PI * 0.9, Math.PI * 2.1); g.strokePath();
+      }
       g.lineStyle(3, on ? 0x59ff9c : 0x44548c);
       g.beginPath(); g.arc(22, 20, 15, Math.PI * 0.9, Math.PI * 2.1); g.strokePath(); // cradle ring
       g.fillStyle(on ? 0x59ff9c : 0x39415e);
+      if (on) { g.fillStyle(0x59ff9c, 0.25).fillCircle(7.5, 22, 6).fillCircle(36.5, 22, 6); g.fillStyle(0x59ff9c); }
       g.fillCircle(7.5, 22, 3); g.fillCircle(36.5, 22, 3); // contact studs
       if (on) {
-        g.lineStyle(1.5, 0xd6ffe6, 0.9);
+        g.lineStyle(3, 0xd6ffe6, 0.22);
+        g.lineBetween(10, 12, 6, 6); g.lineBetween(34, 12, 38, 6);
+        g.lineStyle(1.5, 0xeafff2, 0.95);
         g.lineBetween(10, 12, 6, 6); g.lineBetween(34, 12, 38, 6);
       } else {
         g.fillStyle(0xffe066, 0.5).fillCircle(22, 6, 2); // "feed me" pilot dot
@@ -6922,6 +6953,7 @@ export default class GameScene extends Phaser.Scene {
     make("tooth", 10, 12, (g) => {
       g.fillStyle(0xdfe8ff).fillTriangle(1, 1, 9, 1, 5, 11);
       g.fillStyle(0xaebadf).fillTriangle(3, 2, 7, 2, 5, 8);
+      g.fillStyle(0xffffff, 0.9).fillRect(3.4, 2, 1.4, 4); // steel glint
     });
     make("chomper_jaw", 48, 12, (g) => {
       g.fillStyle(0x5a3e30).fillRoundedRect(0, 2, 48, 9, 3);
@@ -7019,7 +7051,9 @@ export default class GameScene extends Phaser.Scene {
     make("scrap1", 34, 26, (g) => {
       g.fillStyle(0x39415e).fillTriangle(2, 6, 30, 2, 24, 22);
       g.fillStyle(0x2a3350).fillTriangle(8, 10, 26, 6, 20, 18);
-      g.lineStyle(2, 0xff4dd2, 0.9);
+      g.lineStyle(4, 0xff4dd2, 0.18); // polarity fringe glow
+      g.lineBetween(2, 6, 30, 2); g.lineBetween(24, 22, 2, 6);
+      g.lineStyle(2, 0xff4dd2, 0.95);
       g.lineBetween(2, 6, 30, 2); g.lineBetween(24, 22, 2, 6);
       g.fillStyle(0x8fa3d9, 0.8).fillRect(12, 8, 6, 3); // glint
     });
@@ -7031,13 +7065,14 @@ export default class GameScene extends Phaser.Scene {
         const a = (i / 8) * Math.PI * 2;
         g.fillRect(15 + Math.cos(a) * 12 - 2.5, 15 + Math.sin(a) * 12 - 2.5, 5, 5);
       }
-      g.lineStyle(2, 0xff4dd2, 0.9).strokeCircle(15, 15, 11.5);
+      g.lineStyle(4, 0xff4dd2, 0.18).strokeCircle(15, 15, 11.5); // polarity fringe glow
+      g.lineStyle(2, 0xff4dd2, 0.95).strokeCircle(15, 15, 11.5);
     });
     make("scrap3", 32, 24, (g) => {
       g.fillStyle(0x2f4066).fillRoundedRect(2, 8, 22, 10, 4);
       g.fillStyle(0x2f4066).fillRoundedRect(16, 2, 10, 16, 4);
-      g.lineStyle(2, 0xff4dd2, 0.9);
-      g.strokeRoundedRect(2, 8, 22, 10, 4);
+      g.lineStyle(4, 0xff4dd2, 0.18).strokeRoundedRect(2, 8, 22, 10, 4); // fringe glow
+      g.lineStyle(2, 0xff4dd2, 0.95).strokeRoundedRect(2, 8, 22, 10, 4);
       g.fillStyle(0x121a30).fillCircle(7, 13, 2.6).fillCircle(21, 6, 2.6);
       g.fillStyle(0x8fa3d9, 0.7).fillRect(5, 9, 10, 2);
     });
@@ -7059,7 +7094,9 @@ export default class GameScene extends Phaser.Scene {
     // FUSE-CORE: a chunky amber energy cell with cyan poles (the ferry cargo).
     make("fusecore_item", 24, 30, (g) => {
       g.fillStyle(0x1c2742).fillRoundedRect(4, 2, 16, 26, 4);
+      g.lineStyle(4, 0x7ee0ff, 0.14).strokeRoundedRect(4, 2, 16, 26, 4); // cyan pole halo
       g.lineStyle(2, 0x7ee0ff, 0.95).strokeRoundedRect(4, 2, 16, 26, 4);
+      g.fillStyle(0xffd24d, 0.22).fillRoundedRect(5, 5, 14, 20, 4); // amber cell glow
       g.fillStyle(0xffd24d).fillRoundedRect(7, 7, 10, 16, 3);
       g.fillStyle(0xfff6c2, 0.95).fillRect(9, 9, 3, 12); // hot filament
       g.fillStyle(0x7ee0ff).fillRect(9, 0, 6, 3).fillRect(9, 27, 6, 3); // poles
@@ -7070,14 +7107,21 @@ export default class GameScene extends Phaser.Scene {
     const fusesock = (on) => (g) => {
       g.fillStyle(0x1c2742).fillRect(16, 32, 12, 10); // stem
       g.fillStyle(0x2a3350).fillRoundedRect(4, 36, 36, 8, 3);
+      if (on) { // seated-core energy bloom behind the cradle
+        g.lineStyle(7, 0xffd24d, 0.12);
+        g.beginPath(); g.arc(22, 22, 14, Math.PI * 0.85, Math.PI * 2.15); g.strokePath();
+      }
       g.lineStyle(3, on ? 0xffd24d : 0x44548c);
       g.beginPath(); g.arc(22, 22, 14, Math.PI * 0.85, Math.PI * 2.15); g.strokePath();
       g.fillStyle(on ? 0xffd24d : 0x39415e);
       g.fillCircle(8.5, 26, 3); g.fillCircle(35.5, 26, 3); // contact studs
       if (on) {
+        g.fillStyle(0xffd24d, 0.28).fillRoundedRect(14, 9, 16, 22, 4); // core halo
         g.fillStyle(0xffd24d).fillRoundedRect(17, 12, 10, 16, 3); // the seated core
         g.fillStyle(0xfff6c2, 0.95).fillRect(19, 14, 3, 12);
-        g.lineStyle(1.5, 0xfff6c2, 0.9);
+        g.lineStyle(3, 0xfff6c2, 0.22);
+        g.lineBetween(12, 8, 8, 3); g.lineBetween(32, 8, 36, 3);
+        g.lineStyle(1.5, 0xfff6c2, 0.95);
         g.lineBetween(12, 8, 8, 3); g.lineBetween(32, 8, 36, 3);
       } else {
         g.fillStyle(0xffd24d, 0.5).fillCircle(22, 6, 2); // "feed me" pilot dot
@@ -7089,10 +7133,13 @@ export default class GameScene extends Phaser.Scene {
     const stormvent = (on) => (g) => {
       g.fillStyle(0x2a3350).fillRoundedRect(0, 6, 14, 24, 3);
       g.lineStyle(2, on ? 0xff4dd2 : 0x44548c).strokeRoundedRect(0, 6, 14, 24, 3);
+      if (on) g.fillStyle(0xff4dd2, 0.16).fillTriangle(14, 4, 30, 18, 14, 32); // muzzle bloom
       g.fillStyle(on ? 0xff4dd2 : 0x39415e);
       g.fillTriangle(14, 8, 26, 18, 14, 28);
       if (on) {
-        g.lineStyle(1.5, 0xffb9ec, 0.9);
+        g.lineStyle(3, 0xffb9ec, 0.22);
+        g.lineBetween(16, 12, 22, 8); g.lineBetween(18, 18, 26, 18); g.lineBetween(16, 24, 22, 28);
+        g.lineStyle(1.5, 0xffcff0, 0.95);
         g.lineBetween(16, 12, 22, 8); g.lineBetween(18, 18, 26, 18); g.lineBetween(16, 24, 22, 28);
       }
     };
@@ -7100,10 +7147,10 @@ export default class GameScene extends Phaser.Scene {
     make("stormvent_off", 28, 36, stormvent(false));
     // downwind chevron (lane direction cue)
     make("stormchev", 14, 18, (g) => {
-      g.lineStyle(3, 0xff4dd2, 0.9);
-      g.beginPath();
-      g.moveTo(2, 2); g.lineTo(11, 9); g.lineTo(2, 16);
-      g.strokePath();
+      g.lineStyle(6, 0xff4dd2, 0.14); // direction-cue glow (chevron meaning kept)
+      g.beginPath(); g.moveTo(2, 2); g.lineTo(11, 9); g.lineTo(2, 16); g.strokePath();
+      g.lineStyle(3, 0xff4dd2, 0.95);
+      g.beginPath(); g.moveTo(2, 2); g.lineTo(11, 9); g.lineTo(2, 16); g.strokePath();
     });
   }
 
@@ -7169,23 +7216,30 @@ export default class GameScene extends Phaser.Scene {
     make("ghosttile", 48, 48, (g) => {
       g.fillStyle(0x2a2058, 0.85).fillRect(0, 0, 48, 48);
       g.lineStyle(2, 0x8f7bff, 0.95).strokeRect(1, 1, 46, 46);
-      g.lineStyle(1, 0x35f0ff, 0.8);
+      // holo circuit trace with a cyan glow underlay + node halos
+      g.lineStyle(3.5, 0x35f0ff, 0.16);
       g.lineBetween(6, 14, 26, 14); g.lineBetween(26, 14, 26, 34); g.lineBetween(26, 34, 42, 34);
-      g.fillStyle(0x35f0ff, 0.9).fillCircle(6, 14, 1.8).fillCircle(42, 34, 1.8);
+      g.lineStyle(1, 0x35f0ff, 0.85);
+      g.lineBetween(6, 14, 26, 14); g.lineBetween(26, 14, 26, 34); g.lineBetween(26, 34, 42, 34);
+      g.fillStyle(0x35f0ff, 0.2).fillCircle(6, 14, 4).fillCircle(42, 34, 4); // node halos
+      g.fillStyle(0x35f0ff, 0.95).fillCircle(6, 14, 1.8).fillCircle(42, 34, 1.8);
       g.fillStyle(0x8f7bff, 0.6).fillRect(0, 0, 48, 3); // top seam
     });
     // rotating bridge: hub (spoked drum) + plated segment
     make("rothub", 30, 30, (g) => {
       g.fillStyle(0x1c2742).fillCircle(15, 15, 13);
+      g.lineStyle(4, 0x8f7bff, 0.14).strokeCircle(15, 15, 13); // violet rim glow
       g.lineStyle(2, 0x8f7bff, 0.95).strokeCircle(15, 15, 13);
       g.lineStyle(2, 0x39415e);
       g.lineBetween(15, 4, 15, 26); g.lineBetween(4, 15, 26, 15);
-      g.fillStyle(0x35f0ff, 0.9).fillCircle(15, 15, 3);
+      g.fillStyle(0x35f0ff, 0.22).fillCircle(15, 15, 6); // hub core glow
+      g.fillStyle(0x35f0ff, 0.95).fillCircle(15, 15, 3);
     });
     make("rotseg", 26, 14, (g) => {
       g.fillStyle(0x39415e).fillRoundedRect(0, 1, 26, 12, 3);
       g.lineStyle(1.5, 0x6b78a8).strokeRoundedRect(0, 1, 26, 12, 3);
-      g.fillStyle(0x8f7bff, 0.8).fillRect(2, 2, 22, 2); // neon walking face
+      g.fillStyle(0x8f7bff, 0.2).fillRect(1, 1, 24, 4); // neon face glow
+      g.fillStyle(0x8f7bff, 0.85).fillRect(2, 2, 22, 2); // neon walking face
       g.fillStyle(0x121a30).fillCircle(6, 8, 1.6).fillCircle(20, 8, 1.6);
     });
     // laser emitter: a squat turret with a hot lens
@@ -7194,28 +7248,38 @@ export default class GameScene extends Phaser.Scene {
       g.lineStyle(2, 0x39415e).strokeCircle(15, 15, 12);
       g.fillStyle(0x2a3350).fillRect(15, 11, 14, 8); // barrel (points +x; image rotates)
       g.lineStyle(1.5, 0xff5566, 0.9).strokeRect(15, 11, 14, 8);
+      // hot lens: red bloom → hot core → white-hot pinpoint
+      g.fillStyle(0xff5566, 0.28).fillCircle(15, 15, 9);
+      g.fillStyle(0xff5566, 0.5).fillCircle(15, 15, 6.5);
       g.fillStyle(0xff5566).fillCircle(15, 15, 4.5);
-      g.fillStyle(0xffd9de, 0.95).fillCircle(15, 15, 2);
+      g.fillStyle(0xffd9de, 0.95).fillCircle(15, 15, 2.2);
+      g.fillStyle(0xffffff, 0.9).fillCircle(15, 15, 1); // white-hot pinpoint
     });
     // ice door tile: glacial block with cracks + sheen (alpha carries the melt)
     make("icetile", 42, 48, (g) => {
       g.fillStyle(0x9fd8ff, 0.5).fillRect(0, 0, 42, 48);
+      // cool inner glow: soft blue-white bloom centred so tile EDGES stay uniform
+      // (constant along the borders) — vertical stacks tile with no bright seam.
+      g.fillStyle(0xd8f2ff, 0.1).fillEllipse(21, 24, 30, 34);
+      g.fillStyle(0xeaf9ff, 0.12).fillEllipse(21, 24, 18, 22);
       g.fillStyle(0xd8f2ff, 0.55).fillRect(2, 2, 38, 10);
       g.lineStyle(2, 0xcdeeff, 0.9).strokeRect(1, 1, 40, 46);
       g.lineStyle(1.5, 0xeaf9ff, 0.7);
       g.lineBetween(8, 6, 16, 20); g.lineBetween(16, 20, 12, 34);
       g.lineBetween(28, 12, 24, 26); g.lineBetween(24, 26, 32, 40);
-      g.fillStyle(0xffffff, 0.75).fillCircle(9, 9, 1.8).fillCircle(31, 30, 1.5);
+      g.fillStyle(0xffffff, 0.8).fillCircle(9, 9, 1.8).fillCircle(31, 30, 1.5);
     });
     // frost overlay panel stamped on frozen devices (translucency baked)
     make("icepanel", 48, 48, (g) => {
       g.fillStyle(0x9fd8ff, 0.22).fillRoundedRect(0, 0, 48, 48, 9);
-      g.lineStyle(2, 0xcdeeff, 0.55).strokeRoundedRect(1, 1, 46, 46, 9);
+      g.lineStyle(4, 0xcdeeff, 0.1).strokeRoundedRect(1, 1, 46, 46, 9); // cool frost glow rim
+      g.lineStyle(2, 0xcdeeff, 0.6).strokeRoundedRect(1, 1, 46, 46, 9);
       // frost ferns in the corners
       g.lineStyle(1.5, 0xe8f6ff, 0.6);
       g.lineBetween(6, 12, 14, 6); g.lineBetween(8, 9, 12, 11);
       g.lineBetween(42, 36, 34, 42); g.lineBetween(40, 39, 36, 37);
-      g.fillStyle(0xffffff, 0.7).fillCircle(24, 24, 1.6);
+      g.fillStyle(0xffffff, 0.18).fillCircle(24, 24, 6); // centre frost bloom
+      g.fillStyle(0xffffff, 0.75).fillCircle(24, 24, 1.6);
     });
     // GLOOMY: a shadow blob — near-black violet dome, two moon eyes; the scared
     // face goes wide-eyed with a stretched wail mouth (texture swap, Canvas-safe)

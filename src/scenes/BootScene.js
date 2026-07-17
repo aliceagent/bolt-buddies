@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { COLORS, WORLD_THEMES, PARTICLES } from "../constants.js";
-import { softBody, specular, sheen } from "../ui/paint.js";
+import { softBody, specular, sheen, haloCircle, ringGlow, fakeRadial, glowShape } from "../ui/paint.js";
 
 // Every texture in the game is generated here with Graphics — zero asset files.
 export default class BootScene extends Phaser.Scene {
@@ -696,30 +696,33 @@ export default class BootScene extends Phaser.Scene {
 
     // --- interactables -----------------------------------------------------
     make("anchor", 32, 32, (g) => {
-      g.lineStyle(4, COLORS.neon).strokeCircle(16, 16, 11);
+      fakeRadial(g, { x: 16, y: 16, r: 15, color: COLORS.neon, steps: 5, aCenter: 0.28, aEdge: 0.04 }); // hub glow
+      ringGlow(g, { x: 16, y: 16, r: 11, color: COLORS.neon, width: 4 }); // haloed cling ring
       g.fillStyle(COLORS.neon).fillCircle(16, 16, 3.5);
-      g.lineStyle(2, COLORS.neon, 0.4).strokeCircle(16, 16, 15);
+      g.fillStyle(0xffffff, 0.9).fillCircle(14.6, 14.6, 1.3); // hot centre specular
     });
     // Lever base plate + glowing pivot hub. The stick/knob is a SEPARATE
     // `lever_handle` image (origin at its base pivot) so a flip is a rotation
     // tween rather than a texture flipX — see GameScene.pullLever.
     make("lever", 36, 40, (g) => {
-      g.fillStyle(0x1c2742).fillRoundedRect(2, 28, 32, 12, 4);
-      g.lineStyle(2, 0x44548c).strokeRoundedRect(2, 28, 32, 12, 4);
-      g.fillStyle(COLORS.neon, 0.22).fillCircle(18, 31, 9); // pivot glow
+      softBody(g, { x: 2, y: 28, w: 32, h: 12, r: 4, base: 0x243052 }); // shaded base plate
+      fakeRadial(g, { x: 18, y: 31, r: 9, color: COLORS.magenta, steps: 4, aCenter: 0.22, aEdge: 0.03 }); // pivot glow
       g.fillStyle(0x2a3350).fillCircle(18, 31, 5.5);
-      g.fillStyle(0x8fa3d9).fillCircle(18, 31, 2.6);
+      g.fillStyle(COLORS.magenta, 0.85).fillCircle(18, 31, 2.6);
+      g.fillStyle(0xffd0f2, 0.85).fillCircle(17, 30, 1); // socket spark
     });
     // Drawn handle, pivot at bottom-centre (originY≈1). Bigger glowing knob.
     make("lever_handle", 22, 42, (g) => {
       g.lineStyle(5, 0x8fa3d9).lineBetween(11, 40, 11, 15);
-      g.fillStyle(COLORS.magenta, 0.3).fillCircle(11, 11, 10.5); // knob glow
+      haloCircle(g, { x: 11, y: 11, r: 7, color: COLORS.magenta }); // knob halo
       g.fillStyle(COLORS.magenta).fillCircle(11, 11, 7);
       g.fillStyle(0xffd0f2, 0.9).fillCircle(9, 9, 2.4); // specular
     });
     // Gold key with a fuller body + rim highlight; a sweeping glint is drawn as a
     // separate `glint` streak animated over it in GameScene.
     make("key", 30, 30, (g) => {
+      fakeRadial(g, { x: 9, y: 10, r: 11, color: 0xffd94d, steps: 4, aCenter: 0.2, aEdge: 0.03 }); // gold bow glow
+      g.lineStyle(9, 0xffd94d, 0.14).strokeCircle(9, 10, 5.5); // bit halo
       g.lineStyle(5, 0xffd94d).strokeCircle(9, 10, 5.5);
       g.fillStyle(0x3a2e08).fillCircle(9, 10, 2.2);
       g.lineStyle(5, 0xffd94d).lineBetween(12, 13, 25, 26);
@@ -742,16 +745,23 @@ export default class BootScene extends Phaser.Scene {
         const halfW = 3 + 10 * t;
         g.fillStyle(COLORS.neon, 0.04 + 0.26 * t);
         g.fillRect(15 - halfW, Math.floor(i * (132 / steps)), halfW * 2, 132 / steps + 1);
+        // brighter hot core streak down the spine (richer beam)
+        g.fillStyle(0xd8ffff, 0.12 + 0.4 * t);
+        g.fillRect(14, Math.floor(i * (132 / steps)), 2, 132 / steps + 1);
       }
     });
     make("core", 30, 30, (g) => {
-      g.fillStyle(COLORS.neon, 0.25).fillCircle(15, 15, 14);
+      // brighter halo for pickup readability: fake-radial bloom under the hex
+      fakeRadial(g, { x: 15, y: 15, r: 15, color: COLORS.neon, steps: 6, aCenter: 0.42, aEdge: 0.05 });
       const pts = [];
       for (let i = 0; i < 6; i++) {
         const a = (Math.PI / 3) * i - Math.PI / 2;
         pts.push({ x: 15 + Math.cos(a) * 10, y: 15 + Math.sin(a) * 10 });
       }
+      // hex rim halo, then the solid neon hex + hot white core
+      glowShape(g, { color: COLORS.neon }, (gg) => gg.strokePoints(pts, true, true));
       g.fillStyle(COLORS.neon).fillPoints(pts, true);
+      g.lineStyle(1.5, 0xd8ffff, 0.8).strokePoints(pts, true, true);
       g.fillStyle(0xffffff).fillCircle(15, 15, 3.4);
     });
     // Sliding door PANEL only — the frame (side rails + top light bar) and the
@@ -805,8 +815,11 @@ export default class BootScene extends Phaser.Scene {
     make("plate_on", 48, 14, (g) => {
       g.fillStyle(0x2a3350).fillRect(0, 8, 48, 6);
       g.fillStyle(0x1c2742).fillRoundedRect(4, 2, 40, 8, 3);
-      g.fillStyle(COLORS.green, 0.4).fillRect(7, 3, 34, 5); // lit glow
+      // LED strip glow: stacked low-alpha halo bands around the lit strip
+      g.fillStyle(COLORS.green, 0.12).fillRect(5, 1, 38, 9);
+      g.fillStyle(COLORS.green, 0.3).fillRect(7, 3, 34, 5);
       g.fillStyle(COLORS.green).fillRect(9, 4, 30, 2); // lit LED strip
+      g.fillStyle(0xdfffe8, 0.9).fillRect(9, 4.4, 30, 0.8); // hot core line
     });
     // Holo-pillar pedestal column.
     make("pedestal", 48, 46, (g) => {
@@ -814,8 +827,10 @@ export default class BootScene extends Phaser.Scene {
       g.lineStyle(1, 0x44548c).strokeRect(14, 14, 20, 32);
       g.fillStyle(0x2f3f6e).fillRect(8, 40, 32, 6);
       g.fillStyle(0x2f3f6e).fillRect(10, 8, 28, 8);
-      g.fillStyle(COLORS.neon, 0.3).fillCircle(24, 8, 10);
-      g.fillStyle(COLORS.neon, 0.85).fillCircle(24, 8, 6.5);
+      // richer holo emitter lens: fake-radial bloom + hot core + specular
+      fakeRadial(g, { x: 24, y: 8, r: 11, color: COLORS.neon, steps: 5, aCenter: 0.4, aEdge: 0.05 });
+      g.fillStyle(COLORS.neon, 0.9).fillCircle(24, 8, 6.5);
+      g.fillStyle(0xd8ffff, 0.9).fillCircle(22.5, 6.5, 2); // specular
     });
     // P5 — Causality wiring & machine detail ------------------------------
     // Pedestal beam band: a short vertical strip with two soft horizontal
@@ -824,18 +839,22 @@ export default class BootScene extends Phaser.Scene {
     // scrolling alpha bands). Neon-baked so it reads under Canvas (no tint).
     make("beamband", 24, 48, (g) => {
       for (let i = 0; i < 48; i++) {
-        // two gaussian-ish bright bands centred at y=12 and y=36
+        // two gaussian-ish bright bands centred at y=12 and y=36. Falloff rate
+        // unchanged so the strip still reaches alpha 0 at both edges (y=0/47) and
+        // tiles vertically seamlessly; only the brightness/width is enriched.
         const d1 = Math.abs(i - 12), d2 = Math.abs(i - 36);
         const a = Math.max(0, 0.5 - d1 * 0.05) + Math.max(0, 0.42 - d2 * 0.05);
         if (a <= 0.01) continue;
-        const halfW = 4 + (a > 0.3 ? 3 : 0);
-        g.fillStyle(COLORS.neon, Math.min(0.5, a));
+        const halfW = 5 + (a > 0.3 ? 4 : 0);
+        g.fillStyle(COLORS.neon, Math.min(0.55, a));
         g.fillRect(12 - halfW, i, halfW * 2, 1);
+        if (a > 0.55) { g.fillStyle(0xd8ffff, Math.min(0.5, a - 0.4)); g.fillRect(11, i, 2, 1); } // hot core
       }
     });
     // Rising pedestal glyph: a tiny neon data-mark (diamond + centre dot) that
     // floats up through the beam (pooled emitter, WebGL only — see GameScene).
     make("pedglyph", 10, 10, (g) => {
+      g.fillStyle(COLORS.neon, 0.18).fillCircle(5, 5, 5); // soft data-mote glow
       g.fillStyle(COLORS.neon, 0.9);
       g.fillPoints([{ x: 5, y: 0 }, { x: 10, y: 5 }, { x: 5, y: 10 }, { x: 0, y: 5 }], true);
       g.fillStyle(0xffffff, 0.95).fillCircle(5, 5, 1.5);
@@ -844,7 +863,9 @@ export default class BootScene extends Phaser.Scene {
     // lift travels (rotation set from lift velocity in GameScene).
     make("drum", 26, 26, (g) => {
       g.fillStyle(0x1c2742).fillCircle(13, 13, 12);
+      g.lineStyle(3, COLORS.amber, 0.14).strokeCircle(13, 13, 12); // amber edge glow
       g.lineStyle(2, 0x44548c).strokeCircle(13, 13, 12);
+      g.lineStyle(1.5, COLORS.amber, 0.6).strokeCircle(13, 13, 12); // warm cable-rim lip
       g.fillStyle(0x2a3350).fillCircle(13, 13, 8);
       g.lineStyle(2, 0x5a6aa0);
       for (let i = 0; i < 4; i++) {
@@ -859,6 +880,7 @@ export default class BootScene extends Phaser.Scene {
     make("liftcable", 3, 8, (g) => {
       g.fillStyle(0x2a3350).fillRect(0, 0, 3, 8);
       g.fillStyle(0x5a6aa0).fillRect(1, 0, 1, 8);
+      g.fillStyle(COLORS.amber, 0.4).fillRect(1, 0, 1, 8); // warm cable sheen (full-height: tiles vertically)
     });
     // Marquee dot for the exit-door frame chase (white; tinted per world on
     // WebGL, additive glow gated to WebGL — a plain white dot under Canvas).
@@ -896,14 +918,14 @@ export default class BootScene extends Phaser.Scene {
       g.lineStyle(3.5, COLORS.green, 0.95).strokeCircle(24, 24, 20);
     });
     make("pip_off", 16, 18, (g) => {
-      g.fillStyle(0x39415e).fillRoundedRect(3, 3, 10, 10, 3);
-      g.fillStyle(0x2b3450).fillRect(3, 12, 10, 3);
-      g.fillStyle(0x2a3350).fillRect(5, 6, 6, 3);
+      softBody(g, { x: 3, y: 3, w: 10, h: 10, r: 3, base: 0x39415e, shadeLo: 0x2b3450 }); // dim glass gem
+      g.fillStyle(0x5a6488, 0.5).fillRect(5, 5.5, 6, 2); // faint idle sheen
     });
     make("pip_on", 16, 18, (g) => {
-      g.fillStyle(COLORS.amber).fillRoundedRect(3, 3, 10, 10, 3);
-      g.fillStyle(0x8a5a10).fillRect(3, 12, 10, 3);
-      g.fillStyle(0xfff2b0).fillRect(5, 6, 6, 3);
+      g.fillStyle(COLORS.amber, 0.16).fillRoundedRect(1, 1, 14, 14, 5); // lit halo
+      softBody(g, { x: 3, y: 3, w: 10, h: 10, r: 3, base: COLORS.amber, shadeLo: 0x8a5a10 }); // glowing gem
+      g.fillStyle(0xfff2b0, 0.95).fillRect(5, 5.5, 6, 2.5); // hot top-light
+      g.fillStyle(0xffffff, 0.85).fillCircle(6, 6, 1); // specular
     });
 
     // --- enemies & set pieces ----------------------------------------------
@@ -984,14 +1006,18 @@ export default class BootScene extends Phaser.Scene {
     });
     make("crusher", 84, 60, (g) => {
       g.fillStyle(0x39415e).fillRect(30, 0, 24, 14); // piston
-      g.fillStyle(0x4a5578).fillRect(2, 12, 80, 40);
-      g.lineStyle(2, 0x6b78a8).strokeRect(3, 13, 78, 38);
-      g.fillStyle(COLORS.amber);
+      g.fillStyle(0x2a3350).fillRect(30, 0, 24, 3); // piston top-shade
+      softBody(g, { x: 2, y: 12, w: 80, h: 40, r: 3, base: 0x4a5578, shadeLo: 0x2f3652, shadeHi: 0x6b78a8, outline: 0x6b78a8 });
+      // red-hot crushing teeth: amber-hot metal wrapped in a danger-red halo
       for (let x = 4; x < 80; x += 16) {
-        g.beginPath();
-        g.moveTo(x, 52); g.lineTo(x + 8, 60); g.lineTo(x + 16, 52);
-        g.closePath();
-        g.fillPath();
+        const cx = x + 8;
+        g.fillStyle(COLORS.hazard, 0.16).fillCircle(cx, 54, 11); // heat bloom
+        g.fillStyle(COLORS.hazard, 0.34);
+        g.beginPath(); g.moveTo(x - 1, 51); g.lineTo(cx, 61); g.lineTo(x + 17, 51); g.closePath(); g.fillPath();
+        g.fillStyle(COLORS.amber);
+        g.beginPath(); g.moveTo(x, 52); g.lineTo(cx, 60); g.lineTo(x + 16, 52); g.closePath(); g.fillPath();
+        g.fillStyle(0xfff2b0, 0.9);
+        g.beginPath(); g.moveTo(x + 4, 52.5); g.lineTo(cx, 57.5); g.lineTo(x + 12, 52.5); g.closePath(); g.fillPath(); // white-hot tip
       }
     });
     const craneBody = (dead) => (g) => {
@@ -1057,6 +1083,7 @@ export default class BootScene extends Phaser.Scene {
     make("pod_ring_c2", 48, 48, podRing(2));
     // white shockwave ring for the crane slam impact (scale+fade pooled image)
     make("shockring", 72, 72, (g) => {
+      g.lineStyle(10, 0xffffff, 0.1).strokeCircle(36, 36, 30); // slam-impact bloom
       g.lineStyle(5, 0xffffff, 0.95).strokeCircle(36, 36, 30);
       g.lineStyle(2, 0xffd9a0, 0.8).strokeCircle(36, 36, 24);
     });
@@ -1119,9 +1146,12 @@ export default class BootScene extends Phaser.Scene {
         const a = 0.10 + 0.30 * d * (0.5 + 0.5 * band);
         g.fillStyle(0xc39dff, a).fillRect(x, 0, 1, 48);
       }
-      // bright central seam (the "phase-through" spine)
-      g.fillStyle(0xe8d8ff, 0.55).fillRect(23, 0, 2, 48);
-      g.fillStyle(0xffffff, 0.3).fillRect(23.5, 0, 1, 48);
+      // bright central seam (the "phase-through" spine) with a haloed glow — all
+      // full-height rects so every band stays constant along Y and stacks tile.
+      g.fillStyle(0xc39dff, 0.1).fillRect(19, 0, 10, 48); // wide seam bloom
+      g.fillStyle(0xd7bbff, 0.22).fillRect(21, 0, 6, 48); // inner bloom
+      g.fillStyle(0xe8d8ff, 0.6).fillRect(23, 0, 2, 48);
+      g.fillStyle(0xffffff, 0.35).fillRect(23.5, 0, 1, 48);
       // soft violet frame edges (top/bottom kept faint so vertical stacks blend)
       g.fillStyle(0xc39dff, 0.5).fillRect(1, 0, 2, 48).fillRect(45, 0, 2, 48);
     });
@@ -1133,20 +1163,26 @@ export default class BootScene extends Phaser.Scene {
         const b = 0.5 + 0.5 * Math.sin((y / 48) * Math.PI * 2); // one full cycle
         g.fillStyle(0xd7bbff, 0.06 + 0.16 * b * b).fillRect(0, y, 48, 1);
       }
-      // a couple of brighter drifting filaments
-      g.fillStyle(0xece0ff, 0.28);
-      g.fillRect(14, 0, 2, 48); g.fillRect(33, 0, 2, 48);
+      // a couple of brighter drifting filaments, each wrapped in a soft glow
+      // (full-height vertical rects — they don't affect the vertical sine tiling)
+      [15, 34].forEach((x) => {
+        g.fillStyle(0xd7bbff, 0.12).fillRect(x - 3, 0, 6, 48); // filament glow
+        g.fillStyle(0xece0ff, 0.3).fillRect(x - 1, 0, 2, 48);
+      });
     });
     // Rising shimmer sparkle (WebGL-only pooled emitter) — soft violet mote.
     make("shimspark", 10, 10, (g) => {
+      g.fillStyle(0xd7bbff, 0.16).fillCircle(5, 5, 5); // outer bloom
       g.fillStyle(0xd7bbff, 0.5).fillCircle(5, 5, 4);
-      g.fillStyle(0xf2e8ff, 0.9).fillCircle(5, 5, 1.8);
+      g.fillStyle(0xf2e8ff, 0.95).fillCircle(5, 5, 1.8);
     });
     make("duct", 48, 20, (g) => {
       g.fillStyle(0x232c48).fillRect(0, 0, 48, 20);
       // darker interior slot under the lip
       g.fillStyle(0x121829).fillRect(3, 9, 42, 9);
+      g.fillStyle(COLORS.mint, 0.08).fillRect(3, 9, 42, 4); // faint cool intake breath
       g.lineStyle(2, 0x44548c).strokeRect(1, 1, 46, 18); // lip frame
+      g.lineStyle(1, 0x5a6aa0, 0.5).strokeRect(1, 1, 46, 2); // top-light lip
       // tiny fan-slit lines across the slot
       g.lineStyle(1, 0x2f4066, 0.85);
       for (let x = 7; x < 46; x += 7) g.lineBetween(x, 10, x, 17);
@@ -1156,6 +1192,10 @@ export default class BootScene extends Phaser.Scene {
     // hue). Bobbed + alpha-pulsed by a shared per-duct tween in GameScene.
     make("duct_hint", 28, 28, (g) => {
       const c = 0x9dffc4;
+      // soft green glow behind the "squeeze in here" chevrons (meaning preserved)
+      g.lineStyle(7, c, 0.1);
+      g.beginPath(); g.moveTo(8, 3); g.lineTo(14, 11); g.lineTo(20, 3); g.strokePath();
+      g.beginPath(); g.moveTo(8, 9); g.lineTo(14, 17); g.lineTo(20, 9); g.strokePath();
       g.lineStyle(3, c, 0.95);
       g.beginPath(); g.moveTo(8, 3); g.lineTo(14, 11); g.lineTo(20, 3); g.strokePath();
       g.beginPath(); g.moveTo(8, 9); g.lineTo(14, 17); g.lineTo(20, 9); g.strokePath();
@@ -1165,9 +1205,12 @@ export default class BootScene extends Phaser.Scene {
     });
     make("fan", 48, 22, (g) => {
       g.fillStyle(0x2a3350).fillRect(0, 10, 48, 12);
-      g.lineStyle(2, 0x59ff9c, 0.9).strokeRect(1, 11, 46, 10);
-      g.fillStyle(0x59ff9c, 0.9);
-      g.fillTriangle(24, 0, 16, 12, 32, 12);
+      // mint updraft glow: haloed grille rim + a blooming air-arrow
+      g.lineStyle(6, COLORS.mint, 0.12).strokeRect(1, 11, 46, 10);
+      g.lineStyle(2, COLORS.mint, 0.95).strokeRect(1, 11, 46, 10);
+      g.fillStyle(COLORS.mint, 0.18).fillTriangle(24, -3, 12, 13, 36, 13); // air bloom
+      g.fillStyle(COLORS.mint, 0.95).fillTriangle(24, 0, 16, 12, 32, 12);
+      g.fillStyle(0xeafff4, 0.9).fillTriangle(24, 3, 20, 11, 28, 11); // hot core
     });
     // Roller: `alert` bakes a red eye/shell flush so the alert state reads under
     // Canvas (tint no-ops). The pupil is a SEPARATE `roller_pupil` overlay that
@@ -1242,6 +1285,7 @@ export default class BootScene extends Phaser.Scene {
         const rad = i % 2 === 0 ? 9 : 3.2;
         pts.push({ x: 10 + Math.cos(a) * rad, y: 10 + Math.sin(a) * rad });
       }
+      g.fillStyle(0xffe066, 0.18).fillCircle(10, 10, 8); // sparkle bloom
       g.fillStyle(0xffe066).fillPoints(pts, true);
       g.fillStyle(0xfff6c2).fillCircle(10, 10, 2);
     });
@@ -1281,8 +1325,10 @@ export default class BootScene extends Phaser.Scene {
     make("warden", 42, 62, wardenBody(false));
     make("warden_defeat", 42, 62, wardenBody(true));
     make("nozzle", 26, 16, (g) => {
-      g.fillStyle(0x4a5578).fillRect(2, 0, 22, 10);
-      g.fillStyle(0x8892b8).fillRect(7, 10, 12, 6);
+      softBody(g, { x: 2, y: 0, w: 22, h: 10, r: 2, base: 0x4a5578, shadeHi: 0x8892b8 });
+      g.fillStyle(0x8892b8).fillRect(7, 10, 12, 6); // muzzle
+      g.fillStyle(PARTICLES.steam.body, 0.14).fillRect(6, 12, 14, 4); // cool steam breath
+      g.fillStyle(PARTICLES.steam.core, 0.7).fillRect(11, 12, 4, 3); // hot jet mouth
     });
     make("icon_phase", 26, 26, (g) => {
       g.fillStyle(0xc39dff, 0.5).fillRect(2, 2, 10, 22);
@@ -1297,6 +1343,7 @@ export default class BootScene extends Phaser.Scene {
 
     // --- misc --------------------------------------------------------------
     make("reticle", 44, 44, (g) => {
+      g.lineStyle(7, COLORS.neon, 0.12).strokeCircle(22, 22, 15); // soft targeting glow
       g.lineStyle(3, 0xffffff, 0.95).strokeCircle(22, 22, 15);
       g.lineStyle(3, 0xffffff, 0.95);
       [[22, 0, 22, 9], [22, 35, 22, 44], [0, 22, 9, 22], [35, 22, 44, 22]].forEach(([a, b, c, d]) => g.lineBetween(a, b, c, d));
@@ -1306,9 +1353,11 @@ export default class BootScene extends Phaser.Scene {
     // the coloured border + letter are drawn per-player in GameScene.addGlyphs
     // (setTint no-ops under Canvas, so the player colour is a drawn overlay).
     make("keycap", 36, 36, (g) => {
-      g.fillStyle(0x0a0f1e, 0.96).fillRoundedRect(1, 1, 34, 34, 8); // body
-      g.fillStyle(0x1a2338, 0.95).fillRoundedRect(3, 2, 30, 26, 7); // raised face
-      g.fillStyle(0xffffff, 0.08).fillRoundedRect(5, 4, 26, 8, 4); // top gloss
+      g.fillStyle(0x0a0f1e, 0.9).fillRoundedRect(1, 1, 34, 34, 8); // frosted-glass body
+      g.fillStyle(0x1a2338, 0.9).fillRoundedRect(3, 2, 30, 26, 7); // raised glass face
+      g.lineStyle(1.5, 0xffffff, 0.1).strokeRoundedRect(3, 2, 30, 26, 7); // inner top-edge highlight
+      sheen(g, { x: 3, y: 2, w: 30, h: 26, a: 0.05 }); // diagonal glass glaze
+      g.fillStyle(0xffffff, 0.1).fillRoundedRect(5, 4, 26, 7, 4); // top gloss
     });
     make("icon_grapple", 26, 26, (g) => {
       g.lineStyle(3, COLORS.neon).lineBetween(4, 4, 17, 17);
