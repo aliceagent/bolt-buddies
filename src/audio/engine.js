@@ -96,6 +96,10 @@ function loadSettings() {
       return {
         music: typeof p.music === "number" ? clamp01(p.music) : DEFAULTS.music,
         sfx: typeof p.sfx === "number" ? clamp01(p.sfx) : DEFAULTS.sfx,
+        // voice channel (narration/KOBI speech) — volume + mute now round-trip
+        // too (previously dropped on load, so the voice slider/toggle reset).
+        voice: typeof p.voice === "number" ? clamp01(p.voice) : DEFAULTS.voice,
+        voiceMuted: typeof p.voiceMuted === "boolean" ? p.voiceMuted : DEFAULTS.voiceMuted,
         musicMuted,
         sfxMuted,
         muted: musicMuted && sfxMuted, // derived master

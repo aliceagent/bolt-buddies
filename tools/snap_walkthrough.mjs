@@ -232,12 +232,12 @@ check("SPACE resumes", !(await vid("v.paused")));
 await page.mouse.click(864, 26);
 await sleep(250);
 check("mute dropdown opens over the player", await ev(() => window.__BB.mute.open));
-await page.mouse.click(864, 82); // MUSIC row
+await page.mouse.click(834, 202); // MUTE ALL row (dropdown is now sliders + this toggle)
 await sleep(200);
-check("MUSIC row toggles from over the player", await ev(() => window.__BB.mute.state().musicMuted));
-await page.mouse.click(864, 82);
+check("MUTE ALL toggles muted from over the player", await ev(() => window.__BB.mute.state().muted));
+await page.mouse.click(834, 202);
 await sleep(200);
-check("MUSIC row toggles back", !(await ev(() => window.__BB.mute.state().musicMuted)));
+check("MUTE ALL toggles back", !(await ev(() => window.__BB.mute.state().muted)));
 await page.mouse.click(140, 650); // outside-click passthrough closes it
 await sleep(250);
 check("dropdown closes from over the player", !(await ev(() => window.__BB.mute.open)));

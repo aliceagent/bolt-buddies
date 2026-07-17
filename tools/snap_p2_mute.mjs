@@ -151,53 +151,49 @@ await clickGlyph();
 check("(b) glyph click opens the dropdown", await isOpen());
 await shot("mute-dropdown");
 
-// MUSIC -> muted
-await clickRow("music");
-let ms = await muteState();
-check("(b) MUSIC row mutes music (musicMuted true)", ms.musicMuted === true, JSON.stringify(ms));
-let a = await audio();
-check("(b) audio-v1 in-memory has musicMuted flag", a.musicMuted === true, JSON.stringify({ musicMuted: a.musicMuted }));
+// MUSIC slider -> 0 (silences music; the bus follows the saved volume)
+await page.evaluate(() => window.__BB.mute.setVol("music", 0));
+await sleep(160);
+let g = await settledAudio("musicBus");
+check("(b) MUSIC slider to 0 -> musicBus ~0", g.musicBus < 0.05, `musicBus=${g.musicBus}`);
+check("(b) sfxBus stays audible", g.sfxBus > 0.1, `sfxBus=${g.sfxBus}`);
 await shot("mute-music-off");
 
-// SOUND FX -> muted
-await clickRow("sfx");
-ms = await muteState();
-check("(b) SOUND FX row mutes sfx (sfxMuted true)", ms.sfxMuted === true, JSON.stringify(ms));
-check("(b) both muted -> derived master muted true", ms.muted === true, JSON.stringify(ms));
+// SOUND FX slider -> 0
+await page.evaluate(() => window.__BB.mute.setVol("sfx", 0));
+await sleep(160);
+g = await settledAudio("sfxBus");
+check("(b) SFX slider to 0 -> sfxBus ~0", g.sfxBus < 0.05, `sfxBus=${g.sfxBus}`);
 
-// persisted blob has both flags
+// persisted blob has the volumes at 0
 const persisted = JSON.parse((await store("bolt-buddies-audio-v1")) || "{}");
-check("(b) audio-v1 persists musicMuted + sfxMuted", persisted.musicMuted === true && persisted.sfxMuted === true, JSON.stringify(persisted));
+check("(b) audio-v1 persists music+sfx volumes (0)", persisted.music === 0 && persisted.sfx === 0, JSON.stringify(persisted));
 
-// reload — flags survive, glyph reflects state
+// reload — volumes survive
 await page.reload({ waitUntil: "networkidle" });
 await sleep(1000);
-const afterReload = await muteState();
-check("(b) mute flags persist across reload", afterReload.musicMuted === true && afterReload.sfxMuted === true, JSON.stringify(afterReload));
-const engAfter = await audio();
-check("(b) engine applied persisted mute (master muted)", engAfter.muted === true, JSON.stringify({ muted: engAfter.muted }));
+const per = await page.evaluate(() => window.__BB.mute.settings());
+check("(b) volumes persist across reload", per.music === 0 && per.sfx === 0, JSON.stringify({ m: per.music, s: per.sfx }));
 
-// unmute both for the per-bus proof below
+// restore volumes, then the MUTE ALL toggle (real pointer)
 await tap("KeyZ"); // re-unlock ctx after reload
+await page.evaluate(() => { window.__BB.mute.setVol("music", 0.5); window.__BB.mute.setVol("sfx", 0.8); });
 await clickGlyph();
-await clickRow("all"); // MUTE ALL toggles both off (currently both muted)
-let cleared = await muteState();
-check("(b) MUTE ALL row unmutes both", cleared.musicMuted === false && cleared.sfxMuted === false && cleared.muted === false, JSON.stringify(cleared));
+await clickRow("all");
+let ms = await muteState();
+check("(b) MUTE ALL sets master muted", ms.muted === true, JSON.stringify(ms));
+await clickRow("all");
+ms = await muteState();
+check("(b) MUTE ALL again unmutes", ms.muted === false, JSON.stringify(ms));
 
 // ============================================================================
-// (c) per-bus proof: music-only mute zeros music bus, sfx stays up (& vice-versa)
+// (c) VOICE slider — the new third channel round-trips volume too
 // ============================================================================
-await clickRow("music"); // music only
-let g = await settledAudio("musicBus");
-check("(c) music muted: musicBus ~0", g.musicBus < 0.05, `musicBus=${g.musicBus}`);
-check("(c) music muted: sfxBus stays audible", g.sfxBus > 0.1, `sfxBus=${g.sfxBus}`);
-check("(c) music muted: sfxMuted false", g.sfxMuted === false, JSON.stringify({ sfxMuted: g.sfxMuted }));
-
-await clickRow("music"); // music back on
-await clickRow("sfx");   // sfx only
-g = await settledAudio("sfxBus");
-check("(c) sfx muted: sfxBus ~0", g.sfxBus < 0.05, `sfxBus=${g.sfxBus}`);
-check("(c) sfx muted: musicBus stays audible", g.musicBus > 0.05, `musicBus=${g.musicBus}`);
+await page.evaluate(() => window.__BB.mute.setVol("voice", 0.3));
+await sleep(140);
+const v = await page.evaluate(() => window.__BB.mute.settings().voice);
+check("(c) VOICE slider sets voice volume ~0.3", Math.abs(v - 0.3) < 0.03, `voice=${v}`);
+await page.evaluate(() => window.__BB.mute.setVol("voice", 1));
 check("(c) sfx muted: musicMuted false", g.musicMuted === false, JSON.stringify({ musicMuted: g.musicMuted }));
 await clickRow("sfx"); // restore
 
