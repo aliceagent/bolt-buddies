@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { COLORS, WORLD_THEMES, PARTICLES } from "../constants.js";
+import { softBody, specular, sheen } from "../ui/paint.js";
 
 // Every texture in the game is generated here with Graphics — zero asset files.
 export default class BootScene extends Phaser.Scene {
@@ -20,50 +21,67 @@ export default class BootScene extends Phaser.Scene {
     // untouched — this is a texture swap only; GameScene picks `tile<world>`).
     // Shared quiet two-tone bevel base + a per-world corner-fastener + seam pass.
     // A tiny hex-bolt helper (flat-top hexagon, dark seat + lit cap) for W2+.
-    const hexBolt = (g, x, y, r) => {
-      const ring = [];
-      const cap = [];
-      for (let i = 0; i < 6; i++) {
-        const a = (Math.PI / 3) * i - Math.PI / 6; // flat-top
-        ring.push({ x: x + Math.cos(a) * r, y: y + Math.sin(a) * r });
-        cap.push({ x: x + Math.cos(a) * (r - 1.1), y: y + Math.sin(a) * (r - 1.1) });
-      }
-      g.fillStyle(COLORS.steelLo).fillPoints(ring, true); // dark seat
-      g.fillStyle(COLORS.steelEdge).fillPoints(cap, true); // lit cap
-      g.fillStyle(COLORS.steelHi, 0.7).fillCircle(x - r * 0.3, y - r * 0.3, 0.9); // spec dot
+    // GFX2 "Lumen Lab" rounded-plate terrain. Each 48×48 tile is a soft-shaded
+    // rounded plate (softBody: base → deep under-shade → top-light strip → same-
+    // hue outline) floating inside a uniform dark "mortar" gap. SEAMLESSNESS: the
+    // plate is inset ~1.5px on every side, so every EDGE pixel (x=0/47, y=0/47) is
+    // pure gap tone — identical on all four sides. Tiling in horizontal runs OR
+    // vertical wall stacks therefore meets gap-to-gap with no discontinuity (the
+    // grooves between plates are symmetric, ~3px). All interior detail is kept
+    // ≥6px from the plate edge so nothing ever approaches a tile boundary.
+    // Per-world palette from the enriched WORLD_THEMES (see plan §1).
+    const TILE = {
+      1: { base: 0x4c4a58, gap: 0x191822, warm: COLORS.warmth || 0xffcf8f }, // warm steel
+      2: { base: 0x2c554e, gap: 0x0d211d },                                  // teal plate
+      3: { base: 0x472f52, gap: 0x1a1322 },                                  // plum
+      4: { base: 0x262a4c, gap: 0x0c0d1c },                                  // indigo night
+    };
+    // A plain steel rivet (dark seat + lit cap + tiny spec) for W1/W2 plates.
+    const rivet = (g, x, y, cap, seat) => {
+      g.fillStyle(seat, 0.85).fillCircle(x, y, 2.4);
+      g.fillStyle(cap, 1).fillCircle(x, y, 1.4);
+      g.fillStyle(0xffffff, 0.5).fillCircle(x - 0.6, y - 0.6, 0.7);
+    };
+    // A glowing energised dot (halo + hot core) for W3/W4 rivets.
+    const glowDot = (g, x, y, color, r = 2) => {
+      g.fillStyle(color, 0.14).fillCircle(x, y, r + 3.5);
+      g.fillStyle(color, 0.34).fillCircle(x, y, r + 1.6);
+      g.fillStyle(color, 1).fillCircle(x, y, r);
+      g.fillStyle(0xffffff, 0.85).fillCircle(x - 0.5, y - 0.5, r * 0.45);
     };
     const tileTex = (world) => (g) => {
-      // Quiet two-tone bevel: lighter top-left edge, darker bottom-right edge.
-      g.fillStyle(COLORS.steel).fillRect(0, 0, 48, 48);
-      g.fillStyle(COLORS.steelHi);
-      g.fillRect(0, 0, 48, 2); // top highlight
-      g.fillRect(0, 0, 2, 48); // left highlight
-      g.fillStyle(COLORS.steelLo);
-      g.fillRect(0, 46, 48, 2); // bottom shade
-      g.fillRect(46, 0, 2, 48); // right shade
-      // faint inner panel line
-      g.lineStyle(1, COLORS.steelEdge, 0.5).strokeRect(7, 7, 34, 34);
-      if (world === 2) {
-        // W2 "maintenance" plate: faint vertical pipe-seam lines + hex-bolt corners
-        g.lineStyle(1, COLORS.steelEdge, 0.32);
-        g.lineBetween(16, 3, 16, 45);
-        g.lineBetween(32, 3, 32, 45);
-        g.lineStyle(1, COLORS.steelLo, 0.5); // seam shadow on the right of each line
-        g.lineBetween(17, 3, 17, 45);
-        g.lineBetween(33, 3, 33, 45);
-        [8, 40].forEach((x) => [8, 40].forEach((y) => hexBolt(g, x, y, 3.2)));
+      const c = TILE[world];
+      // uniform dark gap on every edge -> seamless tiling in any direction
+      g.fillStyle(c.gap, 1).fillRect(0, 0, 48, 48);
+      // rounded plate with baked 4-tone soft shading (inset 1.5px all round)
+      softBody(g, { x: 1.5, y: 1.5, w: 45, h: 45, r: 7, base: c.base });
+      // a small glassy top-left sheen dab — the Lumen "lit plate" read
+      specular(g, { x: 15, y: 13, w: 12, h: 5, a: 0.16 });
+      if (world === 1) {
+        // warm steel: warm top glaze + four steel rivets
+        g.fillStyle(c.warm, 0.08).fillRoundedRect(3, 3, 42, 12, { tl: 6, tr: 6, bl: 0, br: 0 });
+        const cap = 0x6b6a7c, seat = 0x2a2935;
+        [11, 37].forEach((x) => [11, 37].forEach((y) => rivet(g, x, y, cap, seat)));
+      } else if (world === 2) {
+        // teal maintenance plate: two faint vertical pipe-seams + brass corner bolts
+        g.lineStyle(1, 0x173d38, 0.6).lineBetween(18, 8, 18, 40);
+        g.lineStyle(1, 0x3c7a70, 0.4).lineBetween(19, 8, 19, 40);
+        g.lineStyle(1, 0x173d38, 0.6).lineBetween(30, 8, 30, 40);
+        g.lineStyle(1, 0x3c7a70, 0.4).lineBetween(31, 8, 31, 40);
+        const brass = COLORS.brass, seat = 0x123029;
+        [11, 37].forEach((x) => [11, 37].forEach((y) => rivet(g, x, y, brass, seat)));
       } else if (world === 3) {
-        // W3 "magnet works": diagonal hazard hatch corner ticks + hex bolts
-        g.lineStyle(1, COLORS.steelEdge, 0.28);
-        for (let i = 6; i < 42; i += 8) g.lineBetween(i, 7, i + 6, 13);
-        [8, 40].forEach((x) => [8, 40].forEach((y) => hexBolt(g, x, y, 3)));
-      } else if (world === 4) {
-        // W4 "dark core": stark, minimal — just recessed hex corners
-        [9, 39].forEach((x) => [9, 39].forEach((y) => hexBolt(g, x, y, 2.6)));
+        // plum plate: gold hazard hatch band across the middle + glowing gold dots
+        const gold = 0xffd24d;
+        g.lineStyle(2, gold, 0.5);
+        for (let i = 10; i < 40; i += 7) g.lineBetween(i, 30, i + 6, 22);
+        g.lineStyle(1, 0x2a1a33, 0.5);
+        for (let i = 10; i < 40; i += 7) g.lineBetween(i + 3, 31, i + 9, 23);
+        [11, 37].forEach((x) => [11, 37].forEach((y) => glowDot(g, x, y, gold, 1.8)));
       } else {
-        // W1 keeps its round rivets
-        g.fillStyle(COLORS.steelEdge);
-        [7, 41].forEach((x) => [7, 41].forEach((y) => g.fillCircle(x, y, 1.6)));
+        // W4 indigo night: thin inset cyan seam + glowing cyan corner dots
+        g.lineStyle(1, WORLD_THEMES[4].accent2, 0.32).strokeRoundedRect(8, 8, 32, 32, 5);
+        [11, 37].forEach((x) => [11, 37].forEach((y) => glowDot(g, x, y, WORLD_THEMES[4].accent2, 1.7)));
       }
     };
     for (let w = 1; w <= 4; w++) make(`tile${w}`, 48, 48, tileTex(w));
@@ -71,67 +89,95 @@ export default class BootScene extends Phaser.Scene {
     // W2 underside drip-stain decal: a faint rust streak hanging from a ceiling
     // face (added deterministically under W2 platform undersides in GameScene).
     make("dripstain", 8, 18, (g) => {
-      g.fillStyle(0x0a1410, 0.9).fillEllipse(4, 3, 7, 4); // pooled seep at the lip
-      g.fillStyle(0x1a3a2c, 0.7).fillRect(3, 2, 2, 14); // streak
-      g.fillStyle(0x0a1410, 0.6).fillRect(3, 12, 2, 4); // darker tail
+      // smooth rust seep: pooled lip + tapering rounded streak + a hanging bead
+      g.fillStyle(0x0a1410, 0.9).fillEllipse(4, 3, 7.5, 4.2); // pooled seep at the lip
+      g.fillStyle(0x1a3a2c, 0.7).fillRoundedRect(3, 2, 2, 13, 1); // streak
+      g.fillStyle(0x2c5a44, 0.4).fillRect(3.4, 3, 0.8, 10); // wet inner sheen
+      g.fillStyle(0x0a1410, 0.7).fillCircle(4, 15.5, 1.8); // hanging bead / darker tail
     });
     // P4: grime/wear decal stamp set — scattered DETERMINISTICALLY on wall runs
     // by GameScene (seeded by level id). Baked opaque-ish; alpha (<=0.5) applied
     // at placement. All read as painted-on wear, never as interactive tiles.
     make("decal_oil", 44, 28, (g) => {
-      g.fillStyle(0x05070c, 1).fillEllipse(22, 17, 36, 16);
-      g.fillStyle(0x05070c, 1).fillEllipse(11, 12, 14, 10).fillEllipse(34, 20, 13, 9);
-      g.fillStyle(0x0b1120, 1).fillEllipse(24, 15, 20, 9); // inner sheen
-      g.fillStyle(0x24365c, 0.5).fillEllipse(19, 12, 8, 3); // faint reflection
-      g.fillStyle(0x05070c, 1).fillRect(20, 22, 3, 6); // drip tail
+      // smooth oil slick: soft layered pool + cool sheen + a drip bead
+      g.fillStyle(0x05070c, 1).fillEllipse(22, 17, 38, 17);
+      g.fillStyle(0x070a12, 0.7).fillEllipse(11, 12, 16, 11).fillEllipse(35, 20, 14, 10);
+      g.fillStyle(0x0b1120, 1).fillEllipse(24, 15, 21, 9); // inner sheen
+      g.fillStyle(0x24365c, 0.45).fillEllipse(19, 12, 9, 3.4); // faint reflection
+      g.fillStyle(0x35507e, 0.3).fillEllipse(17, 11, 4, 1.6); // bright glint
+      g.fillStyle(0x05070c, 1).fillEllipse(21.5, 25, 3.4, 5); // rounded drip tail
     });
     make("decal_scuff", 40, 24, (g) => {
-      g.lineStyle(2, 0x090d16, 0.9);
-      g.lineBetween(4, 16, 20, 6); g.lineBetween(8, 19, 27, 9); g.lineBetween(13, 21, 34, 12);
-      g.lineStyle(1, 0x30436e, 0.45);
-      g.lineBetween(5, 15, 19, 6); g.lineBetween(15, 20, 33, 12);
+      // smooth curved scrape arcs (tapered) + a couple of lit rub-marks
+      g.lineStyle(2.4, 0x090d16, 0.9);
+      g.beginPath(); g.moveTo(4, 16); g.lineTo(12, 10); g.lineTo(21, 6); g.strokePath();
+      g.lineStyle(2, 0x090d16, 0.85);
+      g.beginPath(); g.moveTo(8, 19); g.lineTo(18, 13); g.lineTo(28, 9); g.strokePath();
+      g.beginPath(); g.moveTo(13, 21); g.lineTo(24, 16); g.lineTo(34, 12); g.strokePath();
+      g.lineStyle(1, 0x30436e, 0.4);
+      g.beginPath(); g.moveTo(5, 15); g.lineTo(13, 9.5); g.lineTo(20, 6); g.strokePath();
+      g.beginPath(); g.moveTo(15, 20); g.lineTo(25, 15); g.lineTo(33, 12); g.strokePath();
     });
     make("decal_chevron", 46, 22, (g) => {
-      g.fillStyle(0x18130a, 0.85).fillRect(0, 0, 46, 22);
-      g.fillStyle(COLORS.amber, 0.9);
+      // rounded dark backing + glowing amber direction chevrons (meaning: flow dir)
+      g.fillStyle(0x18130a, 0.85).fillRoundedRect(0, 0, 46, 22, 5);
       for (let x = -12; x < 46; x += 15) {
-        g.beginPath();
-        g.moveTo(x, 20); g.lineTo(x + 8, 2); g.lineTo(x + 13, 2); g.lineTo(x + 5, 20);
-        g.closePath(); g.fillPath();
+        // soft amber glow underlay
+        g.fillStyle(COLORS.amber, 0.22);
+        g.fillPoints([{ x: x - 1, y: 21 }, { x: x + 8, y: 1 }, { x: x + 14, y: 1 }, { x: x + 5, y: 21 }], true);
+        g.fillStyle(COLORS.amber, 0.95);
+        g.fillPoints([{ x: x, y: 20 }, { x: x + 8, y: 2 }, { x: x + 13, y: 2 }, { x: x + 5, y: 20 }], true);
+        g.fillStyle(0xffe6bf, 0.6); // leading-edge highlight
+        g.fillPoints([{ x: x + 8, y: 2 }, { x: x + 10, y: 2 }, { x: x + 5.5, y: 12 }, { x: x + 4, y: 12 }], true);
       }
-      g.lineStyle(1, 0x0a0804, 0.6).strokeRect(0, 0, 46, 22);
+      g.lineStyle(1, 0x0a0804, 0.6).strokeRoundedRect(0, 0, 46, 22, 5);
     });
     make("decal_vent", 40, 40, (g) => {
-      g.fillStyle(0x0c1220, 1).fillRoundedRect(2, 2, 36, 36, 4);
-      g.lineStyle(2, 0x2a3550, 1).strokeRoundedRect(2, 2, 36, 36, 4);
+      // rounded steel vent frame + soft-shaded louver slats + corner screws
+      softBody(g, { x: 2, y: 2, w: 36, h: 36, r: 6, base: 0x1a2438 });
       g.fillStyle(0x05080f, 1);
-      for (let ly = 8; ly < 34; ly += 6) g.fillRect(7, ly, 26, 3);
-      g.fillStyle(0x1a2740, 1);
-      [8, 32].forEach((sx) => [8, 32].forEach((sy) => g.fillCircle(sx, sy, 1.6))); // corner screws
+      for (let ly = 8; ly < 34; ly += 6) g.fillRoundedRect(7, ly, 26, 3, 1.5); // slat gaps
+      g.fillStyle(0x2c3a58, 0.8);
+      for (let ly = 8; ly < 34; ly += 6) g.fillRect(7, ly - 1.4, 26, 1.2); // lit slat lips
+      g.fillStyle(0x2f3f66, 1);
+      [8, 32].forEach((sx) => [8, 32].forEach((sy) => g.fillCircle(sx, sy, 1.8))); // corner screws
+      g.fillStyle(0x8fa3d9, 0.5);
+      [8, 32].forEach((sx) => [8, 32].forEach((sy) => g.fillCircle(sx - 0.5, sy - 0.5, 0.7)));
     });
     // KOBI "NO PETS" poster — a taped-up paper sign: red header band, a barred
     // dog silhouette, and KOBI's single cyan eye watching from the bottom.
     make("decal_poster", 34, 46, (g) => {
-      g.fillStyle(0xe8e2d0, 1).fillRect(1, 1, 32, 44); // paper
-      g.lineStyle(1, 0x8a8470, 1).strokeRect(1, 1, 32, 44);
-      g.fillStyle(0xc23a2e, 1).fillRect(1, 1, 32, 9); // red header band
+      // smooth taped paper sign: rounded card, red header, barred-dog motif, KOBI eye
+      g.fillStyle(0xe8e2d0, 1).fillRoundedRect(1, 1, 32, 44, 3); // paper
+      g.lineStyle(1, 0x8a8470, 1).strokeRoundedRect(1, 1, 32, 44, 3);
+      g.fillStyle(0xc23a2e, 1).fillRoundedRect(1, 1, 32, 9, { tl: 3, tr: 3, bl: 0, br: 0 }); // red header
       g.fillStyle(0xe8e2d0, 1);
-      for (let lx = 4; lx < 30; lx += 4) g.fillRect(lx, 4, 2, 4); // "NO PETS" block letters
-      // dog silhouette
-      g.fillStyle(0x2a2a2a, 1).fillEllipse(16, 28, 15, 8);
-      g.fillCircle(23, 24, 4);
-      g.fillRect(9, 30, 3, 6); g.fillRect(21, 30, 3, 6);
+      for (let lx = 4; lx < 30; lx += 4) g.fillRoundedRect(lx, 4, 2, 4, 0.8); // "NO PETS" block letters
+      // rounded dog silhouette (body + head + snout + legs + ear + tail)
+      g.fillStyle(0x2a2a2a, 1);
+      g.fillEllipse(16, 28, 15, 8.5); // body
+      g.fillCircle(23, 24, 4.2); // head
+      g.fillEllipse(26, 25, 4, 2.6); // snout
+      g.fillTriangle(21, 20, 24, 21, 21.5, 24); // ear
+      g.fillRoundedRect(8.5, 29, 3, 7, 1.4); g.fillRoundedRect(20.5, 29, 3, 7, 1.4); // legs
+      g.fillTriangle(9, 26, 9, 30, 6, 25); // tail
       // red prohibition ring + slash
       g.lineStyle(3, 0xc23a2e, 1).strokeCircle(16, 28, 14);
       g.lineStyle(3, 0xc23a2e, 1).lineBetween(7, 19, 25, 37);
-      // KOBI eye
+      // KOBI eye — baked neon halo glow watching from the bottom
       g.fillStyle(0x0b101f, 1).fillCircle(17, 41, 3);
+      g.fillStyle(COLORS.neon, 0.22).fillCircle(17, 41, 4.5);
       g.fillStyle(COLORS.neon, 1).fillCircle(17, 41, 1.5);
+      g.fillStyle(0xffffff, 0.85).fillCircle(16.4, 40.4, 0.6);
     });
     make("crack", 48, 48, (g) => {
-      g.fillStyle(0x2a2436).fillRect(0, 0, 48, 48);
-      g.lineStyle(2, 0x4a3f5c).strokeRect(1, 1, 46, 46);
-      // hairline glow behind the cracks (accent, low alpha) so kids read it as special
+      // GFX2: a fractured plate — same rounded-plate language as tiles (so it
+      // reads as one of the floor) but split by glowing hairline cracks. The crack
+      // POLYLINE is preserved exactly (it signals "breakable"). Dark gap edges keep
+      // it seam-consistent with neighbouring plates.
+      g.fillStyle(0x161022, 1).fillRect(0, 0, 48, 48);
+      softBody(g, { x: 1.5, y: 1.5, w: 45, h: 45, r: 7, base: 0x352c46 });
+      // hairline neon glow behind the cracks (accent) so kids read it as special
       g.lineStyle(4, COLORS.neon, 0.16);
       g.beginPath();
       g.moveTo(8, 6); g.lineTo(20, 20); g.lineTo(14, 34); g.lineTo(26, 44);
@@ -145,32 +191,53 @@ export default class BootScene extends Phaser.Scene {
       g.moveTo(40, 4); g.lineTo(30, 18); g.lineTo(38, 30);
       g.moveTo(20, 20); g.lineTo(30, 18);
       g.strokePath();
+      // a few chipped flakes at the fracture nodes
+      g.fillStyle(0x120e1c, 0.9).fillCircle(20, 20, 1.6).fillCircle(14, 34, 1.3).fillCircle(30, 18, 1.2);
     });
     make("belt", 48, 48, (g) => {
-      g.fillStyle(0x151b2c).fillRect(0, 0, 48, 48);
-      g.lineStyle(2, 0x3a4a72).strokeRect(1, 1, 46, 46);
-      // end rollers (metal wheels at the tile edges)
-      g.fillStyle(0x2a3350);
-      g.fillCircle(3, 24, 6); g.fillCircle(45, 24, 6);
-      g.fillStyle(0x5a6aa0);
-      g.fillCircle(3, 24, 2.6); g.fillCircle(45, 24, 2.6);
-      // brighter chevrons pointing right
-      g.fillStyle(COLORS.amber, 1);
-      [4, 20, 36].forEach((x) => {
-        g.beginPath();
-        g.moveTo(x, 14); g.lineTo(x + 10, 24); g.lineTo(x, 34); g.lineTo(x + 4, 24);
-        g.closePath();
-        g.fillPath();
+      // Smooth conveyor: full-width belt body + horizontal rails + edge-centred
+      // rollers (a full roller forms at each tile boundary when tiled horizontally)
+      // + glowing amber direction chevrons. All content is constant/mirror at the
+      // vertical edges so horizontal runs tile with no seam.
+      g.fillStyle(0x151b2c).fillRect(0, 0, 48, 48); // belt body
+      g.fillStyle(0x0d1220).fillRect(0, 0, 48, 6).fillRect(0, 42, 48, 6); // top/bottom rail
+      g.fillStyle(0x2a3550, 0.85).fillRect(0, 4.5, 48, 1.5); // rail lit lip
+      g.fillStyle(0x090c16, 0.9).fillRect(0, 42, 48, 1.4); // rail under-shade
+      // rollers centred on the tile boundary -> full wheel at each seam
+      [0, 48].forEach((cx) => {
+        g.fillStyle(0x232b45).fillCircle(cx, 24, 6.8);
+        g.fillStyle(0x3a4568).fillCircle(cx, 24, 3.6);
+        g.fillStyle(0x8fa3d9, 0.7).fillCircle(cx - 1.3, 22.6, 1.2);
+      });
+      // glowing amber chevrons pointing right (belt direction)
+      [13, 30].forEach((x) => {
+        g.fillStyle(COLORS.amber, 0.22);
+        g.fillPoints([{ x: x - 1, y: 13 }, { x: x + 11, y: 24 }, { x: x - 1, y: 35 }, { x: x + 5, y: 24 }], true);
+        g.fillStyle(COLORS.amber, 1);
+        g.fillPoints([{ x, y: 14 }, { x: x + 10, y: 24 }, { x, y: 34 }, { x: x + 4, y: 24 }], true);
+        g.fillStyle(0xffe6bf, 0.55);
+        g.fillPoints([{ x: x + 4, y: 21 }, { x: x + 8, y: 24 }, { x: x + 4, y: 27 }, { x: x + 2.5, y: 24 }], true);
       });
     });
     make("hazard", 48, 48, (g) => {
+      // Glowing red halo sawtooth (danger). The tooth POLYLINE (period 16px, 48 is
+      // a multiple, endpoints equal at y=30) is preserved exactly so it tiles in
+      // horizontal runs and keeps its "danger" read; a 2-layer red halo is baked
+      // behind it and a hot top rim glows.
       g.fillStyle(0x1a0f18).fillRect(0, 24, 48, 24);
-      g.lineStyle(3, COLORS.hazard);
-      g.beginPath();
-      g.moveTo(0, 40);
-      for (let x = 0; x <= 48; x += 8) g.lineTo(x, x % 16 === 0 ? 30 : 44);
-      g.strokePath();
-      g.fillStyle(COLORS.hazard, 0.5).fillRect(0, 24, 48, 4);
+      const saw = (w, a) => {
+        g.lineStyle(w, COLORS.hazard, a);
+        g.beginPath();
+        g.moveTo(0, 40);
+        for (let x = 0; x <= 48; x += 8) g.lineTo(x, x % 16 === 0 ? 30 : 44);
+        g.strokePath();
+      };
+      saw(9, 0.12); // outer halo
+      saw(5, 0.22); // inner halo
+      saw(3, 1); // hot core
+      g.fillStyle(COLORS.hazard, 0.45).fillRect(0, 24, 48, 3); // hot top rim
+      g.fillStyle(0xffd0d6, 0.7); // white-hot tips at the up-teeth
+      for (let x = 0; x <= 48; x += 16) g.fillCircle(x, 30, 1.4);
     });
     // P4: hazard arc-spark (WebGL-only pooled emitter) — a hot pink-white ember
     // that ballistically jumps off a hazard strip. Additive at add time.
@@ -179,26 +246,49 @@ export default class BootScene extends Phaser.Scene {
       g.fillStyle(0xffe0e6, 0.95).fillCircle(4, 4, 1.6);
     });
     make("bridgetile", 48, 48, (g) => {
-      g.fillStyle(0x123a44).fillRect(0, 4, 48, 40);
-      // holo scanline stripes
-      g.fillStyle(COLORS.neon, 0.16);
-      for (let y = 8; y < 44; y += 6) g.fillRect(3, y, 42, 2);
-      // brighter holo border
-      g.lineStyle(2, COLORS.neon, 1).strokeRect(1, 5, 46, 38);
-      g.lineStyle(1, COLORS.neon, 0.45);
-      g.lineBetween(0, 24, 48, 24);
+      // Holo-teal light bridge. ALL detail is horizontal (constant along x) so a
+      // horizontal run tiles with no vertical seam. Translucent teal slab + neon
+      // scan stripes + glowing top/bottom edge rails + a bright centre seam.
+      g.fillStyle(0x0e2f38, 0.92).fillRect(0, 4, 48, 40); // teal holo slab
+      g.fillStyle(COLORS.neon, 0.12);
+      for (let y = 9; y < 44; y += 6) g.fillRect(0, y, 48, 2); // scan stripes (full width)
+      // glowing top & bottom edge rails (halo layers, all full-width bands)
+      [[5], [42]].forEach(([y]) => {
+        g.fillStyle(COLORS.neon, 0.1).fillRect(0, y - 2, 48, 6);
+        g.fillStyle(COLORS.neon, 0.28).fillRect(0, y - 1, 48, 4);
+        g.fillStyle(COLORS.neon, 0.95).fillRect(0, y, 48, 2);
+      });
+      // bright central seam
+      g.fillStyle(COLORS.neon, 0.5).fillRect(0, 23, 48, 2);
     });
     make("liftplat", 48, 20, (g) => {
-      g.fillStyle(0x2a3350).fillRect(0, 0, 48, 20);
-      g.lineStyle(2, COLORS.amber, 0.9).strokeRect(1, 1, 46, 18);
-      g.fillStyle(COLORS.amber, 0.5).fillRect(4, 4, 40, 3);
+      // Lift platform with an amber glowing top edge. Content is constant along x
+      // (horizontal bands only) so it tiles horizontally with no seam.
+      g.fillStyle(0x2a3350).fillRect(0, 0, 48, 20); // deck
+      g.fillStyle(0x1b243c).fillRect(0, 13, 48, 7); // under-shade
+      g.fillStyle(0x3a4568, 0.6).fillRect(0, 3, 48, 3); // top-light strip
+      // amber glowing top edge (halo layers)
+      g.fillStyle(COLORS.amber, 0.14).fillRect(0, 0, 48, 6);
+      g.fillStyle(COLORS.amber, 0.32).fillRect(0, 0, 48, 3);
+      g.fillStyle(COLORS.amber, 0.95).fillRect(0, 0, 48, 1.6);
+      g.fillStyle(COLORS.amber, 0.4).fillRect(0, 18, 48, 2); // faint amber under-glow
     });
     make("bggrid", 96, 96, (g) => {
-      g.lineStyle(1, 0x16203a, 0.55);
-      for (let i = 0; i <= 96; i += 24) {
+      // Finer, softer grid — a low-alpha 16px sub-grid under the 48px main lines,
+      // with faint nodes at main intersections. Lines run 0..80 (the 96 line is
+      // supplied by the next tile's 0) so the 96px period tiles with no doubling.
+      g.lineStyle(1, 0x131c32, 0.26); // fine sub-grid
+      for (let i = 0; i < 96; i += 16) {
         g.lineBetween(i, 0, i, 96);
         g.lineBetween(0, i, 96, i);
       }
+      g.lineStyle(1, 0x1a2542, 0.42); // main grid
+      for (let i = 0; i < 96; i += 48) {
+        g.lineBetween(i, 0, i, 96);
+        g.lineBetween(0, i, 96, i);
+      }
+      g.fillStyle(0x223056, 0.4); // soft nodes at main intersections
+      for (let x = 0; x < 96; x += 48) for (let y = 0; y < 96; y += 48) g.fillCircle(x, y, 1.4);
     });
     // Vertical gradient strips + radial glow blobs for the layered backgrounds.
     // NOTE: drawn as manual strips/circles, NOT fillGradientStyle, and with the
@@ -322,6 +412,15 @@ export default class BootScene extends Phaser.Scene {
       g.fillStyle(tone, 1).fillRect(448, beamY, 12, STRIP_H - beamY);
       g.fillStyle(edge, 1);
       for (let x = 190; x < 460; x += 34) g.fillRect(x, beamY + 16, 8, 18 + Math.floor(rnd() * 14)); // tines
+      // GFX2: subtle WARM status lights + lit vat windows (glow accents). Kept away
+      // from the x=0/512 edges so the strip still tiles horizontally.
+      const warmW1 = WORLD_THEMES[1].warmth;
+      [[70, railY], [330, railY]].forEach(([x, y]) => {
+        g.fillStyle(warmW1, 0.16).fillCircle(x, y + 1, 6);
+        g.fillStyle(warmW1, 0.8).fillCircle(x, y + 1, 2.4); // trolley status light
+      });
+      g.fillStyle(warmW1, 0.6);
+      [[78, 596], [96, 596], [372, 604], [392, 604]].forEach(([x, y]) => g.fillRect(x, y, 5, 8)); // lit vat windows
     });
 
     // W2 "Maintenance Tunnels": horizontal pipe runs with elbows + valve wheels,
@@ -364,18 +463,27 @@ export default class BootScene extends Phaser.Scene {
         g.fillStyle(shade(WORLD_THEMES[2].bgBottom, 1), 1);
         for (let ly = y + 8; ly < y + 70; ly += 12) g.fillRect(x + 6, ly, 40, 6);
       });
+      // GFX2: subtle cool-mint valve status lights + a warm pilot glow (glow accents)
+      const mintW2 = WORLD_THEMES[2].warmth;
+      [120, 380].forEach((x) => {
+        g.fillStyle(mintW2, 0.16).fillCircle(x, 158, 6);
+        g.fillStyle(mintW2, 0.85).fillCircle(x, 158, 2.4); // valve-hub pilot light
+      });
+      g.fillStyle(WORLD_THEMES[2].accent3, 0.5); // brass pilot flames along the low pipe
+      for (let x = 60; x < STRIP_W - 40; x += 128) g.fillRect(x, 466, 4, 6);
     });
 
     // Low-lying fog: a soft additive band with a sine-billowed top edge that
     // completes whole cycles across the width, so it tiles seamlessly AND its
     // horizontal drift is visible. Two of these are layered at different speeds.
     make("fogBand", STRIP_W, 220, (g) => {
+      // GFX2: softened alphas + a slightly warmer neutral haze for the Lumen palette
       const bands = [
-        { k: 2, amp: 26, base: 70, a: 0.16 },
-        { k: 3, amp: 18, base: 110, a: 0.13 },
+        { k: 2, amp: 26, base: 70, a: 0.13 },
+        { k: 3, amp: 18, base: 110, a: 0.1 },
       ];
       for (const b of bands) {
-        g.fillStyle(0xdfe8ff, b.a);
+        g.fillStyle(0xe6ebf7, b.a);
         for (let x = 0; x < STRIP_W; x += 4) {
           const topY = b.base + b.amp * Math.sin((b.k * x / STRIP_W) * Math.PI * 2);
           g.fillRect(x, topY, 5, 220 - topY);
@@ -390,7 +498,7 @@ export default class BootScene extends Phaser.Scene {
       const half = 70;
       for (let dx = -half; dx <= half; dx++) {
         const f = 1 - Math.abs(dx) / half;
-        g.fillStyle(0xeaf2ff, 0.5 * f * f);
+        g.fillStyle(0xeef1fb, 0.42 * f * f); // GFX2: softer, subtler light shaft
         g.fillRect(half + dx, 0, 1, 660);
       }
     });
@@ -628,28 +736,41 @@ export default class BootScene extends Phaser.Scene {
     // Sliding door PANEL only — the frame (side rails + top light bar) and the
     // red/green status lamp are separate objects built per-door in GameScene, so
     // the lamp colour reads under the Canvas renderer (setTint no-ops there).
-    make("door", 48, 144, (g) => {
-      g.fillStyle(0x222c4c).fillRect(2, 0, 44, 144);
-      g.lineStyle(2, 0x44548c).strokeRect(3, 1, 42, 142);
-      g.lineStyle(2, 0x44548c);
-      for (let y = 18; y < 144; y += 24) g.lineBetween(6, y, 42, y);
-      g.fillStyle(0x2f3f6e);
-      g.fillCircle(24, 12, 2.4); g.fillCircle(24, 132, 2.4); // bolts
-    });
-    // Exit door panel: green-baked so it reads as the goal under Canvas.
-    make("door_exit", 48, 144, (g) => {
-      g.fillStyle(0x1c4a38).fillRect(2, 0, 44, 144);
-      g.lineStyle(2, 0x59ff9c, 0.9).strokeRect(3, 1, 42, 142);
-      g.lineStyle(2, 0x2f8f5c);
-      for (let y = 18; y < 144; y += 24) g.lineBetween(6, y, 42, y);
-    });
+    // Glass-and-steel sliding door PANEL. Steel body (soft-shaded) with a recessed
+    // glass centre, horizontal panel seams, and a glowing vertical seam down the
+    // middle (the sliding split). Frame rails + status lamp are separate objects
+    // built per-door in GameScene. `seam` is the door's edge-glow accent hue.
+    const doorPanel = (steel, glass, seam, seamHi, warm) => (g) => {
+      softBody(g, { x: 2, y: 0, w: 44, h: 144, r: 4, base: steel });
+      // recessed glass inner panel
+      g.fillStyle(glass, 0.9).fillRoundedRect(6, 6, 36, 132, 4);
+      g.lineStyle(1.5, seam, 0.5).strokeRoundedRect(6, 6, 36, 132, 4);
+      // horizontal panel seams
+      g.lineStyle(1, seam, 0.4);
+      for (let y = 24; y < 138; y += 26) g.lineBetween(9, y, 39, y);
+      // glowing vertical centre seam (the phase split) — halo layers
+      g.fillStyle(seam, 0.08).fillRect(21, 5, 6, 134);
+      g.fillStyle(seam, 0.2).fillRect(22.5, 5, 3, 134);
+      g.fillStyle(seamHi, 0.55).fillRect(23.4, 5, 1.2, 134);
+      if (warm) { // exit: a warm candle-glow wash so the goal feels inviting
+        g.fillStyle(warm, 0.06).fillRoundedRect(6, 6, 36, 132, 4);
+      }
+      // glass sheen + corner bolts
+      sheen(g, { x: 8, y: 8, w: 34, h: 130, a: 0.05 });
+      g.fillStyle(steel);
+      [10, 134].forEach((y) => [10, 38].forEach((x) => g.fillCircle(x, y, 1.8)));
+    };
+    make("door", 48, 144, doorPanel(0x2b3658, 0x1a2440, COLORS.neon, 0x9fd4ff));
+    // Exit door: green steel + green glow seam + warm inviting wash (the goal).
+    make("door_exit", 48, 144, doorPanel(0x1f4a3a, 0x123a2c, COLORS.green, 0xd6ffe6, WORLD_THEMES[1].warmth));
     // Door status lamps (swapped via setTexture: red = closed, green = opening).
+    // Glass lens with a baked halo glow (the plan's glow recipe).
     const lamp = (glow, lens, hi) => (g) => {
-      g.fillStyle(0x2a3350).fillRoundedRect(0, 0, 20, 14, 4);
-      g.lineStyle(1, 0x44548c).strokeRoundedRect(0, 0, 20, 14, 4);
-      g.fillStyle(glow, 0.32).fillCircle(10, 7, 6.5);
-      g.fillStyle(lens).fillCircle(10, 7, 3.6);
-      g.fillStyle(hi, 0.9).fillCircle(8.6, 5.6, 1.2);
+      softBody(g, { x: 0, y: 0, w: 20, h: 14, r: 4, base: 0x2a3350 });
+      g.fillStyle(glow, 0.12).fillCircle(10, 7, 8); // outer halo
+      g.fillStyle(glow, 0.3).fillCircle(10, 7, 5.5); // inner halo
+      g.fillStyle(lens).fillCircle(10, 7, 3.6); // lens
+      g.fillStyle(hi, 0.9).fillCircle(8.6, 5.6, 1.3); // specular
     };
     make("lamp_red", 20, 14, lamp(COLORS.hazard, 0xff5566, 0xffc2ca));
     make("lamp_green", 20, 14, lamp(COLORS.green, 0x59ff9c, 0xd6ffe6));
@@ -725,26 +846,34 @@ export default class BootScene extends Phaser.Scene {
       g.fillStyle(0xffffff, 1).fillCircle(5, 5, 2.6);
     });
     // Checkpoint lamp housing: dim grey (inactive) + lit green (active).
+    // Rounded lamp-post checkpoint: soft-shaded post + base + a glass lens head.
+    // `checkpoint` = dim/inactive, `checkpoint_on` = lit with a soft green glow.
     make("checkpoint", 26, 66, (g) => {
-      g.fillStyle(0x2a3350).fillRect(11, 20, 4, 42);
-      g.fillStyle(0x2f3f6e).fillRect(4, 60, 18, 6);
-      g.fillStyle(0x39415e).fillRoundedRect(3, 2, 20, 18, 5);
-      g.lineStyle(2, 0x5a6aa0).strokeRoundedRect(3, 2, 20, 18, 5);
-      g.fillStyle(0x4a5578).fillCircle(13, 11, 5.5);
-      g.fillStyle(0x6b78a8).fillCircle(13, 11, 3);
+      softBody(g, { x: 10, y: 18, w: 6, h: 44, r: 3, base: 0x2a3350 }); // post
+      g.fillStyle(0x2f3f6e).fillRoundedRect(4, 60, 18, 6, 2); // base
+      softBody(g, { x: 3, y: 2, w: 20, h: 18, r: 6, base: 0x39415e }); // lamp head
+      g.fillStyle(0x35405e).fillCircle(13, 11, 5.5); // dark lens
+      g.fillStyle(0x4a5578).fillCircle(13, 11, 3);
+      g.fillStyle(0x6b78a8, 0.7).fillCircle(11.8, 9.6, 1.1);
     });
     make("checkpoint_on", 26, 66, (g) => {
-      g.fillStyle(0x2a3350).fillRect(11, 20, 4, 42);
-      g.fillStyle(0x2f3f6e).fillRect(4, 60, 18, 6);
-      g.fillStyle(0x39415e).fillRoundedRect(3, 2, 20, 18, 5);
-      g.lineStyle(2, COLORS.green).strokeRoundedRect(3, 2, 20, 18, 5);
-      g.fillStyle(COLORS.green, 0.32).fillCircle(13, 11, 9);
+      softBody(g, { x: 10, y: 18, w: 6, h: 44, r: 3, base: 0x2a3350 }); // post
+      g.fillStyle(0x2f3f6e).fillRoundedRect(4, 60, 18, 6, 2); // base
+      softBody(g, { x: 3, y: 2, w: 20, h: 18, r: 6, base: 0x39415e }); // lamp head
+      g.lineStyle(2, COLORS.green, 0.9).strokeRoundedRect(3, 2, 20, 18, 6); // lit rim
+      // soft green glow halo around the lens
+      g.fillStyle(COLORS.green, 0.14).fillCircle(13, 11, 11);
+      g.fillStyle(COLORS.green, 0.3).fillCircle(13, 11, 7.5);
       g.fillStyle(0x0f4a2c).fillCircle(13, 11, 5.5);
-      g.fillStyle(COLORS.green).fillCircle(13, 11, 3.6);
-      g.fillStyle(0xdfffe8, 0.9).fillCircle(11.6, 9.6, 1.3);
+      g.fillStyle(COLORS.green).fillCircle(13, 11, 3.6); // hot lens
+      g.fillStyle(0xdfffe8, 0.9).fillCircle(11.6, 9.6, 1.3); // specular
     });
-    // Expanding ring (checkpoint activation burst) + mini-robot weight pips.
-    make("ring", 48, 48, (g) => g.lineStyle(4, COLORS.green).strokeCircle(24, 24, 20));
+    // Expanding ring (checkpoint activation burst) — a glowing green halo ring.
+    make("ring", 48, 48, (g) => {
+      g.lineStyle(9, COLORS.green, 0.1).strokeCircle(24, 24, 20);
+      g.lineStyle(6, COLORS.green, 0.22).strokeCircle(24, 24, 20);
+      g.lineStyle(3.5, COLORS.green, 0.95).strokeCircle(24, 24, 20);
+    });
     make("pip_off", 16, 18, (g) => {
       g.fillStyle(0x39415e).fillRoundedRect(3, 3, 10, 10, 3);
       g.fillStyle(0x2b3450).fillRect(3, 12, 10, 3);
@@ -944,8 +1073,12 @@ export default class BootScene extends Phaser.Scene {
       g.fillStyle(0xffd9a0).fillCircle(18, 20, 6);
     });
     make("rail", 48, 10, (g) => {
+      // smooth steel rail — soft top-light + dark channel. All bands run full width
+      // (constant along x) so it tiles cleanly along a horizontal run.
       g.fillStyle(0x39415e).fillRect(0, 2, 48, 6);
-      g.fillStyle(0x161d30).fillRect(0, 4, 48, 2);
+      g.fillStyle(0x4a5578, 0.7).fillRect(0, 2, 48, 1.4); // top-light lip
+      g.fillStyle(0x161d30).fillRect(0, 4.4, 48, 1.6); // dark channel
+      g.fillStyle(0x232a42).fillRect(0, 7, 48, 1); // under-shade
     });
 
     // --- world 2 -------------------------------------------------------------
@@ -1214,9 +1347,18 @@ export default class BootScene extends Phaser.Scene {
        [900, 88, 110, back, 12], [1150, 84, 158, front, 6], [1000, 40, 60, front, 10]]
         .forEach(([x, w, h, col, foot]) => {
           g.fillStyle(col).fillRect(x, BASE - h, w, h + foot);
-          g.fillStyle(win, 0.5);
+          // dim window grid + a FEW deterministically-lit WARM windows (Lumen glow)
+          const warmWin = 0xffcf8f;
           for (let wy = BASE - h + 12; wy < BASE - 10; wy += 18)
-            for (let wx = x + 9; wx < x + w - 7; wx += 16) g.fillRect(wx, wy, 5, 8);
+            for (let wx = x + 9; wx < x + w - 7; wx += 16) {
+              const lit = ((wx * 7 + wy * 3) % 11) < 2; // sparse, deterministic
+              if (lit) {
+                g.fillStyle(warmWin, 0.16).fillRect(wx - 2, wy - 2, 9, 12); // soft glow
+                g.fillStyle(warmWin, 0.75).fillRect(wx, wy, 5, 8);
+              } else {
+                g.fillStyle(win, 0.5).fillRect(wx, wy, 5, 8);
+              }
+            }
         });
       // storage vats — cylinder body + domed top + band lines
       const vat = (x, w, h, foot) => {
@@ -1296,6 +1438,13 @@ export default class BootScene extends Phaser.Scene {
       // canister part
       g.fillStyle(part).fillRoundedRect(170, 13, 18, 17, 5);
       g.fillStyle(edge, 0.8).fillRect(173, 16, 12, 2);
+      // GFX2: a couple of warm status dots (glow accents) — kept clear of the
+      // x=0/220 edges so the 220px horizontal period still tiles seamlessly.
+      const warmC = 0xffcf8f;
+      [[126, 18], [179, 17]].forEach(([x, y]) => {
+        g.fillStyle(warmC, 0.18).fillCircle(x, y, 3.5);
+        g.fillStyle(warmC, 0.85).fillCircle(x, y, 1.4);
+      });
     });
 
     // Vertical light column for the respawn beam-in (bright core, soft edges).
