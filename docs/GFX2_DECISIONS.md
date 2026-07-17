@@ -8,3 +8,4 @@
 - D6: KOBI iris unified to magenta everywhere (blip-bar + onboard were red; Title/Hub canon is magenta) — one character identity across surfaces.
 - D7: beat 2-2 role-B flakes in THIS container under load (software-Canvas fps contention on the fan-ride) — proven pre-existing by stash-baseline test (fails on pre-V3 code at varying steps, wd/sl 0). Art bakes once and cannot affect physics. Full-kit revalidation at V10; campaign harness already retries thermal flakes.
 - D8: V5 (icons) merged into the V6 HUD sprint (one agent run, both scopes verified) — icons are HUD-facing and tiny; saves a cycle.
+- D9: a container recycle destroyed V7's uncommitted output once; protocol changed to commit-on-landing (QA after, revert on fail). V7 re-run.
