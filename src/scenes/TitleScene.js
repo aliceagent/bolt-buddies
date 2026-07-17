@@ -440,6 +440,16 @@ export default class TitleScene extends Phaser.Scene {
       cont.add([g, label, chev]);
       it.cont = cont; it.g = g; it.labelObj = label; it.chev = chev; it.bw = bw; it.bh = bh;
 
+      // Mouse/touch: hover highlights the button, click activates it (keyboard +
+      // pad still work identically). initAudio() rides the pointer gesture so a
+      // mouse-only player also unlocks sound.
+      cont.setInteractive({
+        hitArea: new Phaser.Geom.Rectangle(-bw / 2, -bh / 2, bw, bh),
+        hitAreaCallback: Phaser.Geom.Rectangle.Contains, useHandCursor: true,
+      });
+      cont.on("pointerover", () => { if (this.sel !== i) { sfx.menuMove(); this.selectIndex(i); } });
+      cont.on("pointerup", () => { initAudio(); this.selectIndex(i); this.activate(); });
+
       // U10 (F6): a small "new!" pip on the TUTORIAL button, shown until the
       // tutorial has been completed ONCE ever (ux-v1 flag). Sits just right of
       // the label; rides inside the container so it scales with selection.

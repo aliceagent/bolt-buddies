@@ -16,6 +16,7 @@ import { musicState } from "./audio/music.js";
 import { sfx, sfxCounts, resetSfxCounts, kobi, panForX, setListener } from "./audio/sfx.js";
 import { playVO, playForText, voIdForText, voState } from "./audio/vo.js";
 import { sfxSampleState } from "./audio/sfxsamples.js";
+import { initAudio } from "./audio.js";
 
 const game = new Phaser.Game({
   // ?canvas=1 forces the canvas renderer (the automated playtest uses it —
@@ -54,6 +55,15 @@ game.events.once("ready", () => {
   game.scene.start("Mute");
   game.scene.bringToTop("Mute");
 });
+
+// Audio unlock on ANY first user gesture — not just keydown. Browsers keep the
+// AudioContext suspended until a gesture; the scenes already resume it on keydown
+// / pad button, but a mouse- or touch-only player (clicking menu items, tapping
+// to start) never fired one, so the game stayed silent. A capture-phase listener
+// for pointer/touch/mouse gestures resumes the ctx (and starts any pending track)
+// the instant they interact by any means. initAudio() is idempotent + cheap.
+["pointerdown", "touchstart", "mousedown"].forEach((ev) =>
+  window.addEventListener(ev, () => initAudio(), { passive: true, capture: true }));
 
 // W3W4 M3/M4: dev-only sandbox loader — `?devlevel=w3` / `?devlevel=w4` swaps
 // straight into that world's mechanics sandbox once boot lands on the Title

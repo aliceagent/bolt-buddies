@@ -188,6 +188,25 @@ export default class HubScene extends Phaser.Scene {
       else if (c === "KeyO") { sfx.menuSelect(); this.scene.start("Settings", { returnTo: "Hub" }); }
       else if (c === "Escape") this.scene.start("Title");
     });
+
+    // Mouse/touch: hover a chamber to select it, click to enter (keyboard + pad
+    // still work identically). A locked chamber click gives the same KOBI toast
+    // as pressing enter on it. initAudio() rides the pointer gesture (sound
+    // unlock for mouse-only players).
+    this.nodes.forEach((node, k) => {
+      const hit = this.add.zone(node.x, node.y, 58, 58)
+        .setInteractive({ useHandCursor: true });
+      hit.on("pointerover", () => {
+        if (this.entering || this.sel === k) return;
+        this.sel = k; sfx.menuMove(); this.updateSelection();
+      });
+      hit.on("pointerup", () => {
+        initAudio();
+        if (this.entering) return;
+        if (this.sel !== k) { this.sel = k; this.updateSelection(); }
+        this.enter();
+      });
+    });
   }
 
   // U7: pad1 navigates the sector map 1:1 with the keyboard handler — d-pad/stick
