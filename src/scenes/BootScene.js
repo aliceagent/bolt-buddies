@@ -933,16 +933,27 @@ export default class BootScene extends Phaser.Scene {
     // GameScene for a wiggle. `legs` picks the leg x-splay; glow pass is a
     // separate additive overlay (eyes brighten near a player) drawn in-game.
     const bug = (legs) => (g) => {
+      // Lumen Lab: rounded glossy carapace — base dome + under-shade + top-light
+      // band + hot specular + a same-hue crisp rim (never black). Dome corners
+      // preserved (feeler bases baked at ±5,-8 under this top edge live in bug_anim).
       g.fillStyle(0x6d3fa8).fillRoundedRect(2, 4, 40, 20, { tl: 18, tr: 18, bl: 4, br: 4 });
-      g.lineStyle(2, 0x9a6fd4).strokeRoundedRect(2, 4, 40, 20, { tl: 18, tr: 18, bl: 4, br: 4 });
-      g.lineStyle(2, 0x9a6fd4).lineBetween(22, 4, 22, 22);
-      // shell sheen: soft highlight arc on the top-left of the carapace
+      g.fillStyle(0x431f70, 0.5).fillRoundedRect(2, 15, 40, 9, { tl: 0, tr: 0, bl: 4, br: 4 }); // under-shade
+      g.fillStyle(0x9a6fd4, 0.45).fillRoundedRect(4, 5, 36, 7, { tl: 16, tr: 16, bl: 0, br: 0 }); // top-light
+      g.lineStyle(1.5, 0x8a5cc4).strokeRoundedRect(2, 4, 40, 20, { tl: 18, tr: 18, bl: 4, br: 4 });
+      g.lineStyle(1.5, 0x8a5cc4, 0.7).lineBetween(22, 5, 22, 22); // carapace seam
+      // glossy shell sheen (top-left arc + hot specular pip)
       g.fillStyle(0xb79ae0, 0.5).fillEllipse(15, 11, 16, 7);
-      g.fillStyle(0xe4d6f7, 0.8).fillEllipse(13, 9.5, 6, 3);
-      g.fillStyle(0xffe066);
-      g.fillCircle(10, 14, 3); g.fillCircle(34, 14, 3); // eyes
+      g.fillStyle(0xe4d6f7, 0.85).fillEllipse(13, 9.5, 6, 3);
+      g.fillStyle(0xffffff, 0.9).fillCircle(11, 8.4, 1.3);
+      // cute glossy amber eyes with a soft glow + catchlight (positions preserved)
+      [10, 34].forEach((cx) => {
+        g.fillStyle(0xffe066, 0.16).fillCircle(cx, 14, 5);
+        g.fillStyle(0xffe066).fillCircle(cx, 14, 3);
+        g.fillStyle(0x6a4a10).fillCircle(cx + 0.4, 14.6, 1.1); // pupil
+        g.fillStyle(0xfff6c2, 0.95).fillCircle(cx - 0.9, 13, 0.9); // catchlight
+      });
       g.fillStyle(0x2a1840);
-      legs.forEach((x) => g.fillRect(x, 24, 4, 4)); // legs
+      legs.forEach((x) => g.fillRoundedRect(x, 24, 4, 4, 1.5)); // legs
     };
     // A5: a 3-position leg-splay cycle (base -> step -> step2) cycled speed-synced by
     // the rig. base = neutral, step = splayed-out reach, step2 = tucked-in push.
@@ -953,9 +964,12 @@ export default class BootScene extends Phaser.Scene {
     // it reads as a tougher sub-species. Same silhouette/leg frames as the W1 bug
     // (selected by world in GameScene); pure baked art, no motion added here.
     const bugW2 = (legs) => (g) => {
+      // tougher sub-species: same glossy carapace recipe, darker plum shell + hex inlays
       g.fillStyle(0x3d2568).fillRoundedRect(2, 4, 40, 20, { tl: 18, tr: 18, bl: 4, br: 4 });
-      g.lineStyle(2, 0x6a48a0).strokeRoundedRect(2, 4, 40, 20, { tl: 18, tr: 18, bl: 4, br: 4 });
-      g.lineStyle(2, 0x6a48a0).lineBetween(22, 4, 22, 22);
+      g.fillStyle(0x241245, 0.55).fillRoundedRect(2, 15, 40, 9, { tl: 0, tr: 0, bl: 4, br: 4 }); // under-shade
+      g.fillStyle(0x6a48a0, 0.4).fillRoundedRect(4, 5, 36, 7, { tl: 16, tr: 16, bl: 0, br: 0 }); // top-light
+      g.lineStyle(1.5, 0x6a48a0).strokeRoundedRect(2, 4, 40, 20, { tl: 18, tr: 18, bl: 4, br: 4 });
+      g.lineStyle(1.5, 0x6a48a0, 0.7).lineBetween(22, 5, 22, 22);
       // hex spots: dark inlays with a lit rim, scattered over the shell
       const hex = (cx, cy, r) => {
         const pts = [];
@@ -964,13 +978,19 @@ export default class BootScene extends Phaser.Scene {
         g.lineStyle(1, 0x8464c4, 0.85).strokePoints(pts, true, true);
       };
       hex(12, 12, 3.4); hex(32, 12, 3.4); hex(22, 16, 3.2); hex(13, 20, 2.5); hex(31, 20, 2.5);
-      // cool shell sheen
+      // cool glossy shell sheen + hot pip
       g.fillStyle(0x8f70c8, 0.4).fillEllipse(15, 10, 14, 6);
-      g.fillStyle(0xd8c6f2, 0.75).fillEllipse(13, 9, 5, 2.4);
-      g.fillStyle(0xffe066);
-      g.fillCircle(10, 14, 3); g.fillCircle(34, 14, 3); // eyes
+      g.fillStyle(0xd8c6f2, 0.78).fillEllipse(13, 9, 5, 2.4);
+      g.fillStyle(0xffffff, 0.85).fillCircle(11, 8, 1.1);
+      // cute glossy amber eyes (positions preserved)
+      [10, 34].forEach((cx) => {
+        g.fillStyle(0xffe066, 0.16).fillCircle(cx, 14, 5);
+        g.fillStyle(0xffe066).fillCircle(cx, 14, 3);
+        g.fillStyle(0x6a4a10).fillCircle(cx + 0.4, 14.6, 1.1);
+        g.fillStyle(0xfff6c2, 0.95).fillCircle(cx - 0.9, 13, 0.9);
+      });
       g.fillStyle(0x160c2c);
-      legs.forEach((x) => g.fillRect(x, 24, 4, 4)); // legs
+      legs.forEach((x) => g.fillRoundedRect(x, 24, 4, 4, 1.5)); // legs
     };
     make("bug_w2", 44, 28, bugW2([8, 16, 28, 36]));
     make("bug_w2_step", 44, 28, bugW2([6, 18, 26, 38]));
@@ -1021,9 +1041,13 @@ export default class BootScene extends Phaser.Scene {
       }
     });
     const craneBody = (dead) => (g) => {
-      g.fillStyle(dead ? 0x3a3d49 : 0x39415e).fillRoundedRect(6, 6, 120, 44, 8);
-      g.lineStyle(3, dead ? 0x555a6a : 0x6b78a8).strokeRoundedRect(6, 6, 120, 44, 8);
-      // P7: cabin-window housing (bezel + corner bolts) around KOBI's eye
+      // Lumen Lab: smooth industrial cab — base + under-shade + top-light + crisp rim
+      const base = dead ? 0x3a3d49 : 0x39415e, rim = dead ? 0x555a6a : 0x6b78a8;
+      g.fillStyle(base).fillRoundedRect(6, 6, 120, 44, 8);
+      g.fillStyle(dead ? 0x2b2e38 : 0x2a3350, 0.5).fillRoundedRect(6, 30, 120, 20, { tl: 0, tr: 0, bl: 8, br: 8 }); // under-shade
+      g.fillStyle(dead ? 0x4a4d5c : 0x59648f, 0.4).fillRoundedRect(8, 7, 116, 12, { tl: 7, tr: 7, bl: 0, br: 0 }); // top-light
+      g.lineStyle(3, rim).strokeRoundedRect(6, 6, 120, 44, 8);
+      // cabin-window housing (bezel + corner bolts) around KOBI's eye
       g.fillStyle(dead ? 0x2a2d37 : 0x232a42).fillRoundedRect(48, 12, 36, 32, 7);
       g.lineStyle(2.5, dead ? 0x4a4d5c : 0x8892b8).strokeRoundedRect(48, 12, 36, 32, 7);
       g.fillStyle(dead ? 0x555a6a : 0x9aa6cc);
@@ -1036,10 +1060,13 @@ export default class BootScene extends Phaser.Scene {
         g.lineBetween(72, 22, 60, 34);
         g.lineStyle(5, 0x3f434f);
       } else {
-        // P7: KOBI's eye INSIDE the cabin window — cyan iris, neutral/forward
-        // pupil (static; the iris TRACKING is A8, deliberately not implemented).
+        // KOBI's eye INSIDE the cabin window at socket (66,28): a haloed glowing
+        // socket (glow read) + glassy sclera + cyan iris + catchlight. Sclera r10
+        // stays within the lid's r10.5 coverage (anchor 10).
+        g.fillStyle(COLORS.neon, 0.12).fillCircle(66, 28, 13); // socket bloom
         g.fillStyle(0x0a1420).fillCircle(66, 28, 12);   // socket
         g.fillStyle(0xf0f8ff).fillCircle(66, 28, 10);   // sclera
+        g.lineStyle(3, COLORS.neon, 0.28).strokeCircle(66, 28, 9); // inner mood-ring glow
         g.fillStyle(COLORS.neon).fillCircle(66, 28, 6); // KOBI cyan iris
         g.fillStyle(0x0c1622).fillCircle(66, 28, 3);    // neutral forward pupil
         g.fillStyle(0xffffff, 0.9).fillCircle(63.5, 25.5, 1.8); // catchlight
@@ -1057,8 +1084,12 @@ export default class BootScene extends Phaser.Scene {
     make("trolley", 40, 20, (g) => {
       g.fillStyle(0x2a3350).fillCircle(9, 5, 4); g.fillCircle(31, 5, 4); // rail wheels
       g.fillStyle(0x39415e).fillRoundedRect(4, 6, 32, 12, 4);
+      g.fillStyle(0x59648f, 0.4).fillRoundedRect(6, 7, 28, 4, { tl: 3, tr: 3, bl: 0, br: 0 }); // top-light
       g.lineStyle(2, 0x6b78a8).strokeRoundedRect(4, 6, 32, 12, 4);
-      g.fillStyle(COLORS.amber, 0.85).fillRect(10, 9, 20, 3);
+      // amber status strip with a soft glow
+      g.fillStyle(COLORS.amber, 0.14).fillRect(8, 8, 24, 5);
+      g.fillStyle(COLORS.amber, 0.9).fillRect(10, 9, 20, 3);
+      g.fillStyle(0xffe0a8, 0.9).fillRect(12, 9.4, 6, 1.2); // hot glint
     });
     // magenta pulse glow behind a yankable crane plate (rest state) — baked
     // colour, alpha-pulsed in-game (tint no-ops on Canvas).
@@ -1099,8 +1130,11 @@ export default class BootScene extends Phaser.Scene {
         g.fillStyle(0x5a6488).fillCircle(x, y, 2.4);
         g.fillStyle(0x3a4160).fillCircle(x, y, 1);
       });
-      g.fillStyle(COLORS.magenta).fillCircle(20, 20, 5); // central core node
-      g.fillStyle(0xffd0f4, 0.8).fillCircle(18.5, 18.5, 1.8);
+      // central core node with a haloed magenta glow (glow recipe)
+      g.fillStyle(COLORS.magenta, 0.16).fillCircle(20, 20, 9);
+      g.fillStyle(COLORS.magenta, 0.32).fillCircle(20, 20, 6.5);
+      g.fillStyle(COLORS.magenta).fillCircle(20, 20, 5); // hot core
+      g.fillStyle(0xffd0f4, 0.85).fillCircle(18.5, 18.5, 1.8); // specular
       if (crack >= 1) {
         g.lineStyle(1, 0x2a2f45, 0.85);
         g.lineBetween(20, 20, 8, 6); g.lineBetween(20, 20, 33, 14);
@@ -1116,9 +1150,15 @@ export default class BootScene extends Phaser.Scene {
     make("crane_plate_c1", 40, 40, cranePlate(1));
     make("crane_plate_c2", 40, 40, cranePlate(2));
     make("pod", 36, 40, (g) => {
-      g.fillStyle(0x2a3350).fillRect(6, 32, 24, 8);
+      g.fillStyle(0x2a3350).fillRoundedRect(6, 32, 24, 8, 2); // socket base
+      g.lineStyle(1.5, 0x44548c).strokeRoundedRect(6, 32, 24, 8, 2);
+      // exposed core: layered amber bloom -> hot body -> white-hot centre + specular
+      g.fillStyle(0xff8855, 0.16).fillCircle(18, 20, 17);
+      g.fillStyle(0xff8855, 0.34).fillCircle(18, 20, 14.5);
       g.fillStyle(0xff8855).fillCircle(18, 20, 13);
+      g.lineStyle(1.5, 0xffb37a, 0.8).strokeCircle(18, 20, 13);
       g.fillStyle(0xffd9a0).fillCircle(18, 20, 6);
+      g.fillStyle(0xfff2d8, 0.95).fillCircle(15.5, 17.5, 2.2); // hot specular
     });
     make("rail", 48, 10, (g) => {
       // smooth steel rail — soft top-light + dark channel. All bands run full width
@@ -1217,23 +1257,33 @@ export default class BootScene extends Phaser.Scene {
     // slides toward the patrol direction, and the wheels get `roller_wheel`
     // spoke-dot overlays that spin — so the base eye here has no baked pupil.
     const roller = (alert) => (g) => {
-      g.fillStyle(alert ? 0xa83a2e : 0x8a4a3a).fillRoundedRect(3, 2, 36, 22, 9);
-      g.lineStyle(2, alert ? 0xff6a52 : 0xc4705a).strokeRoundedRect(3, 2, 36, 22, 9);
-      // P7: riveted cab detail — corner rivets so the cab reads as plated metal
+      const body = alert ? 0xa83a2e : 0x8a4a3a;
+      const rim = alert ? 0xff6a52 : 0xc4705a;
+      // Lumen Lab: rounded cab — base + under-shade + top-light + crisp same-hue
+      // rim (kept manual so the 36×22 silhouette + eye anchor at local(0,-5) hold).
+      g.fillStyle(body).fillRoundedRect(3, 2, 36, 22, 9);
+      g.fillStyle(alert ? 0x6f2419 : 0x5c3123, 0.5).fillRoundedRect(3, 14, 36, 10, { tl: 0, tr: 0, bl: 9, br: 9 }); // under-shade
+      g.fillStyle(alert ? 0xc85643 : 0xb0705c, 0.4).fillRoundedRect(5, 3, 32, 7, { tl: 8, tr: 8, bl: 0, br: 0 }); // top-light
+      g.lineStyle(2, rim).strokeRoundedRect(3, 2, 36, 22, 9);
+      // riveted cab detail — corner rivets so the cab reads as plated metal
       g.fillStyle(alert ? 0x7c2a20 : 0x6d3a2d);
       [[7, 6], [7, 20], [35, 6], [35, 20]].forEach(([x, y]) => g.fillCircle(x, y, 1.3));
-      // P7: KOBI single cyclops-eye decal filling the cab. Baked sclera + coloured
-      // rim (KOBI cyan at rest / alert red); the existing sliding `roller_pupil`
-      // overlay rides on this sclera so it reads as KOBI glancing along patrol.
-      g.fillStyle(0xf2eefc).fillEllipse(21, 12, 30, 16);
-      g.lineStyle(2, alert ? 0xff5566 : 0x33c2d4).strokeEllipse(21, 12, 30, 16);
+      // big glass lens eye (KOBI cyclops) at the (21,12) anchor: haloed glass rim
+      // (cyan at rest / hot red alert) + sclera + curved glint. The sliding
+      // roller_pupil overlay rides this sclera.
+      const lensC = alert ? 0xff5566 : 0x33c2d4;
+      g.fillStyle(lensC, alert ? 0.26 : 0.18).fillEllipse(21, 12, 34, 20); // lens glow bloom
+      g.fillStyle(0xf2eefc).fillEllipse(21, 12, 30, 16);                    // sclera
+      g.lineStyle(3, lensC, 0.22).strokeEllipse(21, 12, 32, 18);           // halo echo
+      g.lineStyle(2, lensC).strokeEllipse(21, 12, 30, 16);                 // bright rim
       g.fillStyle(alert ? 0xffdcdc : 0xd8f6fb, 0.5).fillEllipse(15, 9, 10, 4); // sheen
+      g.fillStyle(0xffffff, 0.85).fillCircle(13, 8, 1.4);                  // hot glass pip
       if (alert) { // angry brow when alerted
         g.lineStyle(2.5, 0x7c2a20).lineBetween(9, 5, 20, 7.5);
         g.lineStyle(2.5, 0x7c2a20).lineBetween(33, 5, 22, 7.5);
       }
       g.fillStyle(0x1a1420);
-      g.fillCircle(12, 28, 5.5); g.fillCircle(30, 28, 5.5); // wheel hubs
+      g.fillCircle(12, 28, 5.5); g.fillCircle(30, 28, 5.5); // wheel hubs at ±9,+11
     };
     make("roller", 42, 34, roller(false));
     make("roller_alert", 42, 34, roller(true));
@@ -1294,7 +1344,10 @@ export default class BootScene extends Phaser.Scene {
     // defeat-pose variant (cross-eye X pupils) the existing defeat state swaps to.
     // All static/baked: the topple sway is A7 and is not added here.
     const wardenBody = (defeat) => (g) => {
+      // Lumen Lab: soft-armored tower — base + under-shade + top-light + crisp rim
       g.fillStyle(0x3a5e46).fillRoundedRect(5, 8, 32, 50, 7);
+      g.fillStyle(0x244033, 0.5).fillRoundedRect(5, 38, 32, 20, { tl: 0, tr: 0, bl: 7, br: 7 }); // under-shade
+      g.fillStyle(0x5a8a6c, 0.4).fillRoundedRect(7, 9, 28, 13, { tl: 6, tr: 6, bl: 0, br: 0 }); // top-light
       g.lineStyle(2, 0x59a06e).strokeRoundedRect(5, 8, 32, 50, 7);
       // riveted face-plate: raised head panel with corner rivets
       g.fillStyle(0x32523d).fillRoundedRect(8, 11, 26, 18, 5);
@@ -1310,16 +1363,20 @@ export default class BootScene extends Phaser.Scene {
           g.lineBetween(cx + 2.6, 18, cx - 2.6, 23);
         });
       } else {
-        // visor slit with a baked glow (layered alpha halo + hot core — canvas-safe)
-        g.fillStyle(0x142018).fillRoundedRect(20, 14, 16, 10, 4); // visor faces right
-        g.fillStyle(0xffe066, 0.22).fillRoundedRect(22, 16, 13, 6, 3); // glow halo
-        g.fillStyle(0xffe066, 0.5).fillRect(23, 18, 11, 2);           // slit glow
-        g.fillStyle(0xfff3b0).fillCircle(31, 19, 2.4);                // hot eye
+        // GLOWING visor slit at the anchor band (x-1..15,y-12 -> tex 20..36,y19):
+        // layered halo bloom -> inner glow -> hot slit -> white-hot eye (Canvas-safe).
+        g.fillStyle(0x142018).fillRoundedRect(20, 14, 16, 10, 4);      // visor faces right
+        g.fillStyle(0xffe066, 0.12).fillRoundedRect(19, 13, 18, 12, 5); // wide glow halo
+        g.fillStyle(0xffe066, 0.28).fillRoundedRect(22, 16, 13, 6, 3);  // inner glow
+        g.fillStyle(0xffe066, 0.6).fillRect(23, 18, 11, 2);            // hot slit
+        g.fillStyle(0xfff3b0).fillCircle(31, 19, 2.4);                 // hot eye
+        g.fillStyle(0xffffff, 0.9).fillCircle(30.3, 18.3, 0.9);        // eye pip
       }
       g.fillStyle(0x59a06e).fillRect(9, 34, 24, 3); // belt
       // chest plate (the badge digit is drawn over this per-warden in GameScene)
       g.fillStyle(0x2c4a38).fillRoundedRect(12, 38, 18, 14, 3);
       g.lineStyle(1, 0x4a7d5b).strokeRoundedRect(12, 38, 18, 14, 3);
+      g.fillStyle(0x6fbf8a, 0.35).fillRect(14, 40, 14, 2); // chest-plate sheen
       g.fillStyle(0x1a2a20).fillRect(8, 58, 26, 4); // feet
     };
     make("warden", 42, 62, wardenBody(false));

@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { TILE, COLORS, PHYS, DEPTH, SKILL_INFO, WORLD_THEMES, FONT, FS, TEXT, PARTICLES } from "../constants.js";
+import { ringGlow, glowShape } from "../ui/paint.js";
 import { LEVELS } from "../levels/registry.js";
 import { makeGrid } from "../levels/builder.js";
 import devW3 from "../levels/dev_w3.js";
@@ -6859,8 +6860,18 @@ export default class GameScene extends Phaser.Scene {
     });
     // zap-jelly: a friendly electric dome (base / happy socketed face) + glow.
     const jelly = (happy) => (g) => {
-      g.fillStyle(happy ? 0x59d0a0 : 0x66c9e8, 0.95).fillEllipse(20, 14, 36, 24); // dome
-      g.fillStyle(happy ? 0x8fe8c4 : 0x9fe0ff, 0.6).fillEllipse(15, 10, 12, 6);   // sheen
+      const dome = happy ? 0x59d0a0 : 0x66c9e8;
+      const glow = happy ? 0x8fe8c4 : 0x9fe0ff;
+      // inner-glow translucent dome: outer bloom -> body -> concentric inner glow
+      // steps (fakeRadial trick) so it reads as a lit jelly (skirt anchor at y≈10).
+      g.fillStyle(dome, 0.14).fillEllipse(20, 14, 42, 30); // outer bloom
+      g.fillStyle(dome, 0.9).fillEllipse(20, 14, 36, 24);  // body
+      for (let i = 0; i < 3; i++) {
+        g.fillStyle(glow, 0.1 + i * 0.06);
+        g.fillEllipse(20, 15 + i, 26 - i * 6, 16 - i * 4); // inner core glow
+      }
+      g.fillStyle(glow, 0.6).fillEllipse(15, 10, 12, 6);   // top sheen
+      g.fillStyle(0xffffff, 0.85).fillEllipse(14, 9, 5, 2.4); // hot glass pip
       g.lineStyle(2, happy ? 0x2f8f5c : 0x3a8fb0).strokeEllipse(20, 14, 36, 24);
       g.fillStyle(0x0c1622);
       if (happy) { // ^ ^ closed happy eyes
@@ -6916,20 +6927,26 @@ export default class GameScene extends Phaser.Scene {
     const chomper = (mode) => (g) => {
       const bodyCol = mode === "alert" ? 0xa8402e : 0x6a4a3a;
       const edgeCol = mode === "alert" ? 0xff6a52 : 0x9a6a4a;
+      const loCol = mode === "alert" ? 0x6f2419 : 0x452f24;
+      const hiCol = mode === "alert" ? 0xc85643 : 0x8a6449;
       // treads
       g.fillStyle(0x14100c).fillRect(4, 30, 48, 8);
       g.fillStyle(0x2a2018);
       [10, 20, 30, 40, 46].forEach((x) => g.fillCircle(x, 34, 3.2));
-      // body / snout
+      // body / snout — soft 4-tone shading (base + under-shade + top-light + rim)
       g.fillStyle(bodyCol).fillRoundedRect(2, 6, 52, 26, 8);
+      g.fillStyle(loCol, 0.5).fillRoundedRect(2, 21, 52, 11, { tl: 0, tr: 0, bl: 8, br: 8 }); // under-shade
+      g.fillStyle(hiCol, 0.4).fillRoundedRect(4, 7, 48, 8, { tl: 7, tr: 7, bl: 0, br: 0 }); // top-light
       g.lineStyle(2, edgeCol).strokeRoundedRect(2, 6, 52, 26, 8);
-      // single greedy eye
+      // single greedy glass eye with a soft glow + catchlight
+      g.fillStyle(edgeCol, 0.18).fillCircle(16, 13, 7.5);
       g.fillStyle(0xf2eefc).fillCircle(16, 13, 5.5);
       g.fillStyle(0x0c1622).fillCircle(mode === "dozer" ? 15 : 18, 13, 2.4);
+      g.fillStyle(0xffffff, 0.9).fillCircle(14, 11, 1.2);
       if (mode === "dozer") { // relaxed lid
         g.lineStyle(2, edgeCol).lineBetween(10, 10, 22, 10);
       }
-      // mouth slot
+      // mouth slot (back-corner anchor -20,+6 -> tex 8,25)
       g.fillStyle(0x120a08).fillRect(8, 20, 44, 10);
       if (mode === "dozer") {
         // toothless happy grin
@@ -7284,18 +7301,22 @@ export default class GameScene extends Phaser.Scene {
     // GLOOMY: a shadow blob — near-black violet dome, two moon eyes; the scared
     // face goes wide-eyed with a stretched wail mouth (texture swap, Canvas-safe)
     const gloomy = (scared) => (g) => {
-      g.fillStyle(0x0d0a1e, 0.45).fillEllipse(18, 26, 30, 8); // seep shadow
+      // soft shadow gradient seep: concentric dark ellipses fading outward (skirt y≈11)
+      for (let i = 0; i < 4; i++) g.fillStyle(0x0d0a1e, 0.1 + i * 0.04).fillEllipse(18, 25, 32 - i * 5, 11 - i * 2);
       g.fillStyle(0x191233, 0.96).fillEllipse(18, 15, 32, 24); // body
+      g.fillStyle(0x0d0a1e, 0.4).fillEllipse(18, 22, 26, 10);  // lower shadow gradient
       g.fillStyle(0x241a4a, 0.9).fillEllipse(14, 10, 12, 7);   // dim crown sheen
       g.lineStyle(1.5, 0x3a2a6e, 0.9).strokeEllipse(18, 15, 32, 24);
-      // wispy skirt tips
+      // wispy skirt tips (wisp mounts x -9/0/9 -> 9,18,27)
       g.fillStyle(0x191233, 0.9);
       for (let x = 6; x <= 30; x += 6) g.fillTriangle(x, 24, x + 4, 24, x + 2, 29);
       if (scared) {
+        g.fillStyle(0xcdd8ff, 0.22).fillCircle(12, 13, 5).fillCircle(24, 13, 5); // wide moon glow
         g.fillStyle(0xcdd8ff, 0.95).fillCircle(12, 13, 3.4).fillCircle(24, 13, 3.4);
         g.fillStyle(0x0c0a18).fillCircle(12, 13, 1.4).fillCircle(24, 13, 1.4);
         g.fillStyle(0x0c0a18, 0.9).fillEllipse(18, 20, 5, 7); // wailing mouth
       } else {
+        g.fillStyle(0x8fa3d9, 0.2).fillCircle(12, 13, 4).fillCircle(24, 13, 4); // soft moon-eye glow
         g.fillStyle(0x8fa3d9, 0.85).fillCircle(12, 13, 2.2).fillCircle(24, 13, 2.2);
         g.fillStyle(0x0c0a18).fillCircle(12.6, 13.4, 1).fillCircle(24.6, 13.4, 1);
       }
@@ -7314,12 +7335,17 @@ export default class GameScene extends Phaser.Scene {
       g.fillStyle(0x14100c).fillRect(3, 34, 28, 7);
       g.fillStyle(0x2a2018);
       [8, 17, 26].forEach((x) => g.fillCircle(x, 37.5, 2.8));
-      // body
+      // brass body — base + under-shade + top-light + brass shine + crisp rim
       g.fillStyle(0x6e5426).fillRoundedRect(2, 4, 30, 32, 6);
+      g.fillStyle(0x4a3818, 0.5).fillRoundedRect(2, 24, 30, 12, { tl: 0, tr: 0, bl: 6, br: 6 }); // under-shade
+      g.fillStyle(0xa88a44, 0.45).fillRoundedRect(4, 5, 26, 9, { tl: 5, tr: 5, bl: 0, br: 0 }); // top-light
       g.lineStyle(2, wind ? 0xffb347 : 0x9a7a3a).strokeRoundedRect(2, 4, 30, 32, 6);
-      // clock face
+      g.fillStyle(0xffe9c0, 0.5).fillRect(6, 7, 10, 2); // brass shine glint
+      // clock face (glows amber on wind)
+      if (wind) g.fillStyle(0xffb347, 0.2).fillCircle(17, 17, 12);
       g.fillStyle(wind ? 0xffd9a0 : 0xe8e2d0).fillCircle(17, 17, 9);
       g.lineStyle(1.5, 0x3a2c14).strokeCircle(17, 17, 9);
+      g.fillStyle(0xffffff, 0.55).fillCircle(14, 14, 1.5); // face glass pip
       g.lineStyle(2, 0x3a2c14);
       g.lineBetween(17, 17, 17, 11);                       // minute hand
       g.lineBetween(17, 17, wind ? 23 : 21, wind ? 15 : 19); // hour hand
@@ -7440,34 +7466,49 @@ export default class GameScene extends Phaser.Scene {
     // THE EYE HOUSING: armored violet casing around a great white sclera —
     // KOBI's title/hub/crane eye vocabulary at boss scale.
     make("kobi_housing", 150, 128, (g) => {
+      // armored glass casing: base + under-shade + top-light + crisp violet rim
       g.fillStyle(0x1c1430, 0.98).fillRoundedRect(2, 2, 146, 124, 26);
-      g.lineStyle(3, 0x8f7bff, 0.9).strokeRoundedRect(2, 2, 146, 124, 26);
-      g.lineStyle(1.5, 0x35f0ff, 0.4).strokeRoundedRect(8, 8, 134, 112, 20);
+      g.fillStyle(0x120c22, 0.5).fillRoundedRect(2, 78, 146, 48, { tl: 0, tr: 0, bl: 26, br: 26 }); // under-shade
+      g.fillStyle(0x2c2050, 0.4).fillRoundedRect(6, 6, 138, 34, { tl: 24, tr: 24, bl: 0, br: 0 }); // top-light
+      // glow seams: layered violet/cyan haloed edge (glowShape recipe)
+      glowShape(g, { color: 0x8f7bff, coreWidth: 3, coreA: 0.9 },
+        (gg, inf) => gg.strokeRoundedRect(2 - inf, 2 - inf, 146 + inf * 2, 124 + inf * 2, 26 + inf));
+      g.lineStyle(1.5, 0x35f0ff, 0.4).strokeRoundedRect(8, 8, 134, 112, 20); // inner cyan glow seam
       // rivet studs on the casing
       g.fillStyle(0x5a4a9a);
       [[16, 16], [134, 16], [16, 112], [134, 112]].forEach(([x, y]) => g.fillCircle(x, y, 3.4));
       // vents on the casing sides (the "this thing runs HOT" read)
       g.fillStyle(0x0c0818, 0.9);
       for (let i = 0; i < 3; i++) { g.fillRect(10, 48 + i * 12, 14, 5); g.fillRect(126, 48 + i * 12, 14, 5); }
-      // the sclera
+      // the glassy sclera with a soft inner bloom
       g.fillStyle(0x1a1020, 1).fillCircle(75, 64, 50); // socket
       g.fillStyle(0xf6f0ff, 1).fillCircle(75, 64, 44); // sclera
-      g.lineStyle(3, 0xff4dd2, 0.95).strokeCircle(75, 64, 50); // mood ring (gloat magenta)
+      g.fillStyle(0xffffff, 0.35).fillEllipse(60, 46, 26, 12); // glass top glare
+      // mood ring (gloat magenta) with a haloed glow
+      ringGlow(g, { x: 75, y: 64, r: 50, color: 0xff4dd2, width: 3 });
       // faint cooling cables running off the casing bottom
       g.lineStyle(3, 0x39415e, 0.9);
       g.lineBetween(50, 126, 44, 118); g.lineBetween(100, 126, 106, 118);
     });
     // the iris (live magenta-red / powered-down grey) — tracked in updateHeart
     const irisTex = (dead) => (g) => {
-      g.fillStyle(dead ? 0x7d8fb8 : 0xff3b30, 1).fillCircle(16, 16, 15);
-      g.fillStyle(dead ? 0x2a3350 : 0x120306, 1).fillCircle(16, 16, 7);
-      if (!dead) g.fillStyle(0xffffff, 0.9).fillCircle(11, 10, 3.4);
+      // live: a deep-magenta bloom — deep rim -> bright magenta -> hot inner glow ->
+      // dark pupil -> catchlight. dead: flat grey, light off.
+      g.fillStyle(dead ? 0x7d8fb8 : 0x9c1670, 1).fillCircle(16, 16, 15); // deep magenta / grey
+      if (!dead) {
+        g.fillStyle(0xff4dd2, 0.9).fillCircle(16, 16, 11); // magenta bloom ring
+        g.fillStyle(0xff8fe0, 0.6).fillCircle(16, 16, 8);  // hot inner glow
+      }
+      g.fillStyle(dead ? 0x2a3350 : 0x120306, 1).fillCircle(16, 16, 7); // pupil
+      if (!dead) g.fillStyle(0xffffff, 0.9).fillCircle(11, 10, 3.4); // catchlight
     };
     make("kobi_iris", 32, 32, irisTex(false));
     make("kobi_iris_dead", 32, 32, irisTex(true));
     // the eyelid: a housing-toned cap scaled down over the sclera (squint/shut)
     make("kobi_lid", 104, 92, (g) => {
       g.fillStyle(0x241a3e, 0.98).fillRoundedRect(0, 0, 104, 92, { tl: 48, tr: 48, bl: 8, br: 8 });
+      g.fillStyle(0x352a56, 0.5).fillRoundedRect(6, 4, 92, 24, { tl: 44, tr: 44, bl: 0, br: 0 }); // top-light dome
+      g.lineStyle(4, 0x8f7bff, 0.16).strokeRoundedRect(1, 1, 102, 90, { tl: 47, tr: 47, bl: 8, br: 8 }); // glow seam
       g.lineStyle(2.5, 0x8f7bff, 0.8).strokeRoundedRect(1, 1, 102, 90, { tl: 47, tr: 47, bl: 8, br: 8 });
       // lashes-as-bolts along the lid edge
       g.fillStyle(0x5a4a9a);
@@ -7477,9 +7518,13 @@ export default class GameScene extends Phaser.Scene {
     make("heart_vent", 62, 56, (g) => {
       g.fillStyle(0x2a2058, 0.98).fillRoundedRect(1, 1, 60, 54, 8);
       g.lineStyle(2.5, 0x8f7bff, 0.95).strokeRoundedRect(1, 1, 60, 54, 8);
+      g.fillStyle(0x8f7bff, 0.35).fillRect(3, 3, 56, 3); // top-light glow seam
       g.fillStyle(0x0c0818, 0.9);
       for (let i = 0; i < 4; i++) g.fillRect(9, 9 + i * 11, 44, 5); // louver slats
-      g.fillStyle(0xff4dd2, 0.9).fillCircle(31, 50, 2.6); // KOBI-Labs pilot dot
+      // KOBI-Labs pilot dot with a magenta halo
+      g.fillStyle(0xff4dd2, 0.2).fillCircle(31, 50, 6);
+      g.fillStyle(0xff4dd2, 0.95).fillCircle(31, 50, 2.6);
+      g.fillStyle(0xffcdf0, 0.9).fillCircle(30.2, 49.2, 0.9);
       g.fillStyle(0x5a4a9a);
       [[7, 7], [55, 7], [7, 49], [55, 49]].forEach(([x, y]) => g.fillCircle(x, y, 2.6));
     });
@@ -7494,11 +7539,13 @@ export default class GameScene extends Phaser.Scene {
         g.lineBetween(26, 36, 40, 22); g.lineBetween(40, 22, 48, 26);
         g.fillStyle(0x39415e).fillCircle(49, 27, 4);
       } else {
-        // live: a rounded amber "tantrum coil" heart-plug, glowing
-        g.fillStyle(0xffd24d, 0.25).fillCircle(26, 20, 18);
+        // live: a rounded amber "tantrum coil" heart-plug with a layered amber bloom
+        g.fillStyle(0xffd24d, 0.14).fillCircle(26, 20, 22);
+        g.fillStyle(0xffd24d, 0.26).fillCircle(26, 20, 18);
         g.fillStyle(0xffb347, 1).fillRoundedRect(14, 8, 24, 28, 10);
+        g.fillStyle(0x9a6a1e, 0.4).fillRoundedRect(14, 24, 24, 12, { tl: 0, tr: 0, bl: 10, br: 10 }); // under-shade
         g.lineStyle(2, 0xffe0a8, 0.95).strokeRoundedRect(14, 8, 24, 28, 10);
-        g.fillStyle(0xfff6d8, 0.9).fillCircle(22, 16, 3.2);
+        g.fillStyle(0xfff6d8, 0.9).fillCircle(22, 16, 3.2); // hot specular
         g.lineStyle(2, 0xff5566, 0.9);
         g.lineBetween(19, 26, 26, 20); g.lineBetween(26, 20, 33, 26); // the "heartbeat" tick
       }
@@ -7509,8 +7556,11 @@ export default class GameScene extends Phaser.Scene {
     make("turbine", 34, 76, (g) => {
       g.fillStyle(0x1c2742).fillRoundedRect(4, 62, 26, 12, 3); // foot
       g.fillStyle(0x2a3350).fillRect(13, 6, 8, 60);            // pole
+      g.fillStyle(0x44548c, 0.4).fillRect(13, 6, 2.5, 60);    // pole top-light edge
       g.lineStyle(1.5, 0x44548c).strokeRect(13, 6, 8, 60);
-      g.fillStyle(0xff5566, 0.9).fillCircle(17, 68, 2.6);      // live pilot lamp
+      g.fillStyle(0xff5566, 0.25).fillCircle(17, 68, 6);      // pilot lamp halo
+      g.fillStyle(0xff5566, 0.95).fillCircle(17, 68, 2.6);    // live pilot lamp
+      g.fillStyle(0xffd0d0, 0.9).fillCircle(16.3, 67.3, 0.9);
       g.lineStyle(2, 0x39415e, 0.9);
       g.strokeCircle(17, 8, 6); // rotor hub seat
     });
@@ -7525,10 +7575,13 @@ export default class GameScene extends Phaser.Scene {
         const px3 = c + Math.cos(a - 0.5) * 10, py3 = c + Math.sin(a - 0.5) * 10;
         g.fillTriangle(bx, by, px2, py2, px3, py3);
         if (!dead) {
+          g.fillStyle(0xff5566, 0.28).fillCircle(bx, by, 6); // hot-tip bloom
           g.fillStyle(0xff5566, 0.95).fillCircle(bx, by, 3.4);
+          g.fillStyle(0xffe0d0, 0.9).fillCircle(bx, by, 1.4); // white-hot core
           g.fillStyle(0x39415e, 1);
         }
       }
+      if (!dead) g.fillStyle(0xff5566, 0.2).fillCircle(c, c, 10); // hub glow
       g.fillStyle(dead ? 0x39415e : 0x6b78a8).fillCircle(c, c, 7);
       g.fillStyle(dead ? 0x1c2742 : 0xff5566).fillCircle(c, c, 3);
     };
@@ -7542,19 +7595,21 @@ export default class GameScene extends Phaser.Scene {
         g.lineStyle(3, 0x8892b8);
         for (let x = 6; x <= 50; x += 11) g.lineBetween(x, 6, x, 48);
         g.lineStyle(4, 0x6b78a8).strokeRoundedRect(2, 2, 52, 48, 8);
-        g.fillStyle(0xffb347, 0.9).fillCircle(28, 10, 2.6); // Bolt's tail-light through the bars
+        g.fillStyle(0xffb347, 0.22).fillCircle(28, 10, 6); // tail-light halo
+        g.fillStyle(0xffb347, 0.95).fillCircle(28, 10, 2.6); // Bolt's tail-light through the bars
       } else {
         // door flung open: the frame + a swung-aside gate
         g.lineStyle(4, 0x6b78a8).strokeRoundedRect(2, 2, 52, 48, 8);
         g.lineStyle(3, 0x8892b8);
         g.lineBetween(52, 8, 66, 20); g.lineBetween(52, 26, 66, 34); // the open gate leaf
-        g.fillStyle(0x59ff9c, 0.9).fillCircle(28, 10, 2.6); // lock lamp gone green
+        g.fillStyle(0x59ff9c, 0.24).fillCircle(28, 10, 6); // lock-lamp halo
+        g.fillStyle(0x59ff9c, 0.95).fillCircle(28, 10, 2.6); // lock lamp gone green
       }
     };
     make("bolt_cage", 68, 56, cageTex(false));
     make("bolt_cage_open", 68, 56, cageTex(true));
     make("bolt_pup", 50, 36, (g) => {
-      const body = 0xd9dee8, dark = 0x8b93a8, collar = 0xffb347;
+      const body = 0xd9dee8, dark = 0x8b93a8, collar = 0xffb347, belly = 0xf3ede0;
       // stub legs
       g.fillStyle(dark);
       [8, 16, 30, 38].forEach((lx) => g.fillRoundedRect(lx, 26, 6, 8, 2));
@@ -7563,13 +7618,20 @@ export default class GameScene extends Phaser.Scene {
       g.fillStyle(body).fillCircle(40, 18, 9);
       g.fillStyle(body).fillCircle(12, 9, 10);
       g.fillStyle(body).fillRoundedRect(0, 8, 10, 9, 4);
+      // smooth shading: cool top-light band + warm cream belly underside
+      g.fillStyle(0xffffff, 0.32).fillRoundedRect(10, 11, 32, 5, 4); // top-light
+      g.fillStyle(belly, 0.85).fillEllipse(24, 24, 30, 8);           // warm belly
+      g.fillStyle(0xc7ccd8, 0.5).fillEllipse(40, 23, 12, 5);         // haunch under-shade
       g.fillStyle(dark).fillCircle(1.6, 12, 2.2); // nose
-      // collar + tail-tip light + ear + eye
+      // gold collar with a soft glow + tail-tip light + ear + eye
+      g.fillStyle(collar, 0.28).fillRect(15, 9, 10, 19); // collar glow
       g.fillStyle(collar).fillRect(18, 10, 4, 17);
+      g.fillStyle(0xffe0a8, 0.9).fillRect(18.5, 12, 3, 3); // collar tag glint
       g.fillStyle(dark).fillTriangle(14, 0, 20, 2, 16, 10); // ear
       g.fillStyle(0x243046).fillCircle(9, 8, 2.6);
       g.fillStyle(0xffffff, 0.95).fillCircle(8, 7, 1);
       g.fillStyle(body).fillRoundedRect(44, 6, 5, 14, 2.5); // tail up
+      g.fillStyle(collar, 0.3).fillCircle(46.5, 5, 5.5); // tail-light halo
       g.fillStyle(collar).fillCircle(46.5, 5, 3); // amber tail-light
     });
   }
