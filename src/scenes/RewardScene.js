@@ -28,6 +28,7 @@ import { pads } from "../pad.js";
 import { loadSave, totalCores, worldCoreCount, worldPhotos, hundredPercent } from "../save.js";
 import { fmtClock } from "../ux.js";
 import { WORLD_INFO } from "../levels/registry.js";
+import { glassPanel, specular, fakeRadial, ringGlow } from "../ui/paint.js";
 
 const ACT1_MS = 8000;   // the medal ceremony holds ~8s
 const PAGE_MS = 2400;   // each album spread auto-flips (~14-17s for the book)
@@ -229,8 +230,13 @@ export default class RewardScene extends Phaser.Scene {
     const kobi = who === "KOBI";
     const cg = this.capPlate;
     cg.clear().setVisible(true);
-    cg.fillStyle(kobi ? 0x1a0f22 : COLORS.hudBg, 0.88).fillRoundedRect(x, y, w, h, 10);
-    cg.lineStyle(2, kobi ? 0xff4dd2 : 0xffb347, kobi ? 0.65 : 0.55).strokeRoundedRect(x, y, w, h, 10);
+    // frosted glass plate — KOBI magenta glass / NARR warm glass (same geometry)
+    glassPanel(cg, {
+      x, y, w, h, r: 10,
+      fill: kobi ? 0x1a0f22 : COLORS.hudBg, fillA: 0.88,
+      accent: kobi ? 0xff4dd2 : 0xffb347, borderA: kobi ? 0.65 : 0.55,
+      glowA: kobi ? 0.16 : 0.12, sheenA: 0.045,
+    });
     this.speakerTag.setText(kobi ? "K.O.B.I." : "NARRATOR").setColor(kobi ? "#ff8fe6" : "#ffcf9a").setVisible(true);
     this.capText.setText(text).setColor(kobi ? "#ffd6f4" : "#ffe9c9").setVisible(true).setAlpha(0);
     this.tweens.add({ targets: this.capText, alpha: 1, duration: 420 });
@@ -251,16 +257,27 @@ export default class RewardScene extends Phaser.Scene {
     const bg = this.add.graphics();
     bg.fillStyle(dark);
     [-14, -4, 8, 16].forEach((lx) => bg.fillRoundedRect(lx, 4, 6, 8, 2));
+    // body / haunch / head — same silhouette, now with soft 4-tone shading
     bg.fillStyle(body).fillRoundedRect(-18, -10, 36, 16, 7);
     bg.fillStyle(body).fillCircle(-15, -4, 8);
     bg.fillStyle(body).fillCircle(20, -12, 9);
     bg.fillStyle(body).fillRoundedRect(26, -12, 11, 8, 3);
+    bg.fillStyle(dark, 0.4).fillEllipse(-2, 3, 32, 8);   // belly under-shade
+    bg.fillStyle(dark, 0.35).fillCircle(-15, -1, 8);      // haunch under-shade
+    bg.fillStyle(0xffffff, 0.13).fillEllipse(-4, -10, 22, 5); // top-light sheen
+    bg.fillStyle(0xffffff, 0.12).fillCircle(18, -15, 4.5);
     bg.fillStyle(dark).fillCircle(37, -8, 2);
     bg.fillStyle(opts.eye !== undefined ? opts.eye : 0x243046).fillCircle(23, -13, 2.4);
+    specular(bg, { x: 22, y: -14, w: 1.5, h: 1.5, a: 0.85 }); // eye catchlight
+    // the collar-bolt — a warm glowing accent stripe
+    bg.fillStyle(accent, 0.22).fillCircle(11.5, -2, 8);
+    bg.fillStyle(accent, 0.12).fillCircle(11.5, -2, 12);
     bg.fillStyle(accent).fillRect(10, -10, 3, 16);
+    specular(bg, { x: 11.5, y: -7, w: 1, h: 3, a: 0.6 });
     bg.fillStyle(dark).fillTriangle(14, -22, 20, -20, 17, -12);
     const tail = this.add.graphics({ x: -17, y: -6 });
     tail.fillStyle(body).fillRoundedRect(-2.5, -13, 5, 14, 2.5);
+    tail.fillStyle(accent, 0.3).fillCircle(0, -13, 5); // glow behind the wagging tip
     tail.fillStyle(accent).fillCircle(0, -13, 3);
     tail.setAngle(28);
     bolt.add([bg, tail]);
@@ -276,11 +293,17 @@ export default class RewardScene extends Phaser.Scene {
   }
 
   makeKobi(parent, x, y, r, opts = {}) {
+    const ring = opts.ring !== undefined ? opts.ring : 0xffb347;
+    const iris = opts.iris !== undefined ? opts.iris : 0xff4dd2;
     const k = this.add.graphics({ x, y });
-    k.fillStyle(0x1a1024, 1).fillCircle(0, 0, r);
-    k.lineStyle(Math.max(2, r * 0.13), opts.ring !== undefined ? opts.ring : 0xffb347, 0.95).strokeCircle(0, 0, r);
-    k.fillStyle(0xf6f0ff, 0.95).fillCircle(0, 0, r * 0.65);
-    k.fillStyle(opts.iris !== undefined ? opts.iris : 0xff4dd2, 1).fillCircle(r * 0.1, r * 0.05, r * 0.3);
+    k.fillStyle(0x1a1024, 1).fillCircle(0, 0, r);                 // armored housing
+    ringGlow(k, { x: 0, y: 0, r, color: ring, width: Math.max(2, r * 0.13) }); // lit duty ring
+    k.fillStyle(0xf6f0ff, 0.95).fillCircle(0, 0, r * 0.65);       // glassy sclera
+    k.fillStyle(0xd8e2ff, 0.45).fillCircle(0, r * 0.14, r * 0.55); // cool glass underglow
+    fakeRadial(k, { x: r * 0.1, y: r * 0.05, r: r * 0.5, color: iris, steps: 4, aCenter: 0.5, aEdge: 0 });
+    k.fillStyle(iris, 1).fillCircle(r * 0.1, r * 0.05, r * 0.3);  // deep-glow iris
+    k.fillStyle(0xffffff, 0.5).fillCircle(r * 0.02, -r * 0.03, r * 0.09); // catchlight
+    specular(k, { x: -r * 0.24, y: -r * 0.26, w: r * 0.2, h: r * 0.13, a: 0.85 }); // glass highlight
     if (opts.lid !== false) k.fillStyle(0x1a1024, 1).fillRect(-r * 0.7, -r * 0.7, r * 1.4, r * 0.45);
     parent.add(k);
     return k;
@@ -314,8 +337,10 @@ export default class RewardScene extends Phaser.Scene {
   // --- the shared backyard dusk (the ceremony sits right in it) ------------------
   buildBackdrop(W, H) {
     const g = this.add.graphics().setDepth(0);
-    const sky = [0x1a1440, 0x2c1e52, 0x4a2a5e, 0x6e3a5a];
-    sky.forEach((c, i) => g.fillStyle(c, 1).fillRect(0, (H * 0.66 * i) / 4, W, (H * 0.66) / 4 + 2));
+    // a fuller party-dusk ramp: deep indigo up top warming into rose at the fence
+    const sky = [0x140f38, 0x1a1440, 0x2c1e52, 0x422656, 0x5a325c, 0x6e3a5a];
+    sky.forEach((c, i) => g.fillStyle(c, 1).fillRect(0, (H * 0.66 * i) / sky.length, W, (H * 0.66) / sky.length + 2));
+    g.fillStyle(0xffcf8f, 0.05).fillRect(0, H * 0.58, W, H * 0.1); // warm ground-light bleed
     // stars (seeded, deterministic)
     let seed = 77;
     const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
@@ -340,8 +365,9 @@ export default class RewardScene extends Phaser.Scene {
       }
       const bulb = this.add.graphics({ x: bx, y: by }).setDepth(1);
       const warm = i % 2 === 0 ? 0xffd9a0 : 0xff8fe6;
-      bulb.fillStyle(warm, 0.25).fillCircle(0, 3, 9);
+      fakeRadial(bulb, { x: 0, y: 3, r: 13, color: warm, steps: 4, aCenter: 0.3, aEdge: 0 });
       bulb.fillStyle(warm, 0.95).fillCircle(0, 3, 4);
+      bulb.fillStyle(0xfff6e0, 0.85).fillCircle(-1, 1.6, 1.5); // hot filament
       this.tweens.add({ targets: bulb, alpha: { from: 0.6, to: 1 }, duration: 900 + i * 130, yoyo: true, repeat: -1, ease: "sine.inOut" });
       this.bulbs.push(bulb);
     }
@@ -388,6 +414,10 @@ export default class RewardScene extends Phaser.Scene {
     }
     cont.add(burst);
     this.tweens.add({ targets: burst, angle: 360, duration: 40000, repeat: -1, ease: "linear" });
+    // a soft baked bloom behind the medal (steady, under the spinning rays)
+    const bloom = this.add.graphics({ x: mx, y: my });
+    fakeRadial(bloom, { x: 0, y: 8, r: 104, color: rayC, steps: 5, aCenter: 0.14, aEdge: 0 });
+    cont.add(bloom);
     const medal = this.add.container(mx, my);
     const md = this.add.graphics();
     // ribbon
@@ -398,6 +428,7 @@ export default class RewardScene extends Phaser.Scene {
       // THE GOLDEN GLARE: gold disc with KOBI's tiny eye at its heart
       md.fillStyle(0x8a6a10, 1).fillCircle(0, 12, 62);
       md.fillStyle(0xffd94d, 1).fillCircle(0, 8, 58);
+      md.fillStyle(0xfff3c8, 0.4).fillEllipse(0, -10, 92, 30); // upper-disc metal sheen
       md.lineStyle(3, 0xfff3c8, 0.9).strokeCircle(0, 8, 48);
       md.fillStyle(0xf6f0ff, 0.95).fillCircle(0, 8, 24);
       md.fillStyle(0xff4dd2, 1).fillCircle(2, 9, 11);
@@ -406,14 +437,17 @@ export default class RewardScene extends Phaser.Scene {
         const a = (i * Math.PI) / 4 + 0.4;
         this.star(md, Math.cos(a) * 38, 8 + Math.sin(a) * 38, 4.5, 0xfff3c8, 0.9);
       }
+      specular(md, { x: -24, y: -16, w: 12, h: 6, a: 0.6 });
     } else {
       // THE BOLT MEDAL: brass disc with the bone embossed
       md.fillStyle(0x6e5424, 1).fillCircle(0, 12, 62);
       md.fillStyle(0xb98a3e, 1).fillCircle(0, 8, 58);
+      md.fillStyle(0xe8d9a8, 0.32).fillEllipse(0, -10, 92, 30); // upper-disc brass sheen
       md.lineStyle(3, 0xe0c184, 0.9).strokeCircle(0, 8, 48);
       md.fillStyle(0xe8d9a8, 1).fillRoundedRect(-30, 1, 60, 14, 7);
       [[-30, 2], [-30, 14], [30, 2], [30, 14]].forEach(([cx, cy2]) => md.fillStyle(0xe8d9a8, 1).fillCircle(cx, cy2, 8));
       this.star(md, 0, -26, 6, 0xe8d9a8, 0.95);
+      specular(md, { x: -22, y: -14, w: 12, h: 5, a: 0.55 });
     }
     medal.add(md);
     if (gold) {
@@ -532,8 +566,9 @@ export default class RewardScene extends Phaser.Scene {
       // the photo: that wing's palette, with Bolt PHOTOBOMBING in full color
       fr.fillStyle(theme.bgTop, 1).fillRect(-114, -136, 226, 158);
       fr.fillStyle(theme.bgBottom, 1).fillRect(-114, -30, 226, 116);
-      fr.fillStyle(theme.glow, 0.5).fillCircle(-40, -80, 34);
-      fr.fillStyle(theme.accent2, 0.7).fillCircle(52, -104, 5);
+      fakeRadial(fr, { x: -40, y: -80, r: 40, color: theme.glow, steps: 4, aCenter: 0.5, aEdge: 0 });
+      fakeRadial(fr, { x: 52, y: -104, r: 12, color: theme.accent2, steps: 3, aCenter: 0.7, aEdge: 0 });
+      fr.fillStyle(theme.accent2, 0.9).fillCircle(52, -104, 4);
       this.star(fr, 66, -60, 7, theme.accent, 0.9);
       pol.add(fr);
       this.makeBolt(pol, 26, 48, { scale: 1.5, wag: false });
@@ -575,6 +610,7 @@ export default class RewardScene extends Phaser.Scene {
       const sx = rx - 96 + (i % 3) * 96;
       const sy = ay + 196 + Math.floor(i / 3) * 82;
       if (i < count) {
+        fakeRadial(sg, { x: sx, y: sy, r: 26, color: 0xffcf6b, steps: 4, aCenter: 0.22, aEdge: 0 });
         this.star(sg, sx, sy, 22, 0xe8a93e, 1);
         this.star(sg, sx - 5, sy - 6, 6, 0xfff3c8, 0.9);
       } else {
@@ -632,6 +668,7 @@ export default class RewardScene extends Phaser.Scene {
     for (let i = 0; i < 3; i++) {
       g.lineStyle(5 - i, 0xf6f0ff, 0.8).strokeCircle(ex + (i % 2 ? 3 : -2), ey + (i % 2 ? -2 : 3), 118 - i * 9);
     }
+    fakeRadial(g, { x: ex, y: ey, r: 60, color: 0xff4dd2, steps: 4, aCenter: 0.2, aEdge: 0 });
     g.fillStyle(0xff4dd2, 0.9).fillCircle(ex, ey, 44);
     g.fillStyle(0x221e38, 1).fillRect(ex - 7, ey - 40, 14, 80); // the slit pupil
     for (let i = 0; i < 8; i++) {
@@ -681,11 +718,12 @@ export default class RewardScene extends Phaser.Scene {
     const ag = this.add.graphics();
     ag.fillStyle(0x0b1030, 1).fillRoundedRect(-140, -96, 280, 192, 8);
     ag.fillStyle(0xeaf2ff, 0.8).fillCircle(-96, -62, 1.4).fillCircle(-30, -76, 1.2).fillCircle(60, -58, 1.4).fillCircle(104, -74, 1.2);
+    fakeRadial(ag, { x: 96, y: -56, r: 30, color: 0xfff3d0, steps: 4, aCenter: 0.22, aEdge: 0 });
     ag.fillStyle(0xfff3d0, 0.95).fillCircle(96, -56, 13);
     ag.fillStyle(0x0c1226, 1).fillEllipse(0, 68, 250, 52).fillRect(-134, 68, 268, 26);
     ag.fillStyle(0x10162c, 1).fillRect(-42, 6, 84, 40);
     ag.fillStyle(0x0b1022, 1).fillTriangle(-52, 6, 52, 6, 0, -22);
-    ag.fillStyle(0xffd9a0, 0.16).fillCircle(-2, 24, 30);
+    fakeRadial(ag, { x: -2, y: 24, r: 38, color: 0xffd9a0, steps: 5, aCenter: 0.24, aEdge: 0 });
     ag.fillStyle(0xffd9a0, 0.95).fillRoundedRect(-16, 12, 30, 24, 4);
     ag.lineStyle(2, 0x8a5c34, 1).strokeCircle(-1, 27, 7);   // Bolt's curl in the window
     ag.fillStyle(0xff4dd2, 1).fillCircle(0, 26, 2.4);        // KOBI in the middle of it

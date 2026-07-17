@@ -26,6 +26,7 @@ import Phaser from "phaser";
 import { COLORS, FONT, FS, TEXT } from "../constants.js";
 import { initAudio, sfx, playTrack, installMute, playForText } from "../audio.js";
 import { pads } from "../pad.js";
+import { glassPanel, specular, fakeRadial, ringGlow } from "../ui/paint.js";
 
 // The storybook. Seven pages, each a drawn scene plus its END- caption beats
 // (FINALE_BIBLE "Epilogue pages" — lines verbatim; \n is layout only, the VO
@@ -255,8 +256,13 @@ export default class EpilogueScene extends Phaser.Scene {
     const kobi = who === "KOBI";
     const cg = this.capPlate;
     cg.clear();
-    cg.fillStyle(kobi ? 0x1a0f22 : COLORS.hudBg, 0.88).fillRoundedRect(x, y, w, h, 10);
-    cg.lineStyle(2, kobi ? 0xff4dd2 : 0xffb347, kobi ? 0.65 : 0.55).strokeRoundedRect(x, y, w, h, 10);
+    // frosted glass plate — KOBI magenta glass / NARR warm glass (same geometry)
+    glassPanel(cg, {
+      x, y, w, h, r: 10,
+      fill: kobi ? 0x1a0f22 : COLORS.hudBg, fillA: 0.88,
+      accent: kobi ? 0xff4dd2 : 0xffb347, borderA: kobi ? 0.65 : 0.55,
+      glowA: kobi ? 0.16 : 0.12, sheenA: 0.045,
+    });
     this.speakerTag.setText(kobi ? "K.O.B.I." : "NARRATOR").setColor(kobi ? "#ff8fe6" : "#ffcf9a");
   }
 
@@ -351,16 +357,28 @@ export default class EpilogueScene extends Phaser.Scene {
     const bg = this.add.graphics();
     bg.fillStyle(dark);
     [-14, -4, 8, 16].forEach((lx) => bg.fillRoundedRect(lx, 4, 6, 8, 2));
+    // body / haunch / head — same silhouette, now with soft 4-tone shading
     bg.fillStyle(body).fillRoundedRect(-18, -10, 36, 16, 7);
     bg.fillStyle(body).fillCircle(-15, -4, 8);
     bg.fillStyle(body).fillCircle(20, -12, 9);
     bg.fillStyle(body).fillRoundedRect(26, -12, 11, 8, 3);
+    // under-shade hugging the belly + haunch, then a soft top-light sheen
+    bg.fillStyle(dark, 0.4).fillEllipse(-2, 3, 32, 8);
+    bg.fillStyle(dark, 0.35).fillCircle(-15, -1, 8);
+    bg.fillStyle(0xffffff, 0.13).fillEllipse(-4, -10, 22, 5);
+    bg.fillStyle(0xffffff, 0.12).fillCircle(18, -15, 4.5);
     bg.fillStyle(dark).fillCircle(37, -8, 2);
     bg.fillStyle(opts.eye !== undefined ? opts.eye : 0x243046).fillCircle(23, -13, 2.4);
+    specular(bg, { x: 22, y: -14, w: 1.5, h: 1.5, a: 0.85 }); // eye catchlight
+    // the collar-bolt — a warm glowing accent stripe
+    bg.fillStyle(accent, 0.22).fillCircle(11.5, -2, 8);
+    bg.fillStyle(accent, 0.12).fillCircle(11.5, -2, 12);
     bg.fillStyle(accent).fillRect(10, -10, 3, 16);
+    specular(bg, { x: 11.5, y: -7, w: 1, h: 3, a: 0.6 });
     bg.fillStyle(dark).fillTriangle(14, -22, 20, -20, 17, -12);
     const tail = this.add.graphics({ x: -17, y: -6 });
     tail.fillStyle(body).fillRoundedRect(-2.5, -13, 5, 14, 2.5);
+    tail.fillStyle(accent, 0.3).fillCircle(0, -13, 5); // glow behind the wagging tip
     tail.fillStyle(accent).fillCircle(0, -13, 3);
     tail.setAngle(28);
     bolt.add([bg, tail]);
@@ -373,13 +391,20 @@ export default class EpilogueScene extends Phaser.Scene {
     return bolt;
   }
 
-  // KOBI, the little eye-bot — warm ring (magenta duty -> amber home).
+  // KOBI, the little eye-bot — warm glowing ring (magenta duty -> amber home),
+  // glassy sclera, deep-glow iris (the V2 character identity, shrunk to cameo).
   makeKobi(parent, x, y, r, opts = {}) {
+    const ring = opts.ring !== undefined ? opts.ring : 0xffb347;
+    const iris = opts.iris !== undefined ? opts.iris : 0xff4dd2;
     const k = this.add.graphics({ x, y });
-    k.fillStyle(0x1a1024, 1).fillCircle(0, 0, r);
-    k.lineStyle(Math.max(2, r * 0.13), opts.ring !== undefined ? opts.ring : 0xffb347, 0.95).strokeCircle(0, 0, r);
-    k.fillStyle(0xf6f0ff, 0.95).fillCircle(0, 0, r * 0.65);
-    k.fillStyle(opts.iris !== undefined ? opts.iris : 0xff4dd2, 1).fillCircle(r * 0.1, r * 0.05, r * 0.3);
+    k.fillStyle(0x1a1024, 1).fillCircle(0, 0, r);                 // armored housing
+    ringGlow(k, { x: 0, y: 0, r, color: ring, width: Math.max(2, r * 0.13) }); // lit duty ring
+    k.fillStyle(0xf6f0ff, 0.95).fillCircle(0, 0, r * 0.65);       // glassy sclera
+    k.fillStyle(0xd8e2ff, 0.45).fillCircle(0, r * 0.14, r * 0.55); // cool glass underglow
+    fakeRadial(k, { x: r * 0.1, y: r * 0.05, r: r * 0.5, color: iris, steps: 4, aCenter: 0.5, aEdge: 0 });
+    k.fillStyle(iris, 1).fillCircle(r * 0.1, r * 0.05, r * 0.3);  // deep-glow iris
+    k.fillStyle(0xffffff, 0.5).fillCircle(r * 0.02, -r * 0.03, r * 0.09); // catchlight
+    specular(k, { x: -r * 0.24, y: -r * 0.26, w: r * 0.2, h: r * 0.13, a: 0.85 }); // glass highlight
     if (opts.lid !== false) k.fillStyle(0x1a1024, 1).fillRect(-r * 0.7, -r * 0.7, r * 1.4, r * 0.45); // sleepy lid
     parent.add(k);
     return k;
@@ -388,17 +413,19 @@ export default class EpilogueScene extends Phaser.Scene {
   // --- the shared night sky (E1 / E2 / E6 / E7 sit under it) --------------------
   buildNight(W, H) {
     const g = this.add.graphics().setDepth(0);
-    // dusk gradient: banded fills (canvas-safe fake gradient)
-    const top = [0x0b1030, 0x141a44, 0x232156, 0x3a2a5e];
-    top.forEach((c, i) => g.fillStyle(c, 1).fillRect(0, (H * 0.62 * i) / 4, W, (H * 0.62) / 4 + 2));
-    g.fillStyle(0x4a3560, 1).fillRect(0, H * 0.62, W, H * 0.1); // horizon haze
+    // dusk gradient: a richer 7-band fake gradient (deep night -> warm horizon)
+    const top = [0x080a24, 0x0d1030, 0x141a44, 0x1e2150, 0x2b2559, 0x3a2a5e, 0x4a3560];
+    top.forEach((c, i) => g.fillStyle(c, 1).fillRect(0, (H * 0.62 * i) / top.length, W, (H * 0.62) / top.length + 2));
+    g.fillStyle(0x5a3f62, 1).fillRect(0, H * 0.62, W, H * 0.1);   // horizon haze
+    g.fillStyle(0xffcf8f, 0.06).fillRect(0, H * 0.6, W, H * 0.07); // warm ground-light bleed
     // stars (seeded)
     let seed = 43;
     const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
     for (let i = 0; i < 70; i++) {
       g.fillStyle(0xeaf2ff, 0.25 + rnd() * 0.6).fillCircle(rnd() * W, rnd() * H * 0.5, rnd() < 0.15 ? 1.6 : 1);
     }
-    // the moon
+    // the moon, with a soft baked halo
+    fakeRadial(g, { x: W - 180, y: 110, r: 74, color: 0xfff3d0, steps: 5, aCenter: 0.2, aEdge: 0 });
     g.fillStyle(0xfff3d0, 0.95).fillCircle(W - 180, 110, 34);
     g.fillStyle(0xe8d8ac, 0.5).fillCircle(W - 192, 102, 7).fillCircle(W - 168, 122, 5);
     // the yard: grass bands (E2/E6 ground; E1/E7 paint their own over it)
@@ -436,7 +463,9 @@ export default class EpilogueScene extends Phaser.Scene {
       const cone = this.add.graphics({ x: lx, y: H * 0.72 });
       cone.fillStyle(0xffd9a0, 0.08).fillTriangle(-9, -174, 9, -174, 74, 8).fillTriangle(9, -174, -9, -174, -74, 8);
       cone.fillStyle(0xffd9a0, 0.1).fillEllipse(0, 6, 160, 26);
+      fakeRadial(cone, { x: 0, y: -177, r: 22, color: 0xffd9a0, steps: 4, aCenter: 0.32, aEdge: 0 });
       cone.fillStyle(0xffd9a0, 0.95).fillCircle(0, -177, 7);
+      cone.fillStyle(0xfff6d8, 0.9).fillCircle(-1.5, -178.5, 2.4); // hot filament
       cont.add(cone);
       cont.add(lamp);
       this.tweens.add({ targets: cone, alpha: { from: 0.72, to: 1 }, duration: 1300 + i * 240, yoyo: true, repeat: -1, ease: "sine.inOut" });
@@ -467,15 +496,16 @@ export default class EpilogueScene extends Phaser.Scene {
   // --- E3 DAWN -------------------------------------------------------------------
   pageDawn(W, H, cont) {
     const g = this.add.graphics();
-    const sky = [0x2a2150, 0x5a3a6e, 0x9a5570, 0xd8875f, 0xf7b46a];
-    sky.forEach((c, i) => g.fillStyle(c, 1).fillRect(0, (H * 0.8 * i) / 5, W, (H * 0.8) / 5 + 2));
+    // a fuller dawn ramp: violet night bleeding up into warm sunrise amber
+    const sky = [0x241a4a, 0x3a2858, 0x6a4270, 0x9a5570, 0xc87560, 0xe89a5e, 0xf7b46a];
+    sky.forEach((c, i) => g.fillStyle(c, 1).fillRect(0, (H * 0.8 * i) / sky.length, W, (H * 0.8) / sky.length + 2));
     g.fillStyle(0xf7b46a, 1).fillRect(0, H * 0.8, W, H * 0.2);
     cont.add(g);
     // the sun, rising (KOBI's BIG LIGHT — the climb tweens in on page-show)
     const sun = this.add.graphics({ x: W * 0.6, y: H * 0.66 });
-    sun.fillStyle(0xffe9a0, 0.22).fillCircle(0, 0, 66);
-    sun.fillStyle(0xffe9a0, 0.5).fillCircle(0, 0, 46);
+    fakeRadial(sun, { x: 0, y: 0, r: 82, color: 0xffe9a0, steps: 6, aCenter: 0.55, aEdge: 0 });
     sun.fillStyle(0xfff3c8, 1).fillCircle(0, 0, 30);
+    specular(sun, { x: -8, y: -8, w: 8, h: 6, a: 0.7 });
     cont.add(sun);
     this.dawnSun = sun;
     this.tweens.add({ targets: sun, alpha: { from: 0.88, to: 1 }, duration: 1100, yoyo: true, repeat: -1, ease: "sine.inOut" });
@@ -496,15 +526,17 @@ export default class EpilogueScene extends Phaser.Scene {
   // --- E4 THE ADOPTION -----------------------------------------------------------
   pageAdoption(W, H, cont) {
     const g = this.add.graphics();
-    const sky = [0x141232, 0x1e1840, 0x2c2052, 0x3c2a5e];
-    sky.forEach((c, i) => g.fillStyle(c, 1).fillRect(0, (H * 0.66 * i) / 4, W, (H * 0.66) / 4 + 2));
+    const sky = [0x120f2c, 0x181436, 0x221a44, 0x2c2052, 0x3c2a5e, 0x4a3358];
+    sky.forEach((c, i) => g.fillStyle(c, 1).fillRect(0, (H * 0.66 * i) / sky.length, W, (H * 0.66) / sky.length + 2));
     g.fillStyle(0x191430, 1).fillRect(0, H * 0.66, W, H * 0.34);
     // the house front, close up, with the door open on a warm hallway
     const base = H * 0.8, hx = W / 2 - 190;
     g.fillStyle(0x131a30, 1).fillRect(hx, base - 260, 380, 260);
     g.fillStyle(0x0e1426, 1).fillTriangle(hx - 30, base - 260, hx + 410, base - 260, hx + 190, base - 350);
     g.fillStyle(0x241a10, 1).fillRect(hx + 150, base - 150, 90, 150);
+    fakeRadial(g, { x: hx + 195, y: base - 100, r: 96, color: 0xffd9a0, steps: 5, aCenter: 0.18, aEdge: 0 });
     g.fillStyle(0xffd9a0, 0.95).fillRect(hx + 158, base - 142, 74, 142);
+    g.fillStyle(0xfff3d8, 0.5).fillRect(hx + 158, base - 142, 74, 26); // warm top-light in the hall
     g.fillStyle(0x0e1426, 1).fillRect(hx + 40, base - 190, 52, 44);  // dark windows —
     g.fillStyle(0x0e1426, 1).fillRect(hx + 290, base - 190, 52, 44); // everyone's at the door
     g.fillStyle(0x1a2338, 1).fillRect(hx - 40, base, 460, 12); // porch
@@ -537,7 +569,9 @@ export default class EpilogueScene extends Phaser.Scene {
     g.fillStyle(0x0b1030, 1).fillRoundedRect(W * 0.66, 90, 180, 136, 8);
     g.lineStyle(4, 0x2a2140, 1).strokeRoundedRect(W * 0.66, 90, 180, 136, 8);
     g.lineBetween(W * 0.66 + 90, 92, W * 0.66 + 90, 224);
+    fakeRadial(g, { x: W * 0.66 + 126, y: 130, r: 40, color: 0xdfe8ff, steps: 4, aCenter: 0.22, aEdge: 0 });
     g.fillStyle(0xfff3d0, 0.95).fillCircle(W * 0.66 + 126, 130, 18);
+    specular(g, { x: W * 0.66 + 120, y: 124, w: 4, h: 3, a: 0.6 });
     // the bed
     const bx = W * 0.36, by = H * 0.72;
     g.fillStyle(0x2a1d38, 1).fillRoundedRect(bx - 170, by - 92, 24, 104, 6);
@@ -602,7 +636,7 @@ export default class EpilogueScene extends Phaser.Scene {
     inner.add(g);
     // the one glowing window — Bolt curled around KOBI inside, lights on forever
     const win = this.add.graphics({ x: hx - 4, y: hy - 22 });
-    win.fillStyle(0xffd9a0, 0.16).fillCircle(0, 0, 34);
+    fakeRadial(win, { x: 0, y: 0, r: 44, color: 0xffd9a0, steps: 5, aCenter: 0.24, aEdge: 0 });
     win.fillStyle(0xffd9a0, 0.95).fillRoundedRect(-16, -13, 32, 26, 4);
     win.lineStyle(2, 0x8a5c34, 1).strokeCircle(0, 3, 7.5); // Bolt's curl
     win.fillStyle(0x8a5c34, 1).fillCircle(-6, 5, 2.6);     // his nose, tucked in
@@ -621,7 +655,7 @@ export default class EpilogueScene extends Phaser.Scene {
     const cont = this.add.container(0, 0).setVisible(false).setDepth(18);
     cont.add(this.add.rectangle(W / 2, H / 2, W, H, 0x02040a, 0.94));
     const pool = this.add.graphics({ x: W / 2, y: H * 0.4 });
-    pool.fillStyle(0xffd9a0, 0.07).fillCircle(0, 0, 130);
+    fakeRadial(pool, { x: 0, y: 0, r: 150, color: 0xffd9a0, steps: 6, aCenter: 0.1, aEdge: 0 });
     pool.fillStyle(0xffd9a0, 0.05).fillEllipse(0, H * 0.34, 460, 80);
     cont.add(pool);
     this.tweens.add({ targets: pool, alpha: { from: 0.7, to: 1 }, duration: 1600, yoyo: true, repeat: -1, ease: "sine.inOut" });
@@ -670,6 +704,8 @@ export default class EpilogueScene extends Phaser.Scene {
     // the house silhouette + warm windows
     g.fillStyle(0x131a30, 1).fillRect(hx, base - 170, 250, 170);
     g.fillStyle(0x0e1426, 1).fillTriangle(hx - 22, base - 170, hx + 272, base - 170, hx + 125, base - 240);
+    fakeRadial(g, { x: hx + 54, y: base - 113, r: 46, color: 0xffd9a0, steps: 4, aCenter: 0.16, aEdge: 0 });
+    fakeRadial(g, { x: hx + 196, y: base - 113, r: 46, color: 0xffc880, steps: 4, aCenter: 0.16, aEdge: 0 });
     g.fillStyle(0xffd9a0, 0.95).fillRect(hx + 34, base - 130, 40, 34);
     g.fillStyle(0xffc880, 0.9).fillRect(hx + 176, base - 130, 40, 34);
     g.lineStyle(2, 0x131a30).lineBetween(hx + 54, base - 130, hx + 54, base - 96);
