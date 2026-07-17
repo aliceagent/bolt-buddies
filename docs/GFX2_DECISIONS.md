@@ -5,3 +5,4 @@
 - D3: Color expansion is ADDITIVE at the token level (new COLORS entries + new WORLD_THEMES fields accent3/warmth); existing token keys keep working, values enriched only where nothing asserts them.
 - D4: Canvas renderer remains the reference tier (tests run ?canvas=1); WebGL-only effects must degrade safely.
 - D5: Working name for the style: "Lumen Lab".
+- D6: KOBI iris unified to magenta everywhere (blip-bar + onboard were red; Title/Hub canon is magenta) — one character identity across surfaces.
