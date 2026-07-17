@@ -136,5 +136,47 @@ export function ringGlow(g, spec) {
   g.lineStyle(width, color, 0.9).strokeCircle(x, y, r);
 }
 
+// --- glassPanel ---------------------------------------------------------------
+// The shared HUD/overlay "frosted glass" recipe as a pure-draw helper: a
+// translucent fill → a baked diagonal sheen glaze → a 1.5px near-white top-edge
+// highlight lip → an optional soft outer accent glow ring → the accent border on
+// top (so it stays crisp). Geometry only — the caller owns any text/children.
+// Mirrors ui/kit.js neonPanel but WITHOUT a header bar, so HUD plates, the mute
+// panel and GameScene's drawn cards all share one glass language. Defaults lean
+// on the dark HUD backing (COLORS.hudBg) since these plates sit over gameplay.
+export function glassPanel(g, spec) {
+  const {
+    x, y, w, h, r = 10, fill = COLORS.hudBg, fillA = 0.82,
+    accent = COLORS.neon, borderW = 2, borderA = 0.9,
+    glow = true, glowW = 6, glowA = 0.16, glowInf = 3,
+    highlight = true, sheenA = 0.05,
+  } = spec;
+  g.fillStyle(fill, fillA).fillRoundedRect(x, y, w, h, r);
+  if (sheenA > 0) sheen(g, { x, y, w, h, a: sheenA });
+  if (highlight) g.lineStyle(1.5, GLASS_HI, 0.1).lineBetween(x + r, y + 1.5, x + w - r, y + 1.5);
+  if (glow) g.lineStyle(glowW, accent, glowA).strokeRoundedRect(x - glowInf, y - glowInf, w + glowInf * 2, h + glowInf * 2, r + glowInf);
+  g.lineStyle(borderW, accent, borderA).strokeRoundedRect(x, y, w, h, r);
+}
+
+// --- iconChip -----------------------------------------------------------------
+// The subtle frosted-glass backing behind a 26×26 skill glyph (V5 HUD icons): a
+// dark translucent rounded chip → a diagonal sheen glaze → a thin top-edge lip →
+// a thin same-accent border, so the small glowing glyph reads on any background
+// while staying crisp at HUD size. Draw the glyph (with its own glow) on top.
+export function iconChip(g, accent, opts = {}) {
+  const { s = 26, r = 6, m = 1.5, fillA = 0.42, borderA = 0.55 } = opts;
+  const iw = s - m * 2;
+  g.fillStyle(0x0c1220, fillA).fillRoundedRect(m, m, iw, iw, r);
+  sheen(g, { x: m, y: m, w: iw, h: iw, a: 0.06 });
+  g.lineStyle(1, GLASS_HI, 0.12).lineBetween(m + r, m + 1, s - m - r, m + 1);
+  g.lineStyle(1.5, accent, borderA).strokeRoundedRect(m, m, iw, iw, r);
+}
+
+// A small soft radial glow behind a glyph feature (fakeRadial tuned for the tiny
+// 26px icons — one call, low centre alpha so it lifts the glyph without haze).
+export function iconGlow(g, x, y, r, color, a = 0.22) {
+  fakeRadial(g, { x, y, r, color, steps: 4, aCenter: a, aEdge: 0 });
+}
+
 // Re-export the near-white glass highlight tone so kit/paint consumers share it.
 export const GLASS_HI = COLORS.glassHi != null ? COLORS.glassHi : 0xffffff;

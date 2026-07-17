@@ -6,7 +6,7 @@ import { uxTextSpeed } from "../ux.js";
 import { pads } from "../pad.js";
 import { drawIris, irisMaxR } from "../ui/kit.js";
 import { MOTION } from "../anim/motion.js";
-import { ringGlow } from "../ui/paint.js";
+import { ringGlow, glassPanel, sheen, GLASS_HI } from "../ui/paint.js";
 
 
 const SKILL_ICON = { grapple: "icon_grapple", heavy: "icon_heavy", phase: "icon_phase", tiny: "icon_tiny" };
@@ -26,6 +26,9 @@ for (let i = 0; i < 6; i++) {
   const a = (Math.PI / 180) * (60 * i - 90);
   HEX.push(new Phaser.Geom.Point(11 * Math.cos(a), 11 * Math.sin(a)));
 }
+// GFX2 "Lumen Lab": a smaller, upward-shifted hex used as the gem's lit top facet
+// (same HEX geometry, scaled — keeps the frozen pip footprint identical).
+const HEX_IN = HEX.map((p) => new Phaser.Geom.Point(p.x * 0.58, p.y * 0.58 - 1.6));
 
 // Default KOBI mood from the line's tone when a blip carries no explicit tag:
 // he's smug (gloating) most of the time, spits when a plan backfires (angry),
@@ -65,15 +68,14 @@ export default class UIScene extends Phaser.Scene {
       fontFamily: FONT, fontSize: FS.body, fontStyle: "bold", color: "#cdd8f5",
     }).setOrigin(0.5, 0);
     const tw = this.plateText.width;
-    plateBg.fillStyle(COLORS.hudBg, 0.7).fillRoundedRect(W / 2 - tw / 2 - 16, 9, tw + 32, 26, 9);
-    plateBg.lineStyle(1, theme.accent, 0.35).strokeRoundedRect(W / 2 - tw / 2 - 16, 9, tw + 32, 26, 9);
+    // GFX2 "Lumen Lab" glass plates: translucent fill + sheen + top-edge lip.
+    glassPanel(plateBg, { x: W / 2 - tw / 2 - 16, y: 9, w: tw + 32, h: 26, r: 9, accent: theme.accent, fillA: 0.72, borderW: 1, borderA: 0.42, glow: false });
     this.add.rectangle(W / 2, 38, tw + 10, 3, theme.accent, 0.9);
 
     // --- core pip tray + key chip ---------------------------------------------
     const trayW = 92;
     const tray = this.add.graphics();
-    tray.fillStyle(COLORS.hudBg, 0.66).fillRoundedRect(W / 2 - trayW / 2, 50, trayW, 26, 8);
-    tray.lineStyle(1, theme.accent, 0.35).strokeRoundedRect(W / 2 - trayW / 2, 50, trayW, 26, 8);
+    glassPanel(tray, { x: W / 2 - trayW / 2, y: 50, w: trayW, h: 26, r: 8, accent: theme.accent, fillA: 0.7, borderW: 1, borderA: 0.42, glow: false });
     this.coreState = [false, false, false];
     this.corePips = [0, 1, 2].map((i) => {
       const g = this.add.graphics().setPosition(W / 2 - 26 + i * 26, 63);
@@ -96,8 +98,7 @@ export default class UIScene extends Phaser.Scene {
     });
     // key chip (hidden until at least one key is held)
     this.keyChip = this.add.graphics().setVisible(false);
-    this.keyChip.fillStyle(COLORS.hudBg, 0.72).fillRoundedRect(W / 2 + 52, 50, 56, 26, 8);
-    this.keyChip.lineStyle(1, 0xffd94d, 0.6).strokeRoundedRect(W / 2 + 52, 50, 56, 26, 8);
+    glassPanel(this.keyChip, { x: W / 2 + 52, y: 50, w: 56, h: 26, r: 8, accent: 0xffd94d, fillA: 0.74, borderW: 1, borderA: 0.62, glow: false });
     this.keyIcon = this.add.image(W / 2 + 68, 63, "key").setScale(0.6).setVisible(false);
     this.keyText = this.add.text(W / 2 + 82, 55, "", { fontFamily: FONT, fontSize: FS.body, fontStyle: "bold", color: "#ffd94d" }).setVisible(false);
     this._keysPrev = 0; // P9: track 0→>0 so the chip only bounce-spins on first collect
@@ -125,9 +126,13 @@ export default class UIScene extends Phaser.Scene {
     this.winDim = this.add.rectangle(W / 2, H / 2, W, H, 0x02040a, 0.85).setAlpha(0);
     const pw = 620, ph = 320;
     const pg = this.add.graphics();
-    pg.fillStyle(COLORS.panel, 0.97).fillRoundedRect(-pw / 2, -ph / 2, pw, ph, 18);
-    pg.lineStyle(3, this.accent, 1).strokeRoundedRect(-pw / 2, -ph / 2, pw, ph, 18);
+    // GFX2 "Lumen Lab" glass clear-panel: frosted fill + diagonal sheen + top-edge
+    // lip, keeping its strong accent border and soft outer glow ring.
+    pg.fillStyle(COLORS.panel, 0.9).fillRoundedRect(-pw / 2, -ph / 2, pw, ph, 18);
+    sheen(pg, { x: -pw / 2, y: -ph / 2, w: pw, h: ph, a: 0.05 });
+    pg.lineStyle(1.5, GLASS_HI, 0.1).lineBetween(-pw / 2 + 18, -ph / 2 + 1.5, pw / 2 - 18, -ph / 2 + 1.5);
     pg.lineStyle(7, this.accent, 0.16).strokeRoundedRect(-pw / 2 - 4, -ph / 2 - 4, pw + 8, ph + 8, 21);
+    pg.lineStyle(3, this.accent, 1).strokeRoundedRect(-pw / 2, -ph / 2, pw, ph, 18);
     // P8: soft top-light gradient over the clear panel — a gentle key light from
     // above (inset clear of the rounded corners; cheap non-additive cached image).
     const winTopLight = this.add.image(0, -ph / 2 + 6, "toplight")
@@ -377,25 +382,35 @@ export default class UIScene extends Phaser.Scene {
   buildConfetti() {
     if (!this.textures.exists("bbConfetti")) {
       const cg = this.make.graphics({ x: 0, y: 0, add: false });
+      // GFX2 "Lumen Lab": smoother bolt + gear confetti — soft-shaded pieces with
+      // a top-light sheen and a warm rim, so the burst reads as tumbling metal.
       // frame 0 — hex bolt head (0..16)
       const bx = 8, by = 8, br = 6;
-      cg.fillStyle(0xffd24d, 1).beginPath();
-      for (let k = 0; k < 6; k++) {
-        const a = Math.PI / 6 + k * Math.PI / 3;
-        const x = bx + Math.cos(a) * br, y = by + Math.sin(a) * br;
-        if (k === 0) cg.moveTo(x, y); else cg.lineTo(x, y);
-      }
-      cg.closePath(); cg.fillPath();
+      const hex = (cx, cy, rr) => {
+        cg.beginPath();
+        for (let k = 0; k < 6; k++) {
+          const a = Math.PI / 6 + k * Math.PI / 3;
+          const x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr;
+          if (k === 0) cg.moveTo(x, y); else cg.lineTo(x, y);
+        }
+        cg.closePath(); cg.fillPath();
+      };
+      cg.fillStyle(0xe89a2c, 1); hex(bx, by, br);           // under-shade
+      cg.fillStyle(0xffd24d, 1); hex(bx, by - 0.7, br - 0.7); // lit cap
+      cg.fillStyle(0xffe9a8, 0.7); hex(bx, by - 1.6, br * 0.5); // top sheen
       cg.fillStyle(0x241704, 1).fillCircle(bx, by, 2);
-      // frame 1 — little gear (16..32)
+      cg.fillStyle(0xfff4cf, 0.8).fillCircle(bx - 0.8, by - 0.8, 0.7); // spec pip
+      // frame 1 — little gear (16..32): rounded teeth + soft-shaded hub
       const gx = 24, gy = 8;
-      cg.fillStyle(0xffb347, 1);
+      cg.fillStyle(0xe08f2f, 1);
       for (let k = 0; k < 8; k++) {
         const a = k * Math.PI / 4;
-        cg.fillRect(gx + Math.cos(a) * 5 - 1.4, gy + Math.sin(a) * 5 - 1.4, 2.8, 2.8);
+        cg.fillCircle(gx + Math.cos(a) * 5.4, gy + Math.sin(a) * 5.4, 1.7); // rounded teeth
       }
-      cg.fillCircle(gx, gy, 4.6);
-      cg.fillStyle(0x241704, 1).fillCircle(gx, gy, 1.8);
+      cg.fillStyle(0xffb347, 1).fillCircle(gx, gy, 4.8);   // hub base
+      cg.fillStyle(0xffcf7a, 0.9).fillCircle(gx - 0.6, gy - 0.9, 3.2); // top-light
+      cg.fillStyle(0x241704, 1).fillCircle(gx, gy, 1.8);   // bore
+      cg.fillStyle(0xfff4cf, 0.8).fillCircle(gx - 1.4, gy - 1.4, 0.8); // spec pip
       cg.generateTexture("bbConfetti", 32, 16);
       cg.destroy();
       const tex = this.textures.get("bbConfetti");
@@ -458,12 +473,14 @@ export default class UIScene extends Phaser.Scene {
     const hex = P_HEX[idx];
 
     const g = this.add.graphics();
-    g.fillStyle(COLORS.hudBg, 0.72).fillRoundedRect(x, y, w, h, 11);
-    g.lineStyle(2, col, 0.85).strokeRoundedRect(x, y, w, h, 11);
+    // GFX2 "Lumen Lab" glass plate: translucent fill + sheen + top-edge lip +
+    // player-colour border with a soft outer glow.
+    glassPanel(g, { x, y, w, h, r: 11, accent: col, fillA: 0.82, borderA: 0.9, glowA: 0.16 });
 
-    // skill-icon chip
+    // skill-icon chip (glassy recessed square with its own top-edge lip)
     const chipX = left ? x + 8 : x + w - 8 - 30;
     g.fillStyle(0x141d33, 0.9).fillRoundedRect(chipX, y + 9, 30, 30, 7);
+    g.lineStyle(1, 0xffffff, 0.1).lineBetween(chipX + 6, y + 10.5, chipX + 24, y + 10.5);
     g.lineStyle(2, col, 0.7).strokeRoundedRect(chipX, y + 9, 30, 30, 7);
     const cCx = chipX + 15, cCy = y + 24;
     const icon = this.add.image(cCx, cCy, "core").setScale(0.86).setVisible(false);
@@ -488,6 +505,7 @@ export default class UIScene extends Phaser.Scene {
 
   drawKeycap(g, x, y, w, h, col, alpha) {
     g.fillStyle(0x1a2338, 0.85).fillRoundedRect(x, y, w, h, 5);
+    g.fillStyle(0xffffff, 0.08).fillRoundedRect(x + 2, y + 2, w - 4, h * 0.4, 4); // glass top gloss
     g.lineStyle(1.5, col, alpha).strokeRoundedRect(x, y, w, h, 5);
   }
 
@@ -509,10 +527,16 @@ export default class UIScene extends Phaser.Scene {
   drawPip(g, filled) {
     g.clear();
     if (filled) {
+      // GFX2 "Lumen Lab" gem pip (same HEX footprint): soft glow → hex body →
+      // a lighter upper facet → a bright specular pip → crisp white rim.
+      g.fillStyle(this.accent, 0.18).fillCircle(0, 0, 13);
       g.fillStyle(this.accent, 1).fillPoints(HEX, true);
+      g.fillStyle(0xffffff, 0.24).fillPoints(HEX_IN, true); // lit top facet
+      g.fillStyle(0xffffff, 0.9).fillCircle(-3, -4, 1.8);   // specular
       g.lineStyle(2, 0xffffff, 0.85).strokePoints(HEX, true, true);
     } else {
       g.fillStyle(0x161f36, 0.7).fillPoints(HEX, true);
+      g.fillStyle(0xffffff, 0.05).fillPoints(HEX_IN, true); // faint glass facet
       g.lineStyle(2, this.accent, 0.45).strokePoints(HEX, true, true);
     }
   }
@@ -527,8 +551,9 @@ export default class UIScene extends Phaser.Scene {
     this.blipBar = this.add.container(0, 0).setVisible(false);
 
     const bg = this.add.graphics();
-    bg.fillStyle(COLORS.hudBg, 0.88).fillRoundedRect(x0, y0, w, h, 10);
-    bg.lineStyle(2, COLORS.magenta, 0.7).strokeRoundedRect(x0, y0, w, h, 10);
+    // GFX2 "Lumen Lab" glass blip bar (same geometry): frosted fill + sheen +
+    // top-edge lip + magenta border. The mood glow ring (blipGlow) rides on top.
+    glassPanel(bg, { x: x0, y: y0, w, h, r: 10, accent: COLORS.magenta, fillA: 0.86, borderA: 0.7, glow: false });
 
     // pulsing border glow (only while a blip is on screen). Colour follows KOBI's
     // mood — recoloured in applyKobiMood; stored geometry keeps it alloc-free.

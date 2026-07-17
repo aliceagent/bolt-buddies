@@ -4,6 +4,7 @@ import {
   initAudio, sfx, getMuteState, getAudioSettings,
   setMusicVolume, setSfxVolume, setVoiceVolume, toggleMute,
 } from "../audio.js";
+import { sheen, GLASS_HI } from "../ui/paint.js";
 
 // Global audio dropdown (always-on-top overlay scene).
 //
@@ -45,9 +46,14 @@ export default class MuteScene extends Phaser.Scene {
 
     // dropdown panel (pooled, built once, toggled visible)
     this.panelGfx = this.add.graphics().setDepth(1000).setVisible(false);
-    this.panelGfx.fillStyle(COLORS.panel, 0.97).fillRoundedRect(PANEL.x, PANEL.y, PANEL.w, PANEL.h, PANEL.r);
-    this.panelGfx.lineStyle(2, COLORS.panelEdge, 1).strokeRoundedRect(PANEL.x, PANEL.y, PANEL.w, PANEL.h, PANEL.r);
+    // GFX2 "Lumen Lab" glass panel (coords/geometry FROZEN): frosted fill +
+    // diagonal sheen + top-edge lip, keeping the panel-edge border and the soft
+    // neon outer glow ring exactly where they were.
+    this.panelGfx.fillStyle(COLORS.panel, 0.88).fillRoundedRect(PANEL.x, PANEL.y, PANEL.w, PANEL.h, PANEL.r);
+    sheen(this.panelGfx, { x: PANEL.x, y: PANEL.y, w: PANEL.w, h: PANEL.h, a: 0.05 });
+    this.panelGfx.lineStyle(1.5, GLASS_HI, 0.1).lineBetween(PANEL.x + PANEL.r, PANEL.y + 1.5, PANEL.x + PANEL.w - PANEL.r, PANEL.y + 1.5);
     this.panelGfx.lineStyle(6, COLORS.neon, 0.12).strokeRoundedRect(PANEL.x - 3, PANEL.y - 3, PANEL.w + 6, PANEL.h + 6, PANEL.r + 3);
+    this.panelGfx.lineStyle(2, COLORS.panelEdge, 1).strokeRoundedRect(PANEL.x, PANEL.y, PANEL.w, PANEL.h, PANEL.r);
 
     this.title = this.add.text(PANEL.x + PANEL.w / 2, PANEL.y + 16, "AUDIO", {
       fontFamily: FONT, fontSize: FS.mini, fontStyle: "bold", color: TEXT.neon,
@@ -160,10 +166,14 @@ export default class MuteScene extends Phaser.Scene {
       if (fw > 1) {
         g.fillStyle(muted ? COLORS.amber : COLORS.neon, muted ? 0.5 : 0.95).fillRoundedRect(TRACK.lx, y - 4, fw, 8, 4);
       }
-      // knob
+      // knob — a soft accent glow behind the white cap (geometry: cap r=6 fixed)
       const kx = TRACK.lx + fw;
+      const knobCol = muted ? COLORS.amber : COLORS.neon;
+      g.fillStyle(knobCol, 0.18).fillCircle(kx, y, 11);
+      g.fillStyle(knobCol, 0.28).fillCircle(kx, y, 8);
       g.fillStyle(0xffffff, 1).fillCircle(kx, y, 6);
-      g.lineStyle(2, muted ? COLORS.amber : COLORS.neon, 1).strokeCircle(kx, y, 6);
+      g.fillStyle(0xffffff, 0.9).fillCircle(kx - 1.6, y - 1.8, 1.8); // specular
+      g.lineStyle(2, knobCol, 1).strokeCircle(kx, y, 6);
       // value %
       r.value.setText(Math.round(frac * 100) + "%");
       r.value.setColor(muted ? "#ff8a99" : TEXT.good);
@@ -185,7 +195,11 @@ export default class MuteScene extends Phaser.Scene {
     const sfxOff = s.sfxMuted || s.sfx <= 0;
     g.clear();
     const border = all ? COLORS.hazard : (musicOff || sfxOff) ? COLORS.amber : COLORS.neon;
+    // GFX2 "Lumen Lab" glass glyph chrome (GLYPH geometry FROZEN): frosted fill +
+    // sheen + top-edge lip under the state-coloured border.
     g.fillStyle(COLORS.hudBg, 0.82).fillRoundedRect(cx - GLYPH.w / 2, cy - GLYPH.h / 2, GLYPH.w, GLYPH.h, 8);
+    sheen(g, { x: cx - GLYPH.w / 2, y: cy - GLYPH.h / 2, w: GLYPH.w, h: GLYPH.h, a: 0.05 });
+    g.lineStyle(1, GLASS_HI, 0.12).lineBetween(cx - GLYPH.w / 2 + 8, cy - GLYPH.h / 2 + 1.5, cx + GLYPH.w / 2 - 8, cy - GLYPH.h / 2 + 1.5);
     g.lineStyle(2, border, 0.95).strokeRoundedRect(cx - GLYPH.w / 2, cy - GLYPH.h / 2, GLYPH.w, GLYPH.h, 8);
 
     const sx = cx - 12;

@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { COLORS, WORLD_THEMES, PARTICLES } from "../constants.js";
-import { softBody, specular, sheen, haloCircle, ringGlow, fakeRadial, glowShape } from "../ui/paint.js";
+import { softBody, specular, sheen, haloCircle, ringGlow, fakeRadial, glowShape, iconChip, iconGlow } from "../ui/paint.js";
 
 // Every texture in the game is generated here with Graphics — zero asset files.
 export default class BootScene extends Phaser.Scene {
@@ -1387,15 +1387,31 @@ export default class BootScene extends Phaser.Scene {
       g.fillStyle(PARTICLES.steam.body, 0.14).fillRect(6, 12, 14, 4); // cool steam breath
       g.fillStyle(PARTICLES.steam.core, 0.7).fillRect(11, 12, 4, 3); // hot jet mouth
     });
+    // GFX2 "Lumen Lab" HUD skill icons: a subtle frosted-glass chip backing +
+    // a glowing glyph in the skill's SKILL_INFO colour, readable at 26px badge
+    // size. Glyph content is kept inside ~[3,23] so it never touches the chip rim.
     make("icon_phase", 26, 26, (g) => {
-      g.fillStyle(0xc39dff, 0.5).fillRect(2, 2, 10, 22);
-      g.fillStyle(0xc39dff).fillCircle(17, 10, 6);
-      g.fillStyle(0xc39dff).fillRect(13, 14, 8, 9);
+      const C = 0xc39dff;
+      iconChip(g, C);
+      // shimmer wall the ghost is stepping through (left band)
+      g.fillStyle(C, 0.22).fillRoundedRect(4, 5, 5, 16, 2);
+      g.fillStyle(C, 0.6).fillRect(6, 5, 1.5, 16);
+      // ghost body — soft glow, then a bright rounded form phasing through
+      iconGlow(g, 15, 13, 9, C, 0.24);
+      g.fillStyle(0xefe6ff, 1).fillCircle(15, 11, 5);
+      g.fillStyle(0xefe6ff, 1).fillRoundedRect(10, 11, 10, 9, { tl: 5, tr: 5, bl: 2, br: 2 });
+      g.fillStyle(0x3a2a5c, 1).fillCircle(13.4, 11, 1.2).fillCircle(16.6, 11, 1.2);
     });
     make("icon_tiny", 26, 26, (g) => {
-      g.fillStyle(0x9dffc4).fillRoundedRect(7, 12, 12, 10, 3);
-      g.fillStyle(0x142018).fillRect(9, 15, 8, 4);
-      g.lineStyle(2, 0x9dffc4).strokeRect(2, 2, 22, 22);
+      const C = 0x9dffc4;
+      iconChip(g, C);
+      iconGlow(g, 13, 14, 8, C, 0.22);
+      // little robot: antenna, rounded body, glowing visor
+      g.lineStyle(1.5, C, 1).lineBetween(13, 11, 13, 7);
+      g.fillStyle(0xeafff2, 1).fillCircle(13, 6.2, 1.5);
+      g.fillStyle(C, 1).fillRoundedRect(8, 10, 10, 9, 3);
+      g.fillStyle(0x0e2018, 1).fillRoundedRect(9.5, 12, 7, 4, 2);
+      g.fillStyle(0xeafff2, 0.95).fillRect(10.6, 13, 2, 1.6);
     });
 
     // --- misc --------------------------------------------------------------
@@ -1417,14 +1433,27 @@ export default class BootScene extends Phaser.Scene {
       g.fillStyle(0xffffff, 0.1).fillRoundedRect(5, 4, 26, 7, 4); // top gloss
     });
     make("icon_grapple", 26, 26, (g) => {
-      g.lineStyle(3, COLORS.neon).lineBetween(4, 4, 17, 17);
-      g.lineStyle(3, COLORS.neon).strokeCircle(18, 18, 6);
-      g.fillStyle(COLORS.neon).fillCircle(4, 4, 3);
+      const C = COLORS.neon;
+      iconChip(g, C);
+      // rope from anchor to hook — soft glow pass, then the crisp line
+      g.lineStyle(4, C, 0.22).lineBetween(6, 6, 16, 16);
+      g.lineStyle(2, C, 1).lineBetween(6, 6, 16, 16);
+      g.fillStyle(0xd8fbff, 1).fillCircle(6, 6, 2.6); // anchor bolt
+      // hook claw ring (glow + bright open curl)
+      g.lineStyle(5, C, 0.22).strokeCircle(17, 17, 5.5);
+      g.lineStyle(2.5, 0xd8fbff, 1);
+      g.beginPath(); g.arc(17, 17, 5.5, Math.PI * 0.1, Math.PI * 1.2, false); g.strokePath();
     });
     make("icon_heavy", 26, 26, (g) => {
-      g.fillStyle(COLORS.amber).fillRect(3, 10, 20, 12);
-      g.fillStyle(COLORS.amber).fillRect(8, 4, 10, 8);
-      g.lineStyle(2, 0x8a5a10).strokeRect(3, 10, 20, 12);
+      const C = COLORS.amber;
+      iconChip(g, C);
+      iconGlow(g, 13, 15, 9, C, 0.2);
+      // kettlebell weight — soft-shaded round body + a glowing handle
+      g.lineStyle(2.5, 0xffd9a0, 1);
+      g.beginPath(); g.arc(13, 12, 4, Math.PI * 0.85, Math.PI * 2.15, false); g.strokePath();
+      softBody(g, { x: 6, y: 11, w: 14, h: 10, r: 4, base: C, shadeHi: 0xffd9a0 });
+      g.fillStyle(0x7a4e12, 1).fillRoundedRect(9, 15, 8, 4, 2); // weight label plate
+      g.fillStyle(0xffe9c4, 0.9).fillRect(10, 16, 6, 1.4);
     });
 
     // --- Sprint 8 game-feel FX textures ------------------------------------

@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { TILE, COLORS, PHYS, DEPTH, SKILL_INFO, WORLD_THEMES, FONT, FS, TEXT, PARTICLES } from "../constants.js";
-import { ringGlow, glowShape } from "../ui/paint.js";
+import { ringGlow, glowShape, iconChip, iconGlow, softBody, sheen, GLASS_HI } from "../ui/paint.js";
 import { LEVELS } from "../levels/registry.js";
 import { makeGrid } from "../levels/builder.js";
 import devW3 from "../levels/dev_w3.js";
@@ -463,6 +463,7 @@ export default class GameScene extends Phaser.Scene {
       const hw = p.idx === 0 ? 74 : 56; // half-width: P1's label is longer
       const g = this.add.graphics();
       g.fillStyle(COLORS.hudBg, 0.92).fillRoundedRect(-hw, -15, hw * 2, 30, 8);
+      g.fillStyle(0xffffff, 0.06).fillRoundedRect(-hw + 3, -13, hw * 2 - 6, 11, 6); // glass gloss
       g.lineStyle(2, color).strokeRoundedRect(-hw, -15, hw * 2, 30, 8);
       const t = this.add.text(0, 0, p.idx === 0 ? "SPACE = ACTION" : "L = ACTION", {
         fontFamily: FONT, fontSize: FS.body, fontStyle: "bold",
@@ -742,6 +743,10 @@ export default class GameScene extends Phaser.Scene {
 
     const g = this.add.graphics();
     g.fillStyle(COLORS.hudBg, 0.94).fillRoundedRect(-bw / 2, -bh / 2, bw, bh, 14);
+    // GFX2 "Lumen Lab" glass: diagonal sheen + top-edge lip + soft outer glow.
+    sheen(g, { x: -bw / 2, y: -bh / 2, w: bw, h: bh, a: 0.05 });
+    g.lineStyle(1.5, GLASS_HI, 0.1).lineBetween(-bw / 2 + 14, -bh / 2 + 1.5, bw / 2 - 14, -bh / 2 + 1.5);
+    g.lineStyle(7, accent, 0.14).strokeRoundedRect(-bw / 2 - 4, -bh / 2 - 4, bw + 8, bh + 8, 17);
     g.lineStyle(3, accent, 1).strokeRoundedRect(-bw / 2, -bh / 2, bw, bh, 14);
     // accent end caps
     g.fillStyle(accent, 0.9).fillRoundedRect(-bw / 2, -bh / 2, 7, bh, { tl: 14, bl: 14, tr: 0, br: 0 });
@@ -2176,6 +2181,7 @@ export default class GameScene extends Phaser.Scene {
       const hex = p === 0 ? "#4dc9ff" : "#ffa14d";
       const cap = this.add.image(cx, 0, "keycap");
       const bdr = this.add.graphics();
+      bdr.lineStyle(1, GLASS_HI, 0.12).lineBetween(cx - 11, -15.5, cx + 11, -15.5); // glass top-edge lip
       bdr.lineStyle(2.5, col, 1).strokeRoundedRect(cx - 17, -17, 34, 34, 8);
       const t = this.add.text(cx, -1, c.k, {
         fontFamily: FONT, fontSize: FS.large, fontStyle: "bold", color: hex,
@@ -2208,8 +2214,13 @@ export default class GameScene extends Phaser.Scene {
     const W = Math.max(236, Math.ceil(body.width + PADX * 2), Math.ceil(title.width + PADX * 2));
     const H = Math.ceil(TB + body.height + PADY * 2);
     const g = this.add.graphics();
-    g.fillStyle(COLORS.hudBg, 0.96).fillRoundedRect(-W / 2, -H / 2, W, H, 10);
+    // GFX2 "Lumen Lab" glass card: frosted body + sheen glaze + soft glow ring,
+    // skill-coloured title bar with a top gloss, crisp accent border.
+    g.fillStyle(COLORS.hudBg, 0.92).fillRoundedRect(-W / 2, -H / 2, W, H, 10);
+    sheen(g, { x: -W / 2, y: -H / 2 + TB, w: W, h: H - TB, a: 0.05 });
+    g.lineStyle(6, col, 0.14).strokeRoundedRect(-W / 2 - 3, -H / 2 - 3, W + 6, H + 6, 12);
     g.fillStyle(col, 0.9).fillRoundedRect(-W / 2, -H / 2, W, TB, { tl: 10, tr: 10, bl: 0, br: 0 });
+    g.fillStyle(0xffffff, 0.12).fillRoundedRect(-W / 2 + 2, -H / 2 + 2, W - 4, TB * 0.45, { tl: 8, tr: 8, bl: 0, br: 0 });
     g.lineStyle(2, col).strokeRoundedRect(-W / 2, -H / 2, W, H, 10);
     title.setY(-H / 2 + 12);
     body.setY(TB / 2); // centered in the area below the coloured title bar
@@ -2233,7 +2244,10 @@ export default class GameScene extends Phaser.Scene {
     ped.cardBody.destroy();
     const W = 132, H = 30;
     ped.cardG.clear();
-    ped.cardG.fillStyle(COLORS.hudBg, 0.96).fillRoundedRect(-W / 2, -H / 2, W, H, 8);
+    ped.cardG.fillStyle(COLORS.hudBg, 0.92).fillRoundedRect(-W / 2, -H / 2, W, H, 8);
+    sheen(ped.cardG, { x: -W / 2, y: -H / 2, w: W, h: H, a: 0.05 });
+    ped.cardG.lineStyle(1, GLASS_HI, 0.1).lineBetween(-W / 2 + 8, -H / 2 + 1.5, W / 2 - 8, -H / 2 + 1.5);
+    ped.cardG.lineStyle(6, col, 0.14).strokeRoundedRect(-W / 2 - 3, -H / 2 - 3, W + 6, H + 6, 10);
     ped.cardG.lineStyle(2, col).strokeRoundedRect(-W / 2, -H / 2, W, H, 8);
     ped.cardTitle.setColor("#" + col.toString(16).padStart(6, "0")).setFontSize(12).setPosition(0, 0);
     this.tweens.add({ targets: ped.card, scaleX: { from: 1.12, to: 1 }, scaleY: { from: 1.12, to: 1 }, duration: 260, ease: "back.out" });
@@ -3556,6 +3570,7 @@ export default class GameScene extends Phaser.Scene {
       const hw = p.idx === 0 ? 74 : 56;
       const g = this.add.graphics();
       g.fillStyle(COLORS.hudBg, 0.92).fillRoundedRect(-hw, -15, hw * 2, 30, 8);
+      g.fillStyle(0xffffff, 0.06).fillRoundedRect(-hw + 3, -13, hw * 2 - 6, 11, 6); // glass gloss
       g.lineStyle(2, color).strokeRoundedRect(-hw, -15, hw * 2, 30, 8);
       const t = this.add.text(0, 0, p.idx === 0 ? "SPACE = ACTION" : "L = ACTION", {
         fontFamily: FONT, fontSize: FS.body, fontStyle: "bold",
@@ -3702,7 +3717,11 @@ export default class GameScene extends Phaser.Scene {
     const capY = caption ? panelH / 2 - 6 - 8 : 0;
 
     const col = colorP === 1 ? COLORS.boop : (colorP === 0 ? COLORS.beep : COLORS.neon);
+    // GFX2 "Lumen Lab" glass bubble: frosted fill + sheen + top-edge lip + soft glow.
     bg.fillStyle(COLORS.hudBg, 0.92).fillRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 10);
+    sheen(bg, { x: -panelW / 2, y: -panelH / 2, w: panelW, h: panelH, a: 0.05 });
+    bg.lineStyle(1, GLASS_HI, 0.1).lineBetween(-panelW / 2 + 10, -panelH / 2 + 1.5, panelW / 2 - 10, -panelH / 2 + 1.5);
+    bg.lineStyle(6, col, 0.14).strokeRoundedRect(-panelW / 2 - 3, -panelH / 2 - 3, panelW + 6, panelH + 6, 12);
     bg.lineStyle(2, col, 0.9).strokeRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 10);
 
     let x = -rowW / 2;
@@ -3710,6 +3729,7 @@ export default class GameScene extends Phaser.Scene {
       const cx = x + e.w / 2;
       if (e.type === "cap") {
         bg.fillStyle(0x1a2338, 0.95).fillRoundedRect(cx - e.w / 2 + 1, rowY - CAPH / 2 + 1, e.w - 2, CAPH - 2, 7);
+        bg.fillStyle(0xffffff, 0.08).fillRoundedRect(cx - e.w / 2 + 3, rowY - CAPH / 2 + 3, e.w - 6, CAPH * 0.4, 5); // glass gloss
         bg.lineStyle(2.5, e.col, 1).strokeRoundedRect(cx - e.w / 2, rowY - CAPH / 2, e.w, CAPH, 7);
         e.t.setPosition(cx, rowY);
       } else if (e.type === "text") {
@@ -4486,7 +4506,12 @@ export default class GameScene extends Phaser.Scene {
     const capY = top + headH + ROWGAP + capH / 2;
     const subY = top + headH + ROWGAP + capH + ROWGAP + subH / 2;
 
+    // GFX2 "Lumen Lab" glass stuck-panel: frosted fill + sheen + top-edge lip +
+    // soft glow ring, keeping the per-mode edge colour/width/alpha and geometry.
     ui.g.fillStyle(COLORS.hudBg, bgAlpha).fillRoundedRect(-bw / 2, -bh / 2, bw, bh, radius);
+    sheen(ui.g, { x: -bw / 2, y: -bh / 2, w: bw, h: bh, a: 0.05 });
+    ui.g.lineStyle(1.5, GLASS_HI, 0.1).lineBetween(-bw / 2 + radius, -bh / 2 + 1.5, bw / 2 - radius, -bh / 2 + 1.5);
+    ui.g.lineStyle(edgeW + 4, edge, 0.12).strokeRoundedRect(-bw / 2 - 3, -bh / 2 - 3, bw + 6, bh + 6, radius + 3);
     ui.g.lineStyle(edgeW, edge, edgeAlpha).strokeRoundedRect(-bw / 2, -bh / 2, bw, bh, radius);
 
     ui.head.setY(headY);
@@ -6980,20 +7005,30 @@ export default class GameScene extends Phaser.Scene {
     });
     // skill icons (badges + pedestal floaters + item cards).
     make("icon_magnet", 26, 26, (g) => {
-      g.lineStyle(6, 0xff9e3d);
-      g.beginPath(); g.arc(13, 12, 7, Math.PI, Math.PI * 2, false); g.strokePath();
-      g.lineBetween(6.5, 12, 6.5, 19);
-      g.lineBetween(19.5, 12, 19.5, 19);
-      g.fillStyle(0xeaf2ff).fillRect(4, 17, 5, 4).fillRect(17, 17, 5, 4);
-      g.lineStyle(1.5, 0xffe0a8, 0.9);
-      g.lineBetween(8, 24, 10, 22); g.lineBetween(13, 25, 13, 22); g.lineBetween(18, 24, 16, 22);
+      const C = 0xff9e3d;
+      iconChip(g, C);
+      iconGlow(g, 13, 13, 8, C, 0.2);
+      // horseshoe magnet — glow pass then bright U, silver pole tips, arc sparks
+      g.lineStyle(7, C, 0.24);
+      g.beginPath(); g.arc(13, 12, 6.5, Math.PI, Math.PI * 2, false); g.strokePath();
+      g.lineStyle(6, C, 1);
+      g.beginPath(); g.arc(13, 12, 6.5, Math.PI, Math.PI * 2, false); g.strokePath();
+      g.lineBetween(6.5, 12, 6.5, 18.5);
+      g.lineBetween(19.5, 12, 19.5, 18.5);
+      g.fillStyle(0xeaf2ff).fillRect(4, 16.5, 5, 4).fillRect(17, 16.5, 5, 4);
+      g.lineStyle(1.5, 0xffe0a8, 0.95);
+      g.lineBetween(8, 23.5, 10, 21.5); g.lineBetween(13, 24, 13, 21.5); g.lineBetween(18, 23.5, 16, 21.5);
     });
     make("icon_bubble", 26, 26, (g) => {
-      g.lineStyle(2.5, 0x7ee0ff).strokeCircle(13, 13, 9.5);
-      g.fillStyle(0x7ee0ff, 0.22).fillCircle(13, 13, 9.5);
+      const C = 0x7ee0ff;
+      iconChip(g, C);
+      // shielding bubble — soft outer glow, translucent body, bright rim + catchlight
+      g.fillStyle(C, 0.14).fillCircle(13, 13, 11);
+      g.fillStyle(C, 0.2).fillCircle(13, 13, 9.5);
+      g.lineStyle(2.5, C, 1).strokeCircle(13, 13, 9.5);
       g.lineStyle(1.5, 0xffffff, 0.9);
       g.beginPath(); g.arc(13, 13, 6.5, Math.PI * 1.1, Math.PI * 1.5); g.strokePath();
-      g.fillStyle(0xffffff, 0.9).fillCircle(9, 8.5, 1.4);
+      g.fillStyle(0xffffff, 0.95).fillCircle(9, 8.5, 1.6);
     });
     // W3 backdrop identity: foundry/scrapyard silhouette strip (crane rails,
     // hanging scrap hooks + chains, coil stacks) in the amber-orange accent.
@@ -7367,27 +7402,35 @@ export default class GameScene extends Phaser.Scene {
     });
     // skill icons (badges + pedestal floaters + item cards)
     make("icon_freeze", 26, 26, (g) => {
-      // a six-armed frost star
-      g.lineStyle(2.5, 0x9fd8ff, 0.95);
-      for (let i = 0; i < 6; i++) {
-        const a = (i / 6) * Math.PI * 2;
-        const cx = 13 + Math.cos(a) * 9.5, cy = 13 + Math.sin(a) * 9.5;
-        g.lineBetween(13, 13, cx, cy);
-        // arm barbs
-        g.lineBetween(
-          13 + Math.cos(a) * 6, 13 + Math.sin(a) * 6,
-          13 + Math.cos(a + 0.5) * 8.6, 13 + Math.sin(a + 0.5) * 8.6
-        );
-      }
-      g.fillStyle(0xe8f6ff, 0.95).fillCircle(13, 13, 2.2);
+      const C = 0x9fd8ff;
+      iconChip(g, C);
+      iconGlow(g, 13, 13, 9, C, 0.18);
+      // six-armed frost star — a soft glow pass under a crisp lighter star
+      const arms = (w, col, a, len) => {
+        g.lineStyle(w, col, a);
+        for (let i = 0; i < 6; i++) {
+          const ang = (i / 6) * Math.PI * 2;
+          g.lineBetween(13, 13, 13 + Math.cos(ang) * len, 13 + Math.sin(ang) * len);
+          g.lineBetween(
+            13 + Math.cos(ang) * 6, 13 + Math.sin(ang) * 6,
+            13 + Math.cos(ang + 0.5) * 8.6, 13 + Math.sin(ang + 0.5) * 8.6,
+          );
+        }
+      };
+      arms(3.5, C, 0.25, 9.5);
+      arms(2, 0xd6f0ff, 0.98, 9.5);
+      g.fillStyle(0xf0faff, 0.98).fillCircle(13, 13, 2.4);
     });
     make("icon_beam", 26, 26, (g) => {
-      // stubby flashlight, cone of light to the upper right
-      g.fillStyle(0xffe08a, 0.28).fillTriangle(12, 12, 25, 2, 25, 16);
-      g.fillStyle(0x39415e).fillRoundedRect(2, 12, 10, 8, 2.5);
-      g.lineStyle(1.5, 0x8fa3d9).strokeRoundedRect(2, 12, 10, 8, 2.5);
-      g.fillStyle(0xffe08a).fillRect(11, 11, 3, 10);
-      g.fillStyle(0xfff6d8, 0.95).fillCircle(13, 16, 1.6);
+      const C = 0xffe08a;
+      iconChip(g, C);
+      // light cone to the upper right (kept inside the chip rim)
+      g.fillStyle(C, 0.14).fillTriangle(11, 12, 23, 3, 23, 16);
+      g.fillStyle(C, 0.32).fillTriangle(12, 12, 21, 5.5, 21, 14);
+      // soft-shaded flashlight body + a hot glowing lens
+      softBody(g, { x: 3, y: 11, w: 10, h: 9, r: 2.5, base: 0x4a5578, shadeHi: 0x8892b8 });
+      g.fillStyle(C, 1).fillRect(11, 10.5, 3, 11);
+      g.fillStyle(0xfff6d8, 1).fillCircle(12.6, 16, 1.8);
     });
     // W4 backdrop identity: near-black datacenter/void — server-rack silhouettes,
     // thin neon seams, a great dark eye-socket arch. Deterministic (seeded),
