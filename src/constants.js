@@ -53,20 +53,36 @@ export const COLORS = {
   steelLo: 0x121a30, // darker bottom-right bevel on tiles
   dark: 0x0b101f,
   hudBg: 0x0a0f1e, // shared translucent backing for HUD plates, cards & intro banners
+  // --- GFX2 "Lumen Lab" palette expansion (additive; nothing renamed) --------
+  // Richer per-world supporting hues used by the new art recipes. Warm, kid-warm
+  // tones — NOT psychedelic. See WORLD_THEMES.accent3/warmth for how they map.
+  coral: 0xff7a5c, // W1 warm rim-light / coral accents
+  brass: 0xc9a24b, // W2 pipe & fixture brass
+  plum: 0x8b4a9c, // W3 deep magnet-works plum
+  mint: 0x8affc9, // W2/character cool mint rim-light
+  indigo: 0x3a3f8f, // W4 night indigo
+  glassHi: 0xdbe6ff, // cool near-white glass top-edge highlight (panels/specular)
 };
 
 // Per-world background & mood palette (keyed by `def.world`, 1-4). Used to theme
 // the layered background: `bgTop`/`bgBottom` drive the fixed gradient, `glow`
 // tints the scattered soft-glow blobs, `accent`/`accent2` colour the near grid
 // and dust motes. Worlds 3-4 are picked tastefully now so later sprints inherit.
+//
+// GFX2 "Lumen Lab": bgTop/bgBottom/glow enriched toward each world's mood (W1
+// warm sunrise-amber, W2 teal/steam, W3 plum/violet-gold, W4 indigo-night) — the
+// bgGradient<world> textures re-bake from these at boot (BootScene gradient()),
+// so recolouring here recolours the backdrops for free. Two ADDITIVE fields feed
+// the new art only: `accent3` (a third supporting hue) and `warmth` (a warm key
+// light for rim/specular). Existing keys keep their meaning; nothing renamed.
 export const WORLD_THEMES = {
-  1: { accent: 0xffb347, accent2: 0x35f0ff, bgTop: 0x1e4380, bgBottom: 0x060a14, glow: 0x3f7fe8 },
-  2: { accent: 0xc39dff, accent2: 0x59ffb0, bgTop: 0x0f5242, bgBottom: 0x04100c, glow: 0x2fc29a },
-  3: { accent: 0xffd24d, accent2: 0xff4dd2, bgTop: 0x431e5e, bgBottom: 0x0c0614, glow: 0xc45cff },
+  1: { accent: 0xffb347, accent2: 0x35f0ff, accent3: 0xff7a5c, warmth: 0xffcf8f, bgTop: 0x7a3f52, bgBottom: 0x0b0710, glow: 0xf08a55 },
+  2: { accent: 0xc39dff, accent2: 0x59ffb0, accent3: 0xc9a24b, warmth: 0x8fe8d0, bgTop: 0x0f5a52, bgBottom: 0x03100e, glow: 0x2fc2a8 },
+  3: { accent: 0xffd24d, accent2: 0xff4dd2, accent3: 0x8b4a9c, warmth: 0xffcf6b, bgTop: 0x4a1e6e, bgBottom: 0x0c0616, glow: 0xcf5cff },
   // W3W4 M4: World 4 committed to its designed identity — near-black datacenter/
   // void, DEEP VIOLET-BLACK (the darkest world), thin neon seams (cyan accent2)
   // over a violet accent. Only backdrop/mood consumers read these.
-  4: { accent: 0x8f7bff, accent2: 0x35f0ff, bgTop: 0x191243, bgBottom: 0x020207, glow: 0x5b3fd8 },
+  4: { accent: 0x8f7bff, accent2: 0x35f0ff, accent3: 0x3a3f8f, warmth: 0xffd9a0, bgTop: 0x1a1450, bgBottom: 0x020208, glow: 0x5b3fd8 },
 };
 
 // --- P11: FX particle palette ----------------------------------------------

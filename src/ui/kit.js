@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { COLORS, WORLD_THEMES, FONT, FS, TEXT } from "../constants.js";
 import { addGradient, addMotes } from "../backdrop.js";
+import { sheen, GLASS_HI } from "./paint.js";
 
 // GFX P10 — shared menu / overlay drawing kit.
 //
@@ -54,14 +55,25 @@ export function menuBackdrop(scene, world = 1) {
   addSkyline(scene, { y: H - 70, alpha: 0.42, tips: [[230, 64, 0xff6a52], [700, 50, 0xffc24d], [1050, 84, 0xff6a52]] });
 }
 
-// Panel with an accent header bar + soft outer glow (the shared menu-panel look).
-// Draws into an existing Graphics `g` at top-left (x, y).
+// GFX2 "Lumen Lab" — frosted-glass panel (the shared menu-panel look). Draws into
+// an existing Graphics `g` at top-left (x, y). Recipe: a lower-alpha COLORS.panel
+// fill (glassy, not opaque) → a baked diagonal sheen band → a 1.5px inner white
+// top-edge highlight (the glass lip catching the light) → the 2px accent border →
+// the accent header bar → the soft outer glow ring. All canvas-safe. The signature
+// and defaults stay compatible — every consumer (Title footer, Pause, Settings,
+// Walkthrough) inherits the glass for free.
 export function neonPanel(g, x, y, w, h, opts = {}) {
   const {
-    accent = COLORS.amber, radius = 14, fillAlpha = 0.92,
+    accent = COLORS.amber, radius = 14, fillAlpha = 0.82,
     header = true, headerH = 6, glow = true, edge = COLORS.panelEdge,
   } = opts;
+  // glassy fill
   g.fillStyle(COLORS.panel, fillAlpha).fillRoundedRect(x, y, w, h, radius);
+  // baked diagonal glass sheen (very low alpha — a glaze, not a stripe)
+  sheen(g, { x, y, w, h, a: 0.05 });
+  // inner top-edge highlight: a 1.5px white lip just inside the top border
+  g.lineStyle(1.5, GLASS_HI, 0.1).lineBetween(x + radius, y + 1.5, x + w - radius, y + 1.5);
+  // accent border
   g.lineStyle(2, edge, 1).strokeRoundedRect(x, y, w, h, radius);
   if (header) {
     g.fillStyle(accent, 0.9).fillRoundedRect(x, y, w, headerH, { tl: radius, tr: radius, bl: 0, br: 0 });
