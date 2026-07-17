@@ -4,7 +4,7 @@ import { addGradient, addMotes } from "../backdrop.js";
 import { LEVELS } from "../levels/registry.js";
 import { initAudio, sfx } from "../audio.js";
 import { pads, showPadToast } from "../pad.js";
-import { ringGlow } from "../ui/paint.js";
+import { ringGlow, glassPanel } from "../ui/paint.js";
 
 const ACCENT = WORLD_THEMES[1].accent; // world-1 amber, matching the title menu
 
@@ -75,8 +75,12 @@ export default class OnboardScene extends Phaser.Scene {
     // --- KOBI panel: title-screen panel tokens + magenta KOBI rim ------------
     const pw = 620, ph = 300, px = cx - pw / 2, py = 168;
     const panel = this.add.graphics();
-    panel.fillStyle(COLORS.panel, 0.9).fillRoundedRect(px, py, pw, ph, 16);
-    panel.lineStyle(2, COLORS.magenta, 0.75).strokeRoundedRect(px, py, pw, ph, 16);
+    // GFX2 "Lumen Lab" (V7): frosted-glass panel chrome with a magenta KOBI glow
+    // ring (fill+sheen+top-lip+border+glow), then the magenta header bar on top.
+    glassPanel(panel, {
+      x: px, y: py, w: pw, h: ph, r: 16, fill: COLORS.panel, fillA: 0.9,
+      accent: COLORS.magenta, borderW: 2, borderA: 0.75, glow: true, glowA: 0.16,
+    });
     panel.fillStyle(COLORS.magenta, 0.85).fillRoundedRect(px, py, pw, 5, { tl: 16, tr: 16, bl: 0, br: 0 });
 
     this.buildKobiAvatar(cx, py + 74);
@@ -141,17 +145,24 @@ export default class OnboardScene extends Phaser.Scene {
     this.tweens.add({ targets: glow, alpha: { from: 0.15, to: 0.4 }, duration: 1200, yoyo: true, repeat: -1, ease: "sine.inOut" });
   }
 
+  // Buttons match the Title glass language: selected = warm amber glass + amber
+  // glow ring; unselected = cool cyan-rimmed frosted glass. Draw-only (same dims).
   drawButton(o, selected) {
     const g = o.g;
     const hw = o.bw / 2, hh = o.bh / 2;
     g.clear();
     if (selected) {
-      g.fillStyle(0x2a2010, 0.92).fillRoundedRect(-hw, -hh, o.bw, o.bh, 12);
-      g.lineStyle(3, ACCENT, 1).strokeRoundedRect(-hw, -hh, o.bw, o.bh, 12);
-      g.lineStyle(6, ACCENT, 0.18).strokeRoundedRect(-hw - 4, -hh - 4, o.bw + 8, o.bh + 8, 14);
+      glassPanel(g, {
+        x: -hw, y: -hh, w: o.bw, h: o.bh, r: 12,
+        fill: 0x2a2010, fillA: 0.92, accent: ACCENT, borderW: 3, borderA: 1,
+        glow: true, glowW: 6, glowA: 0.2, glowInf: 4,
+      });
     } else {
-      g.fillStyle(COLORS.panel, 0.72).fillRoundedRect(-hw, -hh, o.bw, o.bh, 12);
-      g.lineStyle(2, ACCENT, 0.4).strokeRoundedRect(-hw, -hh, o.bw, o.bh, 12);
+      glassPanel(g, {
+        x: -hw, y: -hh, w: o.bw, h: o.bh, r: 12,
+        fill: COLORS.panel, fillA: 0.72, accent: COLORS.neon, borderW: 2, borderA: 0.4,
+        glow: false,
+      });
     }
   }
 

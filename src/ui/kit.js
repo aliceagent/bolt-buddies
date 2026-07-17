@@ -90,7 +90,12 @@ export function drawRowSelect(g, cx, cy, w, h, accent, on, radius = 10) {
   g.clear();
   if (!on) return;
   const x = cx - w / 2, y = cy - h / 2;
+  // GFX2 "Lumen Lab" glass polish (V7): warm hued-glass fill → a diagonal sheen
+  // glaze → a 1.5px near-white top-edge lip, THEN the crisp accent border + soft
+  // outer glow ring on top (glass under, frame over). Settings + Pause inherit.
   g.fillStyle(mulColor(accent, 0.16), 0.92).fillRoundedRect(x, y, w, h, radius);
+  sheen(g, { x, y, w, h, a: 0.05 });
+  g.lineStyle(1.5, GLASS_HI, 0.1).lineBetween(x + radius, y + 1.5, x + w - radius, y + 1.5);
   g.lineStyle(2, accent, 0.95).strokeRoundedRect(x, y, w, h, radius);
   g.lineStyle(6, accent, 0.16).strokeRoundedRect(x - 3, y - 3, w + 6, h + 6, radius + 2);
   // left-edge chevron

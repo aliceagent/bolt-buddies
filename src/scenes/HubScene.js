@@ -9,7 +9,7 @@ import { pads, showPadToast } from "../pad.js";
 import { drawWorldIcon } from "../worldIcons.js";
 import { drawIris, irisMaxR } from "../ui/kit.js";
 import { MOTION } from "../anim/motion.js";
-import { ringGlow } from "../ui/paint.js";
+import { ringGlow, glassPanel, fakeRadial, specular } from "../ui/paint.js";
 
 
 // Facility map: 4 wings x 3 chambers. Navigate with either player's keys.
@@ -68,13 +68,21 @@ export default class HubScene extends Phaser.Scene {
       // gets the deliberate static / no-signal treatment.
       const worldUnlocked = (wi * 3) < this.save.unlocked;
       const g = this.add.graphics();
-      g.fillStyle(COLORS.panel, 0.85).fillRoundedRect(px, py, panelW, panelH, 12);
-      g.lineStyle(2, COLORS.panelEdge).strokeRoundedRect(px, py, panelW, panelH, 12);
       if (worldUnlocked) {
-        // accent header bar + faint accent wash
+        // GFX2 "Lumen Lab" (V7): online wing = frosted glass panel (fill+sheen+
+        // top-lip+accent glow ring), then an accent header bar + faint body wash.
+        glassPanel(g, {
+          x: px, y: py, w: panelW, h: panelH, r: 12, fill: COLORS.panel, fillA: 0.85,
+          accent, borderW: 2, borderA: 0.9, glow: true, glowA: 0.14,
+        });
         g.fillStyle(accent, 0.9).fillRoundedRect(px, py, panelW, 34, { tl: 12, tr: 12, bl: 0, br: 0 });
-        g.fillStyle(accent, 0.12).fillRect(px, py + 34, panelW, panelH - 34);
+        g.fillStyle(accent, 0.1).fillRect(px, py + 34, panelW, panelH - 34);
       } else {
+        // sealed wing = dim glass base under the blueprint grid + padlock hero.
+        glassPanel(g, {
+          x: px, y: py, w: panelW, h: panelH, r: 12, fill: COLORS.panel, fillA: 0.55,
+          accent, borderW: 2, borderA: 0.3, glow: false, sheenA: 0.03,
+        });
         this.drawLockedPanel(g, px, py, panelW, panelH, accent);
       }
       // world emblem: dark lens disc + drawn per-accent world icon (no emoji)
@@ -99,9 +107,17 @@ export default class HubScene extends Phaser.Scene {
         if (li < 2) {
           const segLit = (idx + 1) < this.save.unlocked;
           const ax = nx + 34, bx = nx + 180 - 34;
-          corridor.lineStyle(6, segLit ? accent : 0x1c2440, segLit ? 0.75 : 1);
-          corridor.lineBetween(ax, ny, bx, ny);
-          if (segLit) { corridor.lineStyle(2, 0xeaf2ff, 0.4).lineBetween(ax, ny, bx, ny); }
+          // GFX2 "Lumen Lab" (V7): corridors read as light-tubes. Lit = soft accent
+          // halo → accent tube → bright white core; otherwise a dim dark conduit.
+          if (segLit) {
+            corridor.lineStyle(12, accent, 0.1).lineBetween(ax, ny, bx, ny);
+            corridor.lineStyle(8, accent, 0.28).lineBetween(ax, ny, bx, ny);
+            corridor.lineStyle(6, accent, 0.8).lineBetween(ax, ny, bx, ny);
+            corridor.lineStyle(2, 0xeaf2ff, 0.55).lineBetween(ax, ny, bx, ny);
+          } else {
+            corridor.lineStyle(6, 0x1c2440, 1).lineBetween(ax, ny, bx, ny);
+            corridor.lineStyle(2, 0x2a3350, 0.6).lineBetween(ax, ny, bx, ny);
+          }
         }
         const circle = this.add.graphics({ x: nx, y: ny });
         if (worldUnlocked) this.drawNode(circle, lvl, unlocked, false, completed);
@@ -344,8 +360,8 @@ export default class HubScene extends Phaser.Scene {
     const cw = 26 + t.width; // clock glyph zone + label
     const x0 = cx - cw / 2;
     const g = this.add.graphics();
-    g.fillStyle(COLORS.hudBg, 0.85).fillRoundedRect(x0, cy - 10, cw, 20, 7);
-    g.lineStyle(1.5, accent, 0.7).strokeRoundedRect(x0, cy - 10, cw, 20, 7);
+    // GFX2 "Lumen Lab" (V7): glass chip backing (fill+sheen+top-lip+accent border).
+    glassPanel(g, { x: x0, y: cy - 10, w: cw, h: 20, r: 7, fill: COLORS.hudBg, fillA: 0.85, accent, borderW: 1.5, borderA: 0.7, glow: false });
     // clock glyph: ring + two hands
     const gx = x0 + 12;
     g.lineStyle(1.5, accent, 0.95).strokeCircle(gx, cy, 5.5);
@@ -359,12 +375,20 @@ export default class HubScene extends Phaser.Scene {
     const fill = unlocked ? (selected ? 0x1e4a3a : 0x1c2a52) : 0x121830;
     const hi = unlocked ? (selected ? 0x2c6b52 : 0x27407a) : 0x1b2540;
     const edge = unlocked ? (selected ? 0x59ff9c : 0x44548c) : 0x2a3350;
+    // GFX2 "Lumen Lab" (V7): unlocked chambers read as glowing gem discs — a soft
+    // fakeRadial bloom under the disc (green when selected, cyan otherwise).
+    if (unlocked) {
+      const glowCol = selected ? 0x59ff9c : 0x35f0ff;
+      fakeRadial(g, { x: 0, y: 0, r: 44, color: glowCol, steps: 4, aCenter: selected ? 0.22 : 0.1, aEdge: 0 });
+    }
     g.fillStyle(fill).fillCircle(0, 0, 34);
     // subtle radial shade: an inner top highlight + a lower ambient-occlusion
     // shadow (stacked discs — canvas-safe fake gradient, drawn once per select).
     g.fillStyle(hi, 0.55).fillCircle(0, -7, 22);
     g.fillStyle(0x000000, 0.18).fillCircle(0, 11, 25);
     g.lineStyle(3, edge).strokeCircle(0, 0, 34);
+    // glossy specular dab (upper-left) so the disc reads as a polished gem
+    if (unlocked) specular(g, { x: -11, y: -14, w: 8, h: 4.5, a: 0.5 });
     if (completed) {
       // lit ring + tiny GREEN CHIP badge (bottom-right) with a checkmark
       g.lineStyle(2, 0x59ff9c, 0.7).strokeCircle(0, 0, 39);
@@ -385,6 +409,8 @@ export default class HubScene extends Phaser.Scene {
   // reads as a capped chamber and gives the selection ring a target to sit on.
   drawSealedNode(g) {
     g.clear();
+    // subtle cold halo so the capped port still reads on the dim glass
+    fakeRadial(g, { x: 0, y: 0, r: 15, color: 0x2a3350, steps: 3, aCenter: 0.18, aEdge: 0 });
     g.fillStyle(0x141c34, 1).fillCircle(0, 0, 11);
     g.lineStyle(1.5, 0x2a3350, 1).strokeCircle(0, 0, 11);
     g.fillStyle(0x0c1226, 1).fillCircle(0, 0, 4);
@@ -428,8 +454,8 @@ export default class HubScene extends Phaser.Scene {
     measure.destroy();
     const x0 = cx - cw / 2;
     const g = this.add.graphics();
-    g.fillStyle(COLORS.hudBg, 0.85).fillRoundedRect(x0, cy - 15, cw, 30, 9);
-    g.lineStyle(1.5, COLORS.neon, 0.6).strokeRoundedRect(x0, cy - 15, cw, 30, 9);
+    // GFX2 "Lumen Lab" (V7): glass cores chip.
+    glassPanel(g, { x: x0, y: cy - 15, w: cw, h: 30, r: 9, fill: COLORS.hudBg, fillA: 0.85, accent: COLORS.neon, borderW: 1.5, borderA: 0.6, glow: false });
     this.add.image(x0 + padX + 8, cy, "core").setScale(0.55);
     const label = this.add.text(x0 + padX + iconW, cy, `${prefix}0 / ${max}`, {
       fontFamily: FONT, fontSize: FS.small, fontStyle: "bold", color: TEXT.neon,
@@ -455,8 +481,8 @@ export default class HubScene extends Phaser.Scene {
     const cw = iconW + label.width + padX * 2;
     const x0 = cx - cw / 2;
     const g = this.add.graphics();
-    g.fillStyle(COLORS.hudBg, 0.85).fillRoundedRect(x0, cy - 15, cw, 30, 9);
-    g.lineStyle(1.5, 0xffb347, 0.7).strokeRoundedRect(x0, cy - 15, cw, 30, 9);
+    // GFX2 "Lumen Lab" (V7): glass rescued chip.
+    glassPanel(g, { x: x0, y: cy - 15, w: cw, h: 30, r: 9, fill: COLORS.hudBg, fillA: 0.85, accent: 0xffb347, borderW: 1.5, borderA: 0.7, glow: false });
     // the tiny home-safe puppy glyph (title vocabulary, 20px)
     const gx = x0 + padX + 9;
     g.fillStyle(0xd9dee8, 1).fillRoundedRect(gx - 8, cy - 3, 15, 7, 3); // body

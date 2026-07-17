@@ -8,7 +8,7 @@ import { pads, showPadToast } from "../pad.js";
 import { tutorialDone, uxFlashScale } from "../ux.js";
 import { keyCap as kitKeyCap, chipRow as kitChipRow, neonPanel, addSkyline } from "../ui/kit.js";
 import { MOTION } from "../anim/motion.js";
-import { ringGlow, specular } from "../ui/paint.js";
+import { ringGlow, specular, glassPanel } from "../ui/paint.js";
 
 const ACCENT = WORLD_THEMES[1].accent; // world-1 amber accent for buttons
 const hexStr = (n) => "#" + (n & 0xffffff).toString(16).padStart(6, "0");
@@ -161,11 +161,14 @@ export default class TitleScene extends Phaser.Scene {
       if (ch === " ") continue;
 
       const cont = this.add.container(cx, cy).setDepth(0);
-      // additive bloom copies (enlarged from centre) — actually visible on Canvas
+      // GFX2 "Lumen Lab" (V7): a THREE-layer additive bloom (widest+faintest first)
+      // on a softer alpha ramp so the wordmark glows out gently instead of stepping.
+      const glow3 = this.add.text(0, 0, ch, { ...style, color: fill0 })
+        .setOrigin(0.5).setScale(1.52).setAlpha(0.16).setBlendMode(Phaser.BlendModes.ADD);
       const glow2 = this.add.text(0, 0, ch, { ...style, color: fill0 })
-        .setOrigin(0.5).setScale(1.34).setAlpha(0.32).setBlendMode(Phaser.BlendModes.ADD);
+        .setOrigin(0.5).setScale(1.32).setAlpha(0.26).setBlendMode(Phaser.BlendModes.ADD);
       const glow1 = this.add.text(0, 0, ch, { ...style, color: fill0 })
-        .setOrigin(0.5).setScale(1.16).setAlpha(0.55).setBlendMode(Phaser.BlendModes.ADD);
+        .setOrigin(0.5).setScale(1.16).setAlpha(0.5).setBlendMode(Phaser.BlendModes.ADD);
       // glass tube: the glyph BODY is the full saturated cycle tone, rimmed by a
       // darker stroke of the same hue
       const tube = this.add.text(0, 0, ch, { ...style, color: fill0, stroke: stroke0, strokeThickness: 8 })
@@ -174,10 +177,10 @@ export default class TitleScene extends Phaser.Scene {
       // body so the saturated colour dominates the glyph (0.9 was a wash-out)
       const core = this.add.text(0, 0, ch, { ...style, color: "#f4ffff" })
         .setOrigin(0.5).setScale(0.68);
-      cont.add([glow2, glow1, tube, core]);
+      cont.add([glow3, glow2, glow1, tube, core]);
       cont.setAlpha(0); // flicker-on below
 
-      this.neon.push({ cont, glow1, glow2, tube });
+      this.neon.push({ cont, glow1, glow2, glow3, tube });
 
       // flicker-on: a couple of quick blinks, then settle lit.
       // U11 FLASH soft: same power-on beat count, less contrast, slower ramp.
@@ -216,7 +219,7 @@ export default class TitleScene extends Phaser.Scene {
     const stroke = rgbCss(c, 0.32);
     for (const L of this.neon) {
       L.tube.setColor(fill); L.tube.setStroke(stroke, 8);
-      L.glow1.setColor(fill); L.glow2.setColor(fill);
+      L.glow1.setColor(fill); L.glow2.setColor(fill); L.glow3.setColor(fill);
     }
   }
 
@@ -501,18 +504,25 @@ export default class TitleScene extends Phaser.Scene {
     };
   }
 
+  // GFX2 "Lumen Lab" (V7): menu buttons are frosted glass. Draw-only (same dims +
+  // hit-areas). Selected = warm amber glass + amber glow ring; unselected = cool
+  // cyan-rimmed frosted glass. glassPanel supplies fill+sheen+top-lip+border(+glow).
   drawButton(it, selected) {
     const g = it.g;
     const hw = it.bw / 2, hh = it.bh / 2;
     g.clear();
     if (selected) {
-      g.fillStyle(0x2a2010, 0.92).fillRoundedRect(-hw, -hh, it.bw, it.bh, 12);
-      g.lineStyle(3, ACCENT, 1).strokeRoundedRect(-hw, -hh, it.bw, it.bh, 12);
-      // soft outer glow ring
-      g.lineStyle(6, ACCENT, 0.18).strokeRoundedRect(-hw - 4, -hh - 4, it.bw + 8, it.bh + 8, 14);
+      glassPanel(g, {
+        x: -hw, y: -hh, w: it.bw, h: it.bh, r: 12,
+        fill: 0x2a2010, fillA: 0.92, accent: ACCENT, borderW: 3, borderA: 1,
+        glow: true, glowW: 6, glowA: 0.2, glowInf: 4,
+      });
     } else {
-      g.fillStyle(COLORS.panel, 0.72).fillRoundedRect(-hw, -hh, it.bw, it.bh, 12);
-      g.lineStyle(2, ACCENT, 0.4).strokeRoundedRect(-hw, -hh, it.bw, it.bh, 12);
+      glassPanel(g, {
+        x: -hw, y: -hh, w: it.bw, h: it.bh, r: 12,
+        fill: COLORS.panel, fillA: 0.72, accent: COLORS.neon, borderW: 2, borderA: 0.4,
+        glow: false,
+      });
     }
   }
 

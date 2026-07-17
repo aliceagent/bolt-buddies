@@ -3,6 +3,7 @@ import { COLORS, WORLD_THEMES, FONT, FS, TEXT } from "../constants.js";
 import { initAudio, sfx, playTrack, installMute } from "../audio.js";
 import { pads, showPadToast } from "../pad.js";
 import { menuBackdrop, chipRow, hexStr, mulColor } from "../ui/kit.js";
+import { glassPanel } from "../ui/paint.js";
 import { drawWorldIcon } from "../worldIcons.js";
 import { openWalkthroughPlayer } from "../walkthrough/player.js";
 
@@ -138,8 +139,11 @@ export default class WalkthroughScene extends Phaser.Scene {
   buildBackButton() {
     const cont = this.add.container(76, 40);
     const g = this.add.graphics();
-    g.fillStyle(COLORS.hudBg, 0.82).fillRoundedRect(-58, -18, 116, 36, 9);
-    g.lineStyle(2, ACCENT, 0.7).strokeRoundedRect(-58, -18, 116, 36, 9);
+    // GFX2 "Lumen Lab" (V7): frosted-glass back button.
+    glassPanel(g, {
+      x: -58, y: -18, w: 116, h: 36, r: 9, fill: COLORS.hudBg, fillA: 0.82,
+      accent: ACCENT, borderW: 2, borderA: 0.7, glow: false,
+    });
     const t = this.add.text(0, 0, "◀ TITLE", {
       fontFamily: FONT, fontSize: FS.small, fontStyle: "bold", color: hexStr(ACCENT),
     }).setOrigin(0.5);
@@ -239,13 +243,20 @@ export default class WalkthroughScene extends Phaser.Scene {
     const g = card.g;
     const hw = card.w / 2, hh = card.h / 2;
     g.clear();
+    // GFX2 "Lumen Lab" (V7): glass chip — selected gets a warm accent-glass fill
+    // + accent glow ring; unselected is a cool accent-rimmed frosted chip.
     if (on) {
-      g.fillStyle(mulColor(card.accent, 0.16), 0.92).fillRoundedRect(-hw, -hh, card.w, card.h, 12);
-      g.lineStyle(3, card.accent, 1).strokeRoundedRect(-hw, -hh, card.w, card.h, 12);
-      g.lineStyle(6, card.accent, 0.18).strokeRoundedRect(-hw - 4, -hh - 4, card.w + 8, card.h + 8, 14);
+      glassPanel(g, {
+        x: -hw, y: -hh, w: card.w, h: card.h, r: 12,
+        fill: mulColor(card.accent, 0.16), fillA: 0.92, accent: card.accent,
+        borderW: 3, borderA: 1, glow: true, glowW: 6, glowA: 0.2, glowInf: 4,
+      });
     } else {
-      g.fillStyle(COLORS.hudBg, 0.78).fillRoundedRect(-hw, -hh, card.w, card.h, 12);
-      g.lineStyle(2, card.accent, 0.4).strokeRoundedRect(-hw, -hh, card.w, card.h, 12);
+      glassPanel(g, {
+        x: -hw, y: -hh, w: card.w, h: card.h, r: 12,
+        fill: COLORS.hudBg, fillA: 0.78, accent: card.accent, borderW: 2, borderA: 0.4,
+        glow: false,
+      });
     }
   }
 
@@ -314,9 +325,11 @@ export default class WalkthroughScene extends Phaser.Scene {
     const W = this.scale.width;
     const cx = W / 2, cy = 400, w = 460, h = 220;
     const g = this.add.graphics();
-    g.fillStyle(COLORS.hudBg, 0.9).fillRoundedRect(cx - w / 2, cy - h / 2, w, h, 14);
-    g.lineStyle(3, COLORS.hazard, 0.9).strokeRoundedRect(cx - w / 2, cy - h / 2, w, h, 14);
-    g.lineStyle(6, COLORS.hazard, 0.16).strokeRoundedRect(cx - w / 2 - 4, cy - h / 2 - 4, w + 8, h + 8, 16);
+    // GFX2 "Lumen Lab" (V7): glass base + hazard glow ring, then the static scanlines.
+    glassPanel(g, {
+      x: cx - w / 2, y: cy - h / 2, w, h, r: 14, fill: COLORS.hudBg, fillA: 0.9,
+      accent: COLORS.hazard, borderW: 3, borderA: 0.9, glow: true, glowW: 6, glowA: 0.16, glowInf: 4,
+    });
     // static-y scanlines
     g.fillStyle(COLORS.panelEdge, 0.35);
     for (let y = cy - h / 2 + 14; y < cy + h / 2 - 14; y += 10) g.fillRect(cx - w / 2 + 12, y, w - 24, 2);
