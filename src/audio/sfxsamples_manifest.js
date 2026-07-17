@@ -3,6 +3,7 @@
 // Empty = every sound uses its procedural synth voice (default). Drop
 // public/sfx/<name>.wav (or .mp3) and re-run the generator to populate this.
 export const SFX_SAMPLES = {
+  "boltYip": "wav",
   "bubbleOn": "wav",
   "bubblePop": "wav",
   "buddyBeep": "wav",
@@ -24,6 +25,11 @@ export const SFX_SAMPLES = {
   "exitDoor": "wav",
   "grab": "wav",
   "hangLatch": "wav",
+  "heartAlarm": "wav",
+  "heartDown": "wav",
+  "heartGlare": "wav",
+  "heartSquint": "wav",
+  "heartUnplug": "wav",
   "hopOff": "wav",
   "jump": "wav",
   "key": "wav",
@@ -54,6 +60,7 @@ export const SFX_SAMPLES = {
   "stompLaunch": "wav",
   "throwIt": "wav",
   "tossHigh": "wav",
+  "ventBlow": "wav",
   "wardenShove": "wav",
   "wardenTopple": "wav",
   "zip": "wav"

@@ -4,8 +4,9 @@
 //   node tools/gen_music_manifest.mjs
 //
 // Track ids the game asks for (see src/audio/music.js): title, hub, w1l1, w1l2,
-// w1l3, w2l1, w2l2, w2l3, w3, w4. A per-world file (w1.mp3) covers all that world's
-// levels via fallback in src/audio/mp3music.js; a "finale.mp3" covers World 4.
+// w1l3, w2l1, w2l2, w2l3, w3, w4, w4l3, epilogue. A per-world file (w1.mp3)
+// covers all that world's levels via fallback in src/audio/mp3music.js; a
+// "finale.mp3" covers World 4.
 // Any id present here REPLACES the synth for that track; absent ids keep the synth.
 
 import { promises as fs } from "node:fs";
@@ -19,7 +20,7 @@ const MANIFEST = path.join(ROOT, "src", "audio", "music_manifest.js");
 // The ids the engine can actually use (exact tracks + world groups + finale).
 const KNOWN = new Set([
   "title", "hub",
-  "w1l1", "w1l2", "w1l3", "w2l1", "w2l2", "w2l3", "w3", "w4",
+  "w1l1", "w1l2", "w1l3", "w2l1", "w2l2", "w2l3", "w3", "w4", "w4l3", "epilogue",
   "w1", "w2", "finale",
 ]);
 

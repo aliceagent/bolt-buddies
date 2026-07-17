@@ -2,4 +2,4 @@
 // The list of track ids that have a produced MP3 in public/music/<id>.mp3.
 // Empty = the game plays its procedural synth music for every track (default).
 // Drop MP3s in public/music/ and re-run the generator to populate this.
-export const MUSIC_FILES = ["hub","title","w1","w2","w3","w4"];
+export const MUSIC_FILES = ["epilogue","hub","title","w1","w2","w3","w4","w4l3"];
