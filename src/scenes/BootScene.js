@@ -516,7 +516,13 @@ export default class BootScene extends Phaser.Scene {
       }
     });
 
-    // color: body base, dark: visor/stripe, rim: rim-light on one side.
+    // GFX2 "Lumen Lab" player robot: a rounded-capsule Lumen body with soft 4-tone
+    // shading (paint.js softBody/specular), a friendly glass visor, and a colored
+    // rim-light (Beep: mint on cyan-blue; Boop: coral on amber-orange). CONTRACT
+    // anchors (unmovable — the anim rig snaps overlays to them): eyes at (17,23) &
+    // (28,23); antenna tip at (22,3); tread band centred y≈44.5; blink lids at y=24.
+    // The 44×48 frame + centred silhouette drive Player.js BODY {w:30,h:42,ox:7,oy:6}.
+    // color: body base, dark: visor/stripe, rim: colored rim-light + accent glints.
     // blink=true draws the visor with eyes closed for the _blink texture.
     const robot = (color, dark, rim, blink, arms) => (g) => {
       if (arms) {
@@ -527,65 +533,70 @@ export default class BootScene extends Phaser.Scene {
         g.lineBetween(35, 20, 31, 3);
         g.fillStyle(shade(color, 1.15));
         g.fillCircle(13, 3, 3.4); g.fillCircle(31, 3, 3.4); // mitts
-        g.fillStyle(rim, 0.6);
-        g.fillCircle(12, 2.2, 1.2); g.fillCircle(30, 2.2, 1.2); // rim glints
+        g.fillStyle(rim, 0.7);
+        g.fillCircle(12, 2.2, 1.3); g.fillCircle(30, 2.2, 1.3); // rim glints
       }
-      // chunkier treads: wider, taller base with four wheel bumps + top rim line
-      g.fillStyle(0x0c1019).fillRect(2, 40, 40, 9);
-      g.fillStyle(0x2a3247);
-      [8, 17, 26, 35].forEach((x) => g.fillCircle(x, 44.5, 3.9));
-      g.fillStyle(0x151b2b).fillRect(2, 39, 40, 2);
-      // body: vertical two-tone gradient, baked as interpolated strips inside the
-      // rounded silhouette. The rounded rect underneath supplies the soft corners.
-      const top = Phaser.Display.Color.IntegerToColor(shade(color, 1.28));
-      const bot = Phaser.Display.Color.IntegerToColor(shade(color, 0.68));
-      g.fillStyle(shade(color, 0.68)).fillRoundedRect(4, 12, 36, 30, 7);
-      const bands = 9;
-      for (let i = 0; i < bands; i++) {
-        const c = Phaser.Display.Color.Interpolate.ColorWithColor(top, bot, bands - 1, i);
-        g.fillStyle(Phaser.Display.Color.GetColor(c.r, c.g, c.b));
-        g.fillRect(6, 14 + (i * 26) / bands, 32, 26 / bands + 1);
-      }
-      // colored rim-light running down the left edge of the body
-      g.fillStyle(rim, 0.85).fillRect(5.5, 15, 2.6, 24);
-      g.lineStyle(1.5, shade(color, 1.45), 0.55).strokeRoundedRect(4, 12, 36, 30, 7);
-      // visor
-      g.fillStyle(dark, 1).fillRoundedRect(9, 17, 26, 13, 5);
+      // --- treads: smooth belt band + round wheels, centred at y≈44.5 (anchor 3) --
+      g.fillStyle(0x0c1019, 1).fillRoundedRect(2, 40, 40, 9, 3.5); // belt base
+      g.fillStyle(0x151b2b, 1).fillRoundedRect(2, 39.4, 40, 2.4, 1.2); // top rim line
+      [8, 17, 26, 35].forEach((x) => {
+        g.fillStyle(0x2a3247, 1).fillCircle(x, 44.5, 3.9);          // round wheel
+        g.fillStyle(0x384360, 0.75).fillCircle(x - 1.2, 43.2, 1.1); // wheel spec
+      });
+      // --- body: rounded Lumen capsule with Canvas-safe 4-tone soft shading -------
+      softBody(g, {
+        x: 4, y: 12, w: 36, h: 30, r: 9, base: color,
+        shadeLo: shade(color, 0.6), shadeHi: shade(color, 1.34),
+        outline: shade(color, 1.4), outlineA: 0.5,
+      });
+      // colored rim-light running down the left edge of the body (+ soft halo)
+      g.fillStyle(rim, 0.22).fillRoundedRect(4.4, 14, 3.6, 26, 1.8);
+      g.fillStyle(rim, 0.85).fillRoundedRect(5.2, 15, 2.8, 24, 1.4);
+      // a glossy top-left specular dab on the capsule
+      specular(g, { x: 15, y: 17, w: 9, h: 3.2, a: 0.4 });
+      // --- friendly glass visor ---------------------------------------------------
+      g.fillStyle(dark, 1).fillRoundedRect(9, 17, 26, 13, 6);
+      g.lineStyle(1.2, shade(color, 1.32), 0.4).strokeRoundedRect(9, 17, 26, 13, 6); // bezel
       if (blink) {
-        // eyes closed — two short horizontal lids
+        // eyes closed — two short horizontal lids at contract y=24 (anchor 7)
         g.lineStyle(2.4, 0xffffff, 0.92);
         g.lineBetween(13, 24, 21, 24);
         g.lineBetween(24, 24, 32, 24);
       } else {
-        g.fillStyle(0xffffff);
-        g.fillCircle(17, 23, 3.4); g.fillCircle(28, 23, 3.4); // eyes
+        // baked white eyes EXACTLY at (17,23) & (28,23) — 11px apart (anchor 1)
+        g.fillStyle(0xffffff, 1);
+        g.fillCircle(17, 23, 3.4); g.fillCircle(28, 23, 3.4);
         g.fillStyle(0xbfeaff, 0.95); // glossy specular dots
         g.fillCircle(15.8, 21.4, 1.2); g.fillCircle(26.8, 21.4, 1.2);
       }
       // glossy visor sweep — thin white specular streak across the top of the glass
-      g.fillStyle(0xffffff, 0.16).fillRoundedRect(10, 18, 24, 2.6, 1);
-      // antenna
+      g.fillStyle(0xffffff, 0.18).fillRoundedRect(10.5, 18.2, 23, 2.4, 1.2);
+      // --- antenna: stalk + glowing tip EXACTLY at (22,3) (anchor 2) --------------
       g.lineStyle(2, shade(color, 1.28)).lineBetween(22, 12, 22, 4);
-      g.fillStyle(0xffffff).fillCircle(22, 3, 2.6);
-      g.fillStyle(dark).fillRect(12, 34, 20, 3); // chest stripe
+      g.fillStyle(rim, 0.3).fillCircle(22, 3, 4);      // tip glow halo
+      g.fillStyle(0xffffff, 1).fillCircle(22, 3, 2.6); // tip
+      // --- chest accent stripe ----------------------------------------------------
+      g.fillStyle(dark, 1).fillRoundedRect(12, 34, 20, 3, 1.5);
+      g.fillStyle(rim, 0.45).fillRect(13, 34.4, 18, 1); // stripe glow line
     };
-    make("robot_b", 44, 48, robot(COLORS.beep, 0x0c2f44, 0xbfeaff, false));
-    make("robot_o", 44, 48, robot(COLORS.boop, 0x4a2a08, 0xffe0a8, false));
-    make("robot_b_blink", 44, 48, robot(COLORS.beep, 0x0c2f44, 0xbfeaff, true));
-    make("robot_o_blink", 44, 48, robot(COLORS.boop, 0x4a2a08, 0xffe0a8, true));
+    make("robot_b", 44, 48, robot(COLORS.beep, 0x0c2f44, COLORS.mint, false));
+    make("robot_o", 44, 48, robot(COLORS.boop, 0x4a2a08, COLORS.coral, false));
+    make("robot_b_blink", 44, 48, robot(COLORS.beep, 0x0c2f44, COLORS.mint, true));
+    make("robot_o_blink", 44, 48, robot(COLORS.boop, 0x4a2a08, COLORS.coral, true));
     // P6 carried-pose art: arms-up variant, texture-swapped onto a carried buddy
     // (drawn art, not a tint — reads under the Canvas renderer).
-    make("robot_b_carry", 44, 48, robot(COLORS.beep, 0x0c2f44, 0xbfeaff, false, true));
-    make("robot_o_carry", 44, 48, robot(COLORS.boop, 0x4a2a08, 0xffe0a8, false, true));
+    make("robot_b_carry", 44, 48, robot(COLORS.beep, 0x0c2f44, COLORS.mint, false, true));
+    make("robot_o_carry", 44, 48, robot(COLORS.boop, 0x4a2a08, COLORS.coral, false, true));
 
     // P6 shadow blob: a soft dark ellipse (stacked low-alpha rings — a Canvas-safe
     // fake radial gradient). One pooled instance rides under each robot, scaled
     // down as it lifts off the ground and hidden while carried. Alpha dialled at
     // placement (~0.35) so it grounds the robot without muddying the terrain.
     make("shadow", 64, 26, (g) => {
-      for (let i = 16; i > 0; i--) {
-        const t = i / 16;
-        g.fillStyle(0x000000, 0.05);
+      // GFX2: softer contact shadow — more, fainter rings for a smoother falloff.
+      for (let i = 20; i > 0; i--) {
+        const t = i / 20;
+        g.fillStyle(0x000000, 0.038);
         g.fillEllipse(32, 13, 60 * t, 22 * t);
       }
     });
@@ -594,11 +605,12 @@ export default class BootScene extends Phaser.Scene {
     // it is inside a phase-wall. Baked violet (reads on Canvas); the additive GLOW
     // is gated to WebGL by setting ADD blend only on that renderer (see Player.js).
     make("phaseedge", 44, 48, (g) => {
-      g.lineStyle(4, 0xc39dff, 0.18).strokeRoundedRect(2.5, 10.5, 39, 33, 9);
-      g.lineStyle(2, 0xe8d8ff, 0.5).strokeRoundedRect(4, 12, 36, 30, 7);
+      // hugs the new r=9 capsule silhouette (body 4,12,36,30)
+      g.lineStyle(4, 0xc39dff, 0.18).strokeRoundedRect(2.5, 10.5, 39, 33, 11);
+      g.lineStyle(2, 0xe8d8ff, 0.5).strokeRoundedRect(4, 12, 36, 30, 9);
       g.lineStyle(2, 0xd7bbff, 0.4).lineBetween(22, 12, 22, 3);
       g.fillStyle(0xf2e8ff, 0.5).fillCircle(22, 3, 2.8);
-      g.lineStyle(3, 0xc39dff, 0.16).strokeRoundedRect(2, 39.5, 40, 8.5, 3); // tread halo
+      g.lineStyle(3, 0xc39dff, 0.16).strokeRoundedRect(2, 39.5, 40, 8.5, 3.5); // tread halo
     });
 
     // --- ANIM A2: player locomotion overlay parts (pooled, drawn art) -------
@@ -608,12 +620,12 @@ export default class BootScene extends Phaser.Scene {
     // (no TileSprite pattern re-fill), giving visibly rolling treads at ~zero cost.
     for (let p = 0; p < 4; p++) {
       make(`tread${p}`, 40, 9, (g) => {
-        g.fillStyle(0x0c1019).fillRect(0, 0, 40, 9);     // belt base (== baked)
-        g.fillStyle(0x151b2b).fillRect(0, 0, 40, 2);      // top rim line
+        g.fillStyle(0x0c1019).fillRoundedRect(0, 0, 40, 9, 3.5); // smooth belt (== baked)
+        g.fillStyle(0x151b2b).fillRoundedRect(0, 0, 40, 2.2, 1.1); // top rim line
         for (let i = -1; i < 5; i++) {
-          const x = i * 10 + p * 2.5;                     // bumps march by phase
-          g.fillStyle(0x2a3247).fillCircle(x, 5.5, 3.9);
-          g.fillStyle(0x384360, 0.7).fillCircle(x - 1.3, 4.2, 1);
+          const x = i * 10 + p * 2.5;                     // round wheels march by phase
+          g.fillStyle(0x2a3247).fillCircle(x, 5.3, 3.9);
+          g.fillStyle(0x384360, 0.75).fillCircle(x - 1.3, 4.1, 1.1); // wheel spec
         }
       });
     }
@@ -622,16 +634,20 @@ export default class BootScene extends Phaser.Scene {
     // eyes into the body; this moving overlay augments them, never fights them).
     // One merged part keeps the display list small (cheap on the Canvas tier).
     make("pupils", 16, 8, (g) => {
+      // lens centres at x=3 & x=14 (11px apart) — MUST match the baked eyes (anchor 1)
       g.fillStyle(0x0a1626);
-      g.fillCircle(3, 4, 2.1); g.fillCircle(14, 4, 2.1);   // L / R lenses
-      g.fillStyle(0x9fd4ff, 0.85);
-      g.fillCircle(2.3, 3.3, 0.8); g.fillCircle(13.3, 3.3, 0.8); // catch-lights
+      g.fillCircle(3, 4, 2.2); g.fillCircle(14, 4, 2.2);   // L / R lenses
+      g.fillStyle(0x1b3a5c, 0.9);
+      g.fillCircle(3, 4.5, 1.3); g.fillCircle(14, 4.5, 1.3); // lower iris warmth
+      g.fillStyle(0x9fd4ff, 0.9);
+      g.fillCircle(2.3, 3.3, 0.85); g.fillCircle(13.3, 3.3, 0.85); // catch-lights
     });
     // Antenna tip accent: a tiny light ball that rides the baked antenna tip and
     // trails (leans back / lifts) with the rising/falling pose.
     make("anttip", 6, 6, (g) => {
-      g.fillStyle(0xdfe8ff, 0.95).fillCircle(3, 3, 2);
-      g.fillStyle(0xffffff, 0.9).fillCircle(2.3, 2.3, 0.8);
+      g.fillStyle(0xdfe8ff, 0.28).fillCircle(3, 3, 3);    // glowing tip halo
+      g.fillStyle(0xeef4ff, 0.98).fillCircle(3, 3, 2);
+      g.fillStyle(0xffffff, 0.95).fillCircle(2.3, 2.3, 0.85);
     });
 
     // --- ANIM A4: action + death set art (pooled, drawn, canvas-safe) -------
@@ -639,7 +655,10 @@ export default class BootScene extends Phaser.Scene {
     // ORIGIN at the shoulder (left edge) so the rig can stretch its reach with a
     // scaleX and aim it in world space at the zip anchor.
     make("arm_glyph", 18, 8, (g) => {
-      g.fillStyle(0x223049, 1).fillRoundedRect(0, 2.5, 12, 3, 1.5); // forearm
+      // origin 0.12,0.5 (set by the rig) → pivot on the shoulder stud at x≈2
+      g.fillStyle(0x223049, 1).fillRoundedRect(0, 2, 12, 4, 2); // rounded forearm
+      g.fillStyle(0x2f4066, 0.85).fillRoundedRect(0, 2, 12, 1.6, 0.8); // top light
+      g.fillStyle(0x35f0ff, 0.22).fillCircle(13.5, 4, 4.5); // claw glow
       g.lineStyle(2, 0x35f0ff, 0.9);
       g.strokeCircle(13.5, 4, 3); // claw ring
       g.lineBetween(12, 1.5, 15, 0); // upper prong
@@ -648,6 +667,7 @@ export default class BootScene extends Phaser.Scene {
     });
     // Equip FLASH: a bright expanding ring popped over the head on skill assignment.
     make("equipflash", 40, 40, (g) => {
+      g.lineStyle(6, 0xbfeaff, 0.12).strokeCircle(20, 20, 15); // soft outer halo
       g.lineStyle(4, 0xffffff, 0.9).strokeCircle(20, 20, 12);
       g.lineStyle(2, 0xbfeaff, 0.7).strokeCircle(20, 20, 17);
       for (let i = 0; i < 6; i++) {
@@ -658,12 +678,13 @@ export default class BootScene extends Phaser.Scene {
     // Death-scatter CHUNKS: 5 drawn robot pieces (visor / antenna / tread / body
     // plate / bolt), one set per player accent colour. Pooled + flung on death,
     // pulled back together by the respawn beam (see src/anim/death.js).
+    // GFX2: matched Lumen mini-pieces — rounder forms, soft top-light + accent glow.
     const chunk = {
-      visor: (g, ac) => { g.fillStyle(0x0a1626, 1).fillRoundedRect(0, 2, 14, 6, 2); g.fillStyle(ac, 0.9).fillRect(2, 3, 10, 2); g.fillStyle(0xffffff, 0.8).fillCircle(4, 4.5, 1); },
-      ant: (g, ac) => { g.fillStyle(0x2a3247, 1).fillRect(3, 2, 2, 8); g.fillStyle(0xdfe8ff, 0.95).fillCircle(4, 2, 2.4); g.fillStyle(ac, 0.9).fillCircle(4, 2, 1.1); },
-      tread: (g) => { g.fillStyle(0x0c1019, 1).fillRoundedRect(0, 1, 14, 6, 1.5); g.fillStyle(0x2a3247, 1).fillCircle(4, 4, 2.2); g.fillStyle(0x2a3247, 1).fillCircle(10, 4, 2.2); },
-      plate: (g, ac) => { g.fillStyle(0x1a2740, 1).fillRoundedRect(0, 0, 12, 10, 2); g.lineStyle(1.5, ac, 0.8).strokeRoundedRect(1, 1, 10, 8, 2); g.fillStyle(0x384360, 0.8).fillRect(3, 3, 6, 1.5); },
-      bolt: (g, ac) => { g.fillStyle(0x8fa3d9, 1).fillCircle(4, 4, 3.5); g.fillStyle(ac, 0.7).fillCircle(4, 4, 1.6); },
+      visor: (g, ac) => { g.fillStyle(0x0a1626, 1).fillRoundedRect(0, 2, 14, 6, 2.5); g.fillStyle(ac, 0.9).fillRoundedRect(2, 3, 10, 2, 1); g.fillStyle(0xffffff, 0.85).fillCircle(4, 4.2, 1); },
+      ant: (g, ac) => { g.fillStyle(0x2a3247, 1).fillRoundedRect(3, 2, 2, 8, 1); g.fillStyle(ac, 0.3).fillCircle(4, 2, 3); g.fillStyle(0xeef4ff, 0.95).fillCircle(4, 2, 2.2); g.fillStyle(ac, 0.9).fillCircle(4, 2, 1.1); },
+      tread: (g) => { g.fillStyle(0x0c1019, 1).fillRoundedRect(0, 1, 14, 6, 2.5); g.fillStyle(0x2a3247, 1).fillCircle(4, 4, 2.2); g.fillStyle(0x2a3247, 1).fillCircle(10, 4, 2.2); g.fillStyle(0x384360, 0.7).fillCircle(3.2, 3.2, 0.8); },
+      plate: (g, ac) => { g.fillStyle(0x1a2740, 1).fillRoundedRect(0, 0, 12, 10, 3); g.fillStyle(0x2f4066, 0.6).fillRoundedRect(1, 1, 10, 3, 2); g.lineStyle(1.5, ac, 0.8).strokeRoundedRect(1, 1, 10, 8, 2.5); g.fillStyle(0x384360, 0.8).fillRoundedRect(3, 4, 6, 1.5, 0.7); },
+      bolt: (g, ac) => { g.fillStyle(ac, 0.28).fillCircle(4, 4, 4); g.fillStyle(0x8fa3d9, 1).fillCircle(4, 4, 3.4); g.fillStyle(ac, 0.7).fillCircle(4, 4, 1.6); g.fillStyle(0xffffff, 0.7).fillCircle(3, 3, 0.8); },
     };
     for (const [key, ac] of [["b", COLORS.beep], ["o", COLORS.boop]]) {
       make(`dp_visor_${key}`, 14, 10, (g) => chunk.visor(g, ac));

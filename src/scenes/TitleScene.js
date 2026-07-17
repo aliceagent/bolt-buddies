@@ -8,9 +8,17 @@ import { pads, showPadToast } from "../pad.js";
 import { tutorialDone, uxFlashScale } from "../ux.js";
 import { keyCap as kitKeyCap, chipRow as kitChipRow, neonPanel, addSkyline } from "../ui/kit.js";
 import { MOTION } from "../anim/motion.js";
+import { ringGlow, specular } from "../ui/paint.js";
 
 const ACCENT = WORLD_THEMES[1].accent; // world-1 amber accent for buttons
 const hexStr = (n) => "#" + (n & 0xffffff).toString(16).padStart(6, "0");
+// local channel-scale (darken f<1 / lighten f>1, clamped) for soft shading
+const shade = (hex, f) => {
+  const r = Math.min(255, Math.round(((hex >> 16) & 255) * f));
+  const g = Math.min(255, Math.round(((hex >> 8) & 255) * f));
+  const b = Math.min(255, Math.round((hex & 255) * f));
+  return (r << 16) | (g << 8) | b;
+};
 
 // Neon two-tone endpoints for the wordmark colour cycle (cyan <-> magenta).
 const TONE_A = [53, 240, 255];
@@ -307,29 +315,39 @@ export default class TitleScene extends Phaser.Scene {
     // sway rides on the body graphic, the wag on the tail — they compose cleanly).
     const c = this.add.container(cx, cy).setDepth(0);
     const g = this.add.graphics().setDepth(0);
+    // GFX2 "Lumen Lab": smoother soft-shaded pup + a warm glow ring behind the head.
     // stub legs
     g.fillStyle(dark);
-    [-16, -4, 12, 22].forEach((lx) => g.fillRoundedRect(lx, 8, 7, 9, 2));
-    // body
-    g.fillStyle(body).fillRoundedRect(-22, -10, 46, 20, 9);
+    [-16, -4, 12, 22].forEach((lx) => g.fillRoundedRect(lx, 8, 7, 9, 3));
+    // body — base + under-shade + top-light (soft 3-tone) for a rounder read
+    g.fillStyle(shade(body, 0.82)).fillRoundedRect(-22, -10, 46, 20, 10);
+    g.fillStyle(body).fillRoundedRect(-22, -10, 44, 16, 9);
     g.fillStyle(0xeef1f7, 0.5).fillRoundedRect(-18, -8, 38, 5, 3); // top highlight
-    // amber collar just behind the head
+    // amber collar just behind the head (with a soft glow)
+    g.fillStyle(collar, 0.28).fillRect(11, -12, 6, 24);
     g.fillStyle(collar).fillRect(12, -10, 4, 20);
     g.fillStyle(0xffe0a8, 0.9).fillCircle(14, 2, 2);
     // hind haunch
-    g.fillStyle(body).fillCircle(-18, 0, 11);
+    g.fillStyle(shade(body, 0.82)).fillCircle(-18, 1, 11);
+    g.fillStyle(body).fillCircle(-18, 0, 10.5);
+    // warm glow ring behind the head — reads him as friendly/robotic
+    ringGlow(g, { x: 24, y: -14, r: 15, color: ACCENT, width: 2 });
     // head
-    g.fillStyle(body).fillCircle(24, -14, 13);
-    g.fillStyle(0xeef1f7, 0.4).fillCircle(21, -18, 5); // head sheen
+    g.fillStyle(shade(body, 0.82)).fillCircle(24, -13, 13);
+    g.fillStyle(body).fillCircle(24, -14, 12.5);
+    g.fillStyle(0xeef1f7, 0.45).fillCircle(21, -18, 5.5); // head sheen
+    specular(g, { x: 20, y: -19, w: 4, h: 2.4, a: 0.6 }); // glossy dab
     // snout
-    g.fillStyle(body).fillRoundedRect(30, -12, 14, 11, 4);
+    g.fillStyle(body).fillRoundedRect(30, -12, 14, 11, 5);
     g.fillStyle(dark).fillCircle(43, -8, 2.6); // nose
+    g.fillStyle(0xffffff, 0.6).fillCircle(42.2, -8.8, 0.9); // nose gloss
     g.fillStyle(0x11151f).fillRect(34, -3, 9, 1.6); // mouth line
     // eye + catchlight
-    g.fillStyle(eyec).fillCircle(27, -15, 3.4);
-    g.fillStyle(0xffffff, 0.95).fillCircle(28.2, -16.2, 1.2);
-    // little antenna nub so he reads as robotic
+    g.fillStyle(eyec).fillCircle(27, -15, 3.6);
+    g.fillStyle(0xffffff, 0.95).fillCircle(28.2, -16.2, 1.3);
+    // little antenna nub so he reads as robotic (glowing tip)
     g.lineStyle(2, dark).lineBetween(20, -26, 20, -32);
+    g.fillStyle(ACCENT, 0.35).fillCircle(20, -33, 4);
     g.fillStyle(ACCENT).fillCircle(20, -33, 2.4);
     // gentle body sway (unchanged — rides on the body graphic inside the container)
     this.tweens.add({ targets: g, angle: { from: -3, to: 3 }, duration: 520, yoyo: true, repeat: -1, ease: "sine.inOut" });
@@ -695,12 +713,15 @@ export default class TitleScene extends Phaser.Scene {
     this.kobiEye = { x: ex, y: ey };
     const eye = this.add.container(ex, ey).setDepth(4);
     const sclera = this.add.graphics();
+    // GFX2 "Lumen Lab": armoured housing + magenta glow seam, glassier sclera.
     sclera.fillStyle(0x1a1024, 0.95).fillCircle(0, 0, 26);
-    sclera.lineStyle(2, COLORS.magenta, 0.8).strokeCircle(0, 0, 26);
-    sclera.fillStyle(0xffffff, 0.92).fillCircle(0, 0, 16);
+    ringGlow(sclera, { x: 0, y: 0, r: 26, color: COLORS.magenta, width: 2 });
+    sclera.fillStyle(0xf6f0ff, 0.95).fillCircle(0, 0, 16); // glassy sclera
+    sclera.fillStyle(0xffffff, 0.5).fillEllipse(-5, -6, 10, 5); // top-left glass sheen
     // iris as its own container so it can wander / glance within the sclera
     const iris = this.add.container(0, 0);
     const ig = this.add.graphics();
+    ig.fillStyle(0xff4dd2, 0.28).fillCircle(0, 0, 11); // deep magenta iris glow
     ig.fillStyle(0xff4dd2, 1).fillCircle(0, 0, 8);
     ig.fillStyle(0x2a0a1e, 1).fillCircle(0, 0, 4);
     ig.fillStyle(0xffffff, 0.9).fillCircle(-2, -3, 2);

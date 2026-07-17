@@ -9,6 +9,7 @@ import { pads, showPadToast } from "../pad.js";
 import { drawWorldIcon } from "../worldIcons.js";
 import { drawIris, irisMaxR } from "../ui/kit.js";
 import { MOTION } from "../anim/motion.js";
+import { ringGlow } from "../ui/paint.js";
 
 
 // Facility map: 4 wings x 3 chambers. Navigate with either player's keys.
@@ -254,12 +255,16 @@ export default class HubScene extends Phaser.Scene {
     const y = H - 24;
     // fixed KOBI eye prefix at the left
     const eye = this.add.graphics().setDepth(6);
+    // GFX2 "Lumen Lab": glassier sclera + a soft magenta glow seam on the housing.
     eye.fillStyle(COLORS.dark, 1).fillRect(0, y - 12, 40, 24);
-    eye.fillStyle(0xffffff, 0.9).fillCircle(18, y, 9); // sclera
+    ringGlow(eye, { x: 18, y, r: 9.5, color: COLORS.magenta, width: 1.5 });
+    eye.fillStyle(0xf6f0ff, 0.95).fillCircle(18, y, 9); // glassy sclera
+    eye.fillStyle(0xffffff, 0.5).fillEllipse(15, y - 3, 6, 3); // sheen
     // A11: the magenta iris/pupil is its OWN object so it can FOLLOW the selected
     // node as the player moves across the sector map (pupil-follow lerp in update()).
     // Drawn at local origin, positioned at the sclera centre + a followed offset.
     const pupil = this.add.graphics().setDepth(6);
+    pupil.fillStyle(COLORS.magenta, 0.28).fillCircle(0, 0, 7); // deep iris glow
     pupil.fillStyle(COLORS.magenta, 1).fillCircle(0, 0, 5);
     pupil.fillStyle(0x2a0a1e, 1).fillCircle(0.8, 0, 2.5);
     this.hubPupil = pupil;

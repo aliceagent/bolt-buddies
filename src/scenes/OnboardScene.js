@@ -4,6 +4,7 @@ import { addGradient, addMotes } from "../backdrop.js";
 import { LEVELS } from "../levels/registry.js";
 import { initAudio, sfx } from "../audio.js";
 import { pads, showPadToast } from "../pad.js";
+import { ringGlow } from "../ui/paint.js";
 
 const ACCENT = WORLD_THEMES[1].accent; // world-1 amber, matching the title menu
 
@@ -124,11 +125,15 @@ export default class OnboardScene extends Phaser.Scene {
   // KOBI avatar: the same round eye + red iris the blip bar uses, scaled up.
   buildKobiAvatar(cx, cy) {
     const av = this.add.graphics();
+    // GFX2 "Lumen Lab": armoured housing w/ magenta glow seam, glassy sclera, deep
+    // magenta iris glow — matches the Title corner / Hub ticker / HUD blip avatar.
     av.fillStyle(0x1a1020, 1).fillCircle(cx, cy, 34);
-    av.lineStyle(2.5, COLORS.magenta, 0.85).strokeCircle(cx, cy, 34);
-    av.fillStyle(0xf6f0ff, 1).fillCircle(cx, cy, 26);      // sclera
-    av.fillStyle(0xff3b30, 1).fillCircle(cx, cy, 12);       // red iris
-    av.fillStyle(0x120306, 1).fillCircle(cx, cy, 5.5);      // pupil
+    ringGlow(av, { x: cx, y: cy, r: 34, color: COLORS.magenta, width: 2 });
+    av.fillStyle(0xf6f0ff, 1).fillCircle(cx, cy, 26);        // glassy sclera
+    av.fillStyle(0xffffff, 0.5).fillEllipse(cx - 7, cy - 9, 14, 7); // top-left sheen
+    av.fillStyle(COLORS.magenta, 0.28).fillCircle(cx, cy, 16); // deep magenta iris glow
+    av.fillStyle(COLORS.magenta, 1).fillCircle(cx, cy, 12);    // magenta iris
+    av.fillStyle(0x2a0a1e, 1).fillCircle(cx, cy, 5.5);         // pupil
     av.fillStyle(0xffffff, 0.9).fillCircle(cx - 4, cy - 5, 3); // catchlight
     // a soft magenta bloom ring
     const glow = this.add.graphics().setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.3);

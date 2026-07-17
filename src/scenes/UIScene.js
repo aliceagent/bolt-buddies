@@ -6,6 +6,7 @@ import { uxTextSpeed } from "../ux.js";
 import { pads } from "../pad.js";
 import { drawIris, irisMaxR } from "../ui/kit.js";
 import { MOTION } from "../anim/motion.js";
+import { ringGlow } from "../ui/paint.js";
 
 
 const SKILL_ICON = { grapple: "icon_grapple", heavy: "icon_heavy", phase: "icon_phase", tiny: "icon_tiny" };
@@ -539,12 +540,16 @@ export default class UIScene extends Phaser.Scene {
     const ax = x0 + 42, ay = y0 + h / 2;
     this._avx = ax; this._avy = ay;
     const avBase = this.add.graphics();
+    // GFX2 "Lumen Lab": glassier sclera + a soft magenta housing glow seam.
     avBase.fillStyle(0x1a1020, 1).fillCircle(ax, ay, 22);   // socket
-    avBase.fillStyle(0xf6f0ff, 1).fillCircle(ax, ay, 17);   // sclera
+    ringGlow(avBase, { x: ax, y: ay, r: 20, color: COLORS.magenta, width: 1.5 });
+    avBase.fillStyle(0xf6f0ff, 1).fillCircle(ax, ay, 17);   // glassy sclera
+    avBase.fillStyle(0xffffff, 0.5).fillEllipse(ax - 5, ay - 6, 10, 5); // top-left sheen
     this.avRing = this.add.graphics();                       // mood ring (recoloured)
     this.avIris = this.add.graphics();                       // iris — wanders / snaps
-    this.avIris.fillStyle(0xff3b30, 1).fillCircle(ax, ay, 8);      // red iris
-    this.avIris.fillStyle(0x120306, 1).fillCircle(ax, ay, 3.5);    // pupil
+    this.avIris.fillStyle(COLORS.magenta, 0.28).fillCircle(ax, ay, 11); // deep magenta iris glow
+    this.avIris.fillStyle(COLORS.magenta, 1).fillCircle(ax, ay, 8);     // magenta iris
+    this.avIris.fillStyle(0x2a0a1e, 1).fillCircle(ax, ay, 3.5);         // pupil
     this.avIris.fillStyle(0xffffff, 0.9).fillCircle(ax - 3, ay - 3, 2); // catchlight
     this.irisPos = { x: 0, y: 0 };
     // defeated eyelid: a filled upper-half cap over the sclera (drawn once, toggled)
