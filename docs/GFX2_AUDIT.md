@@ -243,5 +243,3 @@ Lumen palette — no clashing hex found, so no additive tweak was needed:
   marqueedot, glint, streak, px, darkpx, glowmask, conemask, plate_glow, bug_glow,
   jelly_glow. (Plus `shadow` whose radial is functional but was still softened in V2.)
 - PARTICLES: 0 changes (already coherent).
-</content>
-</invoke>
