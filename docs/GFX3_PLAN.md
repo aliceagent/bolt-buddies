@@ -392,3 +392,9 @@ The single highest-leverage sprint: players see it, tests can't.
   ~41/36 avg (within documented container noise). Hub QA (new tools/qa_g5_hub.mjs) clean
   (0 page errors); 1-1 sanity confirms NO bars (letterboxOn=false, camCine=1) and __BB
   probes intact in normal play. New QA file only — tools/ originals untouched (R6).
+- G6 (full gate, 2026-07-19): playtest 42/42, w2 30/30, audio 29/29, vo 5/5,
+  tut_sanity 21/21, textbox 13/13; beat matrix 23/24 with the single fail the
+  documented 1-2 chasm-relay reel-chord race (2/2 green on re-run → effective
+  24/24); softlock 38/38 RECOVERABLE, 0 HARD, 0 UNVERIFIED; campaign 2/2 CLEAN
+  (0 flake-retries, 0 page errors). Canvas fps A/B dev-vs-main on 2-2 + 4-3:
+  identical within run noise (guardrail pass). Promoted dev → main.
