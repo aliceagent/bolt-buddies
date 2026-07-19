@@ -175,6 +175,10 @@ export default class HubScene extends Phaser.Scene {
       fontFamily: FONT, fontSize: FS.mini, color: TEXT.faint,
     }).setOrigin(0.5);
 
+    // GFX3 G5: hub life — the marching route line (retargeted by updateSelection)
+    // and the rare completed-node glints. Pools built once; no per-frame alloc.
+    this.buildHubLife();
+
     this.updateSelection();
 
     installMute(this);
@@ -542,6 +546,80 @@ export default class HubScene extends Phaser.Scene {
     this.pulseTween = this.tweens.add({
       targets: proxy, s: 1.08, duration: 620, yoyo: true, repeat: -1, ease: "sine.inOut",
       onUpdate: () => { n.circle.setScale(proxy.s); n.label.setScale(proxy.s); },
+    });
+    // GFX3 G5: re-aim the route line at the new selection (composes with the
+    // selection pulse above — separate objects, G2-D2 untouched).
+    this.retargetRoute();
+  }
+
+  // GFX3 G5 — hub life (both tiers, cheap tweens; no per-frame allocation).
+  //   Route line: a fixed pool of soft dots that MARCH from the last completed
+  //     node to the current selection. Each dot owns ONE persistent alpha-cycle
+  //     tween with a per-index phase delay, so a bright crest sweeps start->end;
+  //     retargetRoute() only repositions/toggles the pooled dots (never rebuilds
+  //     tweens), so selection changes can't leak.
+  //   Glints: one additive star per completed node, a rare (6-12s) scale/fade
+  //     twinkle on a staggered delay — the map reads as alive without motion noise.
+  buildHubLife() {
+    // soft round route dot, baked once (boot-safe: guarded, drawn at most once).
+    if (!this.textures.exists("hubdot")) {
+      const g = this.make.graphics({ x: 0, y: 0, add: false });
+      g.fillStyle(0xffffff, 0.22).fillCircle(6, 6, 6);
+      g.fillStyle(0xffffff, 0.55).fillCircle(6, 6, 3.6);
+      g.fillStyle(0xffffff, 1).fillCircle(6, 6, 2);
+      g.generateTexture("hubdot", 12, 12);
+      g.destroy();
+    }
+    const webgl = this.game.renderer.type === Phaser.WEBGL;
+    const CYCLE = 620, PHASE = 52;
+    this._routeDots = [];
+    for (let i = 0; i < 24; i++) {
+      const d = this.add.image(0, 0, "hubdot").setDepth(2).setVisible(false)
+        .setScale(0.7).setTint(0x59ff9c).setAlpha(0.1);
+      if (webgl) d.setBlendMode(Phaser.BlendModes.ADD);
+      // persistent phase-shifted fade: the reset-to-bright crest marches i=0->N.
+      this.tweens.add({
+        targets: d, alpha: { from: 0.85, to: 0.1 }, duration: CYCLE,
+        repeat: -1, delay: (i * PHASE) % CYCLE, ease: "sine.in",
+      });
+      this._routeDots.push(d);
+    }
+    // completed-node glints (fixed set; selection-independent).
+    this.nodes.forEach((n) => {
+      if (n.sealed || !n.completed) return;
+      const gl = this.add.image(n.x, n.y, "star").setDepth(2).setAlpha(0).setScale(0.3);
+      if (webgl) gl.setBlendMode(Phaser.BlendModes.ADD).setTint(0xbfffe0);
+      this.tweens.add({
+        targets: gl, alpha: { from: 0, to: 0.85 }, scale: { from: 0.3, to: 0.95 },
+        duration: 520, yoyo: true, repeat: -1, ease: "sine.inOut",
+        delay: Phaser.Math.Between(0, 8000),
+        repeatDelay: Phaser.Math.Between(6000, 12000),
+      });
+    });
+  }
+
+  // Aim the pooled route dots from the last completed node to the current
+  // selection. Straight-line path, endpoints inset off the node discs; the dot
+  // count scales with distance (capped at the pool). Degenerate cases (no
+  // completed node, cursor ON the start, sealed endpoints, near-zero length)
+  // hide every dot — the persistent march tweens keep running invisibly.
+  retargetRoute() {
+    if (!this._routeDots) return;
+    const hide = () => this._routeDots.forEach((d) => d.setVisible(false));
+    const startIdx = this.save.unlocked - 2; // highest completed idx
+    const a = this.nodes[startIdx], b = this.nodes[this.sel];
+    if (startIdx < 0 || startIdx === this.sel || !a || !b || a.sealed || b.sealed) { hide(); return; }
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 70) { hide(); return; }
+    const ux = dx / len, uy = dy / len, inset = 40;
+    const sx = a.x + ux * inset, sy = a.y + uy * inset;
+    const span = Math.max(1, len - inset * 2);
+    const N = Phaser.Math.Clamp(Math.round(span / 32), 2, this._routeDots.length);
+    this._routeDots.forEach((d, i) => {
+      if (i >= N) { d.setVisible(false); return; }
+      const f = (i + 1) / (N + 1);
+      d.setPosition(sx + ux * span * f, sy + uy * span * f).setVisible(true);
     });
   }
 

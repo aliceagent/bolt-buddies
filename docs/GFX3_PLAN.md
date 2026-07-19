@@ -343,3 +343,52 @@ The single highest-leverage sprint: players see it, tests can't.
   in the dark-mask update (the glow-erase loop), so NO new update loop. Canvas
   leaves `_darkGlows` unset, making that block a no-op. Verified: buddy glow
   alphas settle ~0.44 inside a 4-3 dark zone (screenshot g3-w4-l43-darkglow).
+- G5-D1: letterbox = two screen-fixed `add.rectangle` bars (each 9% of H), built
+  ONCE per create() (`buildLetterbox`, reset-on-restart is free) at new `DEPTH.cine`
+  (=31): ABOVE the fx particle band (30) + foreground silhouettes (26) so bars frame
+  edge FX/props, BELOW the fx+N pseudo-HUD band (skill card fx+2, coach bubbles fx+3,
+  intro banner fx+50). The UIScene blip bar CANNOT be covered — UIScene is a separate
+  scene launched by Game (`this.scene.launch("UI")`), so it renders above every Game
+  object regardless of depth; verified in l43-bolt-rescue.png (KOBI blip sits on top of
+  the bottom bar). `letterbox(on)` slides in 300ms / out 250ms, idempotent (guards
+  `letterboxOn`). Bars are visual-only: no physics/input/probe touched.
+- G5-D2: camera push = `camCine`, a SECOND rendered-zoom multiplier mirroring G1's
+  camPunch — eased toward `_camCineTarget` in updateCamera (GameScene ~8410,
+  `this.camCine += (target - camCine) * min(1, dt*0.6)`; a slow ~seconds push) and
+  applied as `cam.setZoom((camPos.zoom + zoomKick) * camPunch * camCine)`. NEVER
+  touches camPos.zoom (the world coords the beat kit + audio listener read). Target =
+  `1 + 0.06 * uxShakeScale()` on IN (so shake=off → target 1 = no push, bars still
+  show, R2), 1 on OUT. Inert when a snap tool stubs updateCamera (bars still slide;
+  the snap frames the camera itself).
+- G5-D3: beats wired — (1) fight opener: a ONE-TIME self-releasing pulse the first
+  frame a live buddy stands in the eye's clamp band (updateHeart, guarded by
+  `H._opened`), bars+push in, auto-lift ~2.4s later (release guarded by
+  `!heartDefeated` so it can't cancel the power-down bars). Control is never suspended
+  in the heart fight — this is framing only. (2) power-down → Bolt rescue: bars IN at
+  `heartPowerDown()` (heartDefeated), OUT at BOTH `heartResolved = true` sites (the
+  downStep-17 carry-settle AND the 40s hard fallback). Verified via snap_w4_l43:
+  bars present in l43-powerdown/l43-bolt-rescue, ABSENT in l43-resolved/l43-clear.
+- G5-D4: crane-boss intro letterbox SKIPPED (plan's explicit "do NOT invent one" rule).
+  The crane lives in 1-3 and is created in state "patrol", stepped from update() at
+  level entry — there is NO scripted beat that suspends player control (the `blips.start`
+  "BEHOLD! My magnificent crane!" line is the ordinary non-blocking level-start blip, not
+  a control-suspend cinematic). No suspend point → no bars.
+- G5-D5: hub route line = a FIXED pool of 24 soft `hubdot` images (baked once,
+  `textures.exists` guarded) each owning ONE persistent phase-shifted alpha-cycle tween
+  (CYCLE 620ms, per-index delay `i*52`), so a bright crest MARCHES last-completed →
+  selection. `retargetRoute()` (called from updateSelection, composes with the G2-D2
+  selection pulse — separate objects) only repositions/toggles the pooled dots along the
+  straight inset path; it NEVER rebuilds tweens, so cursor moves can't leak. Dot count
+  scales with distance (`clamp(round(span/32), 2, 24)`); degenerate cases (no completed
+  node, cursor on the start node, sealed endpoints, len<70) hide every dot. Verified:
+  5 dots at the default selection, 10 after one move-right (g5-hub-route/route2.png).
+- G5-D6: completed-node glints = ONE additive `star` image per completed unlocked node,
+  a rare scale/fade twinkle (alpha 0→0.85, scale 0.3→0.95, 520ms yoyo, staggered
+  `delay 0-8000ms` + `repeatDelay 6000-12000ms`). Selection-independent (built once in
+  buildHubLife), both tiers (WebGL adds ADD-blend + mint tint; Canvas keeps the pre-baked
+  alpha). No update loop.
+- G5-D7 (QA): playtest 42/42 green (incl. the 1-3 crane level — letterbox inert there).
+  snap_w4_l43 snapped clean (0 page errors), all heart.* probes intact, fps 4-3 Canvas
+  ~41/36 avg (within documented container noise). Hub QA (new tools/qa_g5_hub.mjs) clean
+  (0 page errors); 1-1 sanity confirms NO bars (letterboxOn=false, camCine=1) and __BB
+  probes intact in normal play. New QA file only — tools/ originals untouched (R6).

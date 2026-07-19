@@ -182,6 +182,12 @@ export const DEPTH = {
   // intro banner) and the separate UIScene blip bar — never occlude UI/blips.
   foreground: 26,
   fx: 30,
+  // GFX3 G5: cinematic letterbox bars. ABOVE the fx particle band + foreground
+  // silhouettes (so bars frame explosions/props at the screen edge) but BELOW
+  // the fx+N pseudo-HUD band (skill card fx+2, coach bubbles fx+3, intro banner
+  // fx+50) — and, being GameScene objects, always under the separate UIScene
+  // blip bar (UIScene renders above Game). Never occludes UI/blips.
+  cine: 31,
 };
 
 export const SKILL_INFO = {

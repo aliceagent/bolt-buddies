@@ -171,6 +171,15 @@ export default class GameScene extends Phaser.Scene {
     this.camPunch = 1;
     this._hitStopUntil = 0;
 
+    // GFX3 G5 — cinematic letterbox + camera push. `camCine` is a SECOND rendered-
+    // zoom multiplier (like camPunch) eased toward `_camCineTarget` in updateCamera;
+    // it NEVER touches camPos.zoom (the world coords the beat kit + audio listener
+    // read). `letterboxOn` guards the idempotent slide. Both reset here so a
+    // death/restart mid-cinematic rebuilds clean bars (buildLetterbox in create()).
+    this.camCine = 1;
+    this._camCineTarget = 1;
+    this.letterboxOn = false;
+
     // U8 (F15): per-run counters — DISPLAY-ONLY, passive observers of play. They
     // never touch physics or logic. `_elapsedMs` accumulates active (un-paused,
     // pre-complete) frame time from create() — control begins immediately (the
@@ -627,6 +636,9 @@ export default class GameScene extends Phaser.Scene {
     // to after the SCREEN SHAKE option scaled it (null = no shake requested yet;
     // 0 = a shake fired while the option was "off"). Passive — never read here.
     this._lastShakeAmp = null;
+
+    // GFX3 G5: two screen-fixed cinematic bars, parked off-screen until a beat.
+    this.buildLetterbox();
 
     // speed-line streaks flicked backward while a grappler zips
     this.zipLines = this.add.particles(0, 0, "streak", {
@@ -2853,6 +2865,47 @@ export default class GameScene extends Phaser.Scene {
     return [(t.fade >> 16) & 0xff, (t.fade >> 8) & 0xff, t.fade & 0xff];
   }
 
+  // GFX3 G5 — cinematic letterbox. Two screen-fixed black bars (each ~9% of the
+  // viewport) parked just off-screen; letterbox(true/false) slides them in/out.
+  // Built once per create() so a death/restart mid-cinematic starts bar-free.
+  // Depth DEPTH.cine (above fx particles/foreground, below the fx+N pseudo-HUD
+  // band; the UIScene blip bar renders in a scene above Game, so it is never
+  // covered). Visual-only: no physics, no input, no beat-kit probe touched.
+  buildLetterbox() {
+    const W = this.scale.width, H = this.scale.height;
+    const barH = Math.round(H * 0.09);
+    this._lbH = barH;
+    const mk = (y) => this.add.rectangle(W / 2, y, W, barH, 0x000000, 1)
+      .setScrollFactor(0).setDepth(DEPTH.cine).setVisible(false);
+    this._lbTop = mk(-barH / 2);        // hidden just above the top edge
+    this._lbBot = mk(H + barH / 2);     // hidden just below the bottom edge
+    this.letterboxOn = false;
+  }
+
+  // Slide the bars in (300ms) or out (250ms) and set the slow camera-push target.
+  // Idempotent (guards the current state) so overlapping beat wiring can't double-
+  // slide. The push is `1 -> ~1.06` eased in updateCamera, scaled by uxShakeScale
+  // (0 => target 1, i.e. NO push, but the bars still show — R2). Released with the
+  // bars. Inert if the bars were never built (no-op) or in any non-cinematic level.
+  letterbox(on) {
+    if (!this._lbTop || this.letterboxOn === on) return;
+    this.letterboxOn = on;
+    const H = this.scale.height, barH = this._lbH;
+    this.tweens.killTweensOf([this._lbTop, this._lbBot]);
+    if (on) {
+      this._lbTop.setVisible(true); this._lbBot.setVisible(true);
+      this.tweens.add({ targets: this._lbTop, y: barH / 2, duration: 300, ease: "sine.inOut" });
+      this.tweens.add({ targets: this._lbBot, y: H - barH / 2, duration: 300, ease: "sine.inOut" });
+      this._camCineTarget = 1 + 0.06 * uxShakeScale();
+    } else {
+      this.tweens.add({ targets: this._lbTop, y: -barH / 2, duration: 250, ease: "sine.inOut",
+        onComplete: () => this._lbTop.setVisible(false) });
+      this.tweens.add({ targets: this._lbBot, y: H + barH / 2, duration: 250, ease: "sine.inOut",
+        onComplete: () => this._lbBot.setVisible(false) });
+      this._camCineTarget = 1;
+    }
+  }
+
   // GFX3 G1 — hit-stop + zoom punch. `kind` is "light" (40ms stop, 1.5% zoom)
   // or "heavy" (70ms stop, 3% zoom). Skipped whole when SCREEN SHAKE is off (R2).
   // The stop pauses physics and lifts it on a SINGLE re-checking timer: a fresh
@@ -3258,6 +3311,23 @@ export default class GameScene extends Phaser.Scene {
       }
     }
 
+    // GFX3 G5: the FIGHT OPENER (eye-reveal beat) — the first frame a live buddy
+    // stands inside the eye's clamp band, a short self-releasing letterbox pulse
+    // (bars + slow push) frames the confrontation, then lifts ~2.4s later. Control
+    // is never suspended (the fight is live); this is cinematic framing only. Fires
+    // exactly once (`H._opened`); the release is guarded so it can't cancel the
+    // later power-down bars.
+    if (!H._opened) {
+      for (const p of this.players) {
+        if (!p.dead && p.x >= H.minX - 40 && p.x <= H.maxX + 40) {
+          H._opened = true;
+          this.letterbox(true);
+          this.time.delayedCall(2400, () => { if (!this.heartDefeated) this.letterbox(false); });
+          break;
+        }
+      }
+    }
+
     // --- the power-down + Bolt rescue timeline -------------------------------
     if (H.state === "down") { this.updateHeartDown(time, delta); return; }
 
@@ -3487,6 +3557,9 @@ export default class GameScene extends Phaser.Scene {
     H.downT = 0;
     H.downStep = 0;
     this.heartDefeated = true;
+    // GFX3 G5: the KOBI power-down -> Bolt rescue cinematic — bars IN here, OUT
+    // when control returns at heartResolved (both resolve sites, below).
+    this.letterbox(true);
     if (this.heartGfx) this.heartGfx.clear(); // drop any freeze-held glare painting
     // FIN-05 / beat 2.0 THE TURN: the wall-clamps blow, the eye stays AWAKE
     // (no grey iris, no lid, no music change yet — that is the whole twist).
@@ -3527,7 +3600,7 @@ export default class GameScene extends Phaser.Scene {
     if (!this.heartResolved && this.watchdog) this.watchdog._stallMs = 0;
     // HARD FALLBACK: whatever happens, the exit opens within ~40s of the 3rd
     // core (the cinematic keeps playing cosmetically past it if mid-beat).
-    if (!this.heartResolved && H.downT > 40000) this.heartResolved = true;
+    if (!this.heartResolved && H.downT > 40000) { this.heartResolved = true; this.letterbox(false); }
 
     // --- the tantrum cue sheet (bible-exact KOBI lines; eye still AWAKE) ----
     if (H.downStep === 0 && H.downT > 2500) {
@@ -3694,6 +3767,7 @@ export default class GameScene extends Phaser.Scene {
       // one celebration, a gentle forever-wiggle — and no further lines.
       H.downStep = 17;
       this.heartResolved = true;
+      this.letterbox(false); // GFX3 G5: control returns — lift the cinematic bars
       if (H.bolt) {
         this.starBurst.explode(this.fxBudget(12), H.bolt.x, H.bolt.y - 14);
         this.tweens.add({ targets: H.bolt, angle: { from: -6, to: 6 }, duration: 260, yoyo: true, repeat: -1, ease: "sine.inOut" });
@@ -8403,7 +8477,10 @@ export default class GameScene extends Phaser.Scene {
     // GFX3 G1: camPunch (1 = none) is the impactPunch zoom-punch multiplier —
     // it scales the RENDERED zoom only, leaving camPos.zoom (the world coords the
     // beat kit + audio listener read) untouched, exactly like zoomKick above.
-    cam.setZoom((this.camPos.zoom + this.zoomKick) * this.camPunch);
+    // GFX3 G5: camCine is the cinematic-push multiplier, eased slowly toward its
+    // target (1 = none) here — same rendered-zoom-only contract as camPunch.
+    this.camCine += (this._camCineTarget - this.camCine) * Math.min(1, dt * 0.6);
+    cam.setZoom((this.camPos.zoom + this.zoomKick) * this.camPunch * this.camCine);
     cam.centerOn(this.camPos.x, this.camPos.y);
     // publish the camera midpoint + on-screen half-extents for proximity SFX
     setListener(this.camPos.x, this.camPos.y, this.scale.width / 2 / this.camPos.zoom, this.scale.height / 2 / this.camPos.zoom);
