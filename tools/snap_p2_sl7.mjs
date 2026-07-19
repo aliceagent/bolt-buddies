@@ -74,6 +74,21 @@ const promptState = () => page.evaluate(() => {
   };
 });
 
+// T4: the SL4 panel now applies a +10s READING GRACE per shown tier, so the VISIBLE
+// firm / cold-truth panel LAGS the raw watchdog tier by ~10s / ~20s of stall (the raw
+// stuckTier still crosses on the compressed windows — the panel just reads slower, on
+// purpose). Poll for the panel to actually reach a mode instead of a fixed sleep.
+const waitMode = async (mode, timeoutMs = 24000) => {
+  const t0 = Date.now();
+  let last = await promptState();
+  while (Date.now() - t0 < timeoutMs) {
+    last = await promptState();
+    if (last.visible && last.modeShown === mode) return last;
+    await sleep(200);
+  }
+  return last;
+};
+
 // ============ (1) TIER-1 — now EXPLICIT (keycaps + restart line) ==============
 await load(0);
 await page.evaluate(() => {
@@ -98,8 +113,7 @@ await page.evaluate(() => {
   s.watchdog.T1 = 150; s.watchdog.T2 = 350; s.watchdog.T3 = 999999; // firm, not cold
   s.watchdog.reset();
 });
-await sleep(1600);
-let b = await promptState();
+let b = await waitMode("firm"); // T4: firm panel lands ~10s after gentle (reading grace)
 ok(b.stuckTier === 2 && b.modeShown === "firm", `tier-2 firm shown (tier=${b.stuckTier}, mode=${b.modeShown})`);
 ok(b.capsVisible && /Hold R twice to restart/i.test(b.sub), `tier-2 R keycaps + copy: "${b.sub}"`);
 ok(!b.greyVisible && !b.sadMode, "tier-2 does NOT show grey overlay / sad music");
@@ -113,8 +127,8 @@ await page.evaluate(() => {
   s.watchdog.T1 = 150; s.watchdog.T2 = 300; s.watchdog.T3 = 500; // climb to cold-truth
   s.watchdog.reset();
 });
-await sleep(1700);
-let c = await promptState();
+let c = await waitMode("coldtruth"); // T4: cold-truth panel lands ~20s in (firm+cold reading grace)
+await sleep(500); c = await promptState(); // let the grey fade-in tween + sad-music lowpass ramp settle
 ok(c.stuckTier === 3 && c.modeShown === "coldtruth", `tier-3 cold-truth (tier=${c.stuckTier}, mode=${c.modeShown})`);
 ok(c.greyVisible && c.greyAlpha > 0.4, `grey-fade overlay UP (visible=${c.greyVisible}, alpha=${c.greyAlpha})`);
 ok(/STUCK/i.test(c.head), `blunt KOBI head: "${c.head}"`);
@@ -140,8 +154,7 @@ await page.evaluate(() => {
   s.watchdog.T1 = 150; s.watchdog.T2 = 300; s.watchdog.T3 = 500;
   s.watchdog.reset();
 });
-await sleep(1500);
-let c3 = await promptState();
+let c3 = await waitMode("coldtruth"); // T4: wait out the firm+cold reading grace
 ok(c3.stuckTier === 3 && c3.greyVisible, `tier-3 grey-fade up before the R×2 proof (tier=${c3.stuckTier})`);
 const before = await page.evaluate(() => window.__BB.scene._elapsedMs | 0);
 await page.keyboard.press("KeyR");
@@ -165,8 +178,7 @@ await page.evaluate(() => {
   s.watchdog.T1 = 150; s.watchdog.T2 = 300; s.watchdog.T3 = 500;
   s.watchdog.reset();
 });
-await sleep(1600);
-let cm = await promptState();
+let cm = await waitMode("coldtruth"); // T4: wait out the firm+cold reading grace
 ok(cm.stuckTier === 3 && cm.sadMode, `tier-3 sad-mode toggled even while muted (sadMode=${cm.sadMode})`);
 ok(cm.musicBus < 0.001, `music stays SILENT under mute (musicBus=${cm.musicBus}) — no forced audio`);
 await page.keyboard.press("KeyM"); // unmute for the rest of the run

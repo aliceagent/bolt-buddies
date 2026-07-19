@@ -291,6 +291,7 @@ export default class GameScene extends Phaser.Scene {
     this.escKey = kb.addKey("ESC");
     this.rKey = kb.addKey("R");
     this.pKey = kb.addKey("P"); // S4: in-game pause overlay
+    this.enterKey = kb.addKey("ENTER"); // T4: acknowledges a visible stuck panel (blip skip wins first)
     this.paused = false;
     this.cpPos = def.spawns.map(([tx, ty]) => ({ x: tx * TILE + 24, y: ty * TILE + 24 }));
 
@@ -722,6 +723,15 @@ export default class GameScene extends Phaser.Scene {
     if (typeof window !== "undefined") {
       window.__BB = window.__BB || {};
       window.__BB.scene = this;
+      // T4 probe surface: the VISIBLE stuck-panel tier (reading-grace + ack aware, so
+      // it can lag the raw window.__bbStuckTier watchdog signal), its visibility, and
+      // ack() == one ENTER press. Getters read live scene state, never mutate it.
+      const self = this;
+      window.__BB.stuck = {
+        get tier() { return self._stuckTierShown | 0; },
+        get visible() { return !!(self.stuckUI && self.stuckUI.c.visible); },
+        ack() { return self.ackStuckPrompt(self.time.now); },
+      };
     }
 
     // Level intro card slides over the top third, holds ~1.6s, slides out. KOBI's
@@ -4667,6 +4677,10 @@ export default class GameScene extends Phaser.Scene {
     this._stuckTierShown = 0;   // the tier currently rendered (0 = hidden)
     this._stuckModeShown = "";  // "gentle" | "firm" | "softlock" | "coldtruth"
     this._softlockSince = 0;    // scene time a hard-lock signal first appeared (t3 escalation)
+    // T4 reading-kindness state (all driver-side; the SL2 watchdog signal is untouched):
+    this._stuckPeakShown = 0;   // highest tier shown this stall segment → +10s/tier reading grace
+    this._stuckAckUntil = 0;    // scene time until which an ENTER-ack suppresses re-show
+    this._stuckAckTier = 0;     // the tier acknowledged (a higher escalation / tier-3 overrides)
   }
 
   // Render the prompt for a tier (called ONLY on a tier/mode change, never idle).
@@ -4687,8 +4701,10 @@ export default class GameScene extends Phaser.Scene {
     // per-mode styling: head copy/colour + panel edge. Gentle stays calm-cyan and
     // softer; firm/softlock are firm amber; cold-truth is the blunt red escalation.
     let headText, headColor, edge, edgeAlpha, edgeW, bgAlpha, subText;
-    const restartCopy = single ? "Press R to restart  ·  ESC = map"
-                               : "Hold R twice to restart  ·  ESC twice = map";
+    // T4: the "↵ ok" chip tells the player ENTER dismisses the panel (reading grace
+    // + 30s re-show suppression are wired in the driver / ackStuckPrompt).
+    const restartCopy = single ? "Press R to restart  ·  ESC = map  ·  ↵ ok"
+                               : "Hold R twice to restart  ·  ESC twice = map  ·  ↵ ok";
     if (mode === "gentle") {
       headText = "Stuck? No shame in a fresh start.";
       headColor = TEXT.body; edge = COLORS.neon; edgeAlpha = 0.85; edgeW = 2.5; bgAlpha = 0.9;
@@ -4826,22 +4842,69 @@ export default class GameScene extends Phaser.Scene {
       else { tier = 2; mode = "softlock"; }
     } else {
       this._softlockSince = 0;
+      // T4 reading-grace (D9): the VISIBLE panel's escalation lags the watchdog by
+      // +10s per tier already shown, so sitting still to READ a tier never tips the
+      // next one. We gate on the raw watchdog tier `st` (so hints-off / segment
+      // resets are still honored — its signal is UNCHANGED, the probe still sees
+      // 25/50/75s) but delay the higher VISIBLE tiers by comparing the watchdog's
+      // own stall clock against its T2/T3 + the accumulated grace. Read-only.
       const st = this.stuckTier | 0;
-      if (st >= 3) { tier = 3; mode = "coldtruth"; }            // SL2 watchdog t3 (SL7)
-      else if (st >= 2) { tier = 2; mode = "firm"; }            // SL2 watchdog t2
-      else if (st === 1) { tier = 1; mode = "gentle"; }         // SL2 watchdog t1
+      const wd = this.watchdog;
+      const stall = wd ? wd._stallMs : Infinity;
+      // +10s of reading grace per LOWER tier already shown. The offset for a tier
+      // depends only on tiers BELOW it (never the tier being tested), so showing a
+      // tier can never push its OWN threshold — no feedback: tier-2 lands at T2+10s
+      // (tier-1 was read), tier-3 at T3+20s (tiers 1 & 2 were read).
+      const shown = this._stuckPeakShown | 0;
+      const T2 = (wd ? wd.T2 : 50000) + (shown >= 1 ? 10000 : 0);
+      const T3 = (wd ? wd.T3 : 75000) + (shown >= 1 ? 10000 : 0) + (shown >= 2 ? 10000 : 0);
+      if (st >= 3 && stall >= T3) { tier = 3; mode = "coldtruth"; }      // SL2 watchdog t3 (SL7)
+      else if (st >= 2 && stall >= T2) { tier = 2; mode = "firm"; }      // SL2 watchdog t2
+      else if (st >= 1) { tier = 1; mode = "gentle"; }                   // SL2 watchdog t1
     }
     // Tier-1 defers to any active/applicable contextual co-op hint (roadmap §2).
     if (tier === 1 && this._coopHintActive()) { tier = 0; mode = ""; }
+
+    // T4 ENTER-acknowledge: after an ack the panel stays hidden for 30s UNLESS the
+    // tier ESCALATES higher than what was acknowledged; a tier-3 escalation ALWAYS
+    // overrides the suppression (safety first). The watchdog keeps rising internally.
+    if (tier > 0 && time < this._stuckAckUntil && tier <= this._stuckAckTier && tier < 3) {
+      tier = 0; mode = "";
+    }
+    // The stall fully cleared (progress / movement) — drop the grace + ack memory so
+    // the next genuine stall teaches from tier-1 again.
+    if (!this.softlock && (this.stuckTier | 0) === 0) {
+      this._stuckPeakShown = 0; this._stuckAckUntil = 0; this._stuckAckTier = 0;
+    }
+
     if (tier === this._stuckTierShown && mode === this._stuckModeShown) return;
     this._stuckTierShown = tier;
     this._stuckModeShown = mode;
     if (tier === 0) this.hideStuckPrompt();
-    else this.showStuckPrompt(mode);
+    else {
+      if (tier > (this._stuckPeakShown | 0)) this._stuckPeakShown = tier; // grow the reading-grace baseline
+      this.showStuckPrompt(mode);
+    }
     // V2.5: on the gentle tier-1 nudge, KOBI adds a warm bark (fires once per
     // 0->1 transition — the guard above gates re-entry). Higher tiers keep the
     // firm SL prompt without chatter.
     if (tier === 1) this.barks.fire(this, "stuck", { prob: 1 });
+  }
+
+  // T4: acknowledge a visible stuck panel — hide it and suppress re-show for 30s.
+  // Called from update() on ENTER (only when no blip is active, so the blip's own
+  // ENTER-skip in UIScene keeps priority) and from the __BB.stuck.ack() probe.
+  // Records the acknowledged tier so a HIGHER escalation (or any tier-3) still
+  // breaks through — the safety net stays intact, this only quiets the reading.
+  ackStuckPrompt(time) {
+    if (!this.stuckUI || !this.stuckUI.c.visible) return false;
+    this._stuckAckTier = this._stuckTierShown | 0;
+    this._stuckAckUntil = time + 30000;
+    this._stuckTierShown = 0;
+    this._stuckModeShown = "";
+    this.hideStuckPrompt();
+    sfx.menuSelect();
+    return true;
   }
 
   // --- main loop -----------------------------------------------------------------
@@ -4897,6 +4960,12 @@ export default class GameScene extends Phaser.Scene {
       if (this.def.tutorial || (this.confirm && this.confirm.kind === "r")) { this.doRestart(); return; }
       this.startConfirm("r", time);
       return;
+    }
+    // T4: ENTER acknowledges a visible stuck panel (hide + suppress re-show 30s).
+    // The blip bar's ENTER-skip in UIScene takes priority, so only ack when NO blip
+    // is up — the same press must never both dismiss a blip AND ack the panel.
+    if (!blipUp && J(this.enterKey) && this.stuckUI && this.stuckUI.c.visible) {
+      this.ackStuckPrompt(time);
     }
 
     // W3W4 M4: `this.frozen` is the TIME-FREEZE world gate. It can only ever be

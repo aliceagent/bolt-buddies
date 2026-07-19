@@ -154,7 +154,10 @@ async function chainB(page) {
   const t0 = Date.now();
   let t1AtS = null, t2AtS = null, gentleShownAtS = null, firmShownAtS = null;
   let lastTier = -1;
-  while (Date.now() - t0 < 60000) {
+  // T4: the SL4 panel now applies a +10s READING GRACE per shown tier, so the FIRM
+  // panel lags the raw watchdog t2 by ~10s (raw t2 ~49s → firm panel ~59s). Give the
+  // idle window headroom past that (was 60s — now flaky) so firmShownAtS is caught.
+  while (Date.now() - t0 < 75000) {
     const c = await readChain(page);
     const el = (Date.now() - t0) / 1000;
     if (c.dead.some(Boolean)) { console.log(`  !! a robot died at t=${el.toFixed(1)}s — idle spot unsafe, aborting`); break; }
@@ -203,28 +206,39 @@ async function chainC(page) {
     const w = s.watchdog; w.T1 = 500; w.T2 = 1000; w.T3 = 1500; w.reset();
   });
 
+  // T4: the SL4 panel applies a +10s READING GRACE per shown tier, so the VISIBLE
+  // ladder now LAGS the raw watchdog tier — gentle@~T1, firm@~T2+10s, cold-truth@
+  // ~T3+20s (the watchdog's raw tier still races ahead at 0.5/1.0/1.5s, unchanged).
+  // Track the PANEL'S OWN mode transitions (not the raw tier) so we verify the copy /
+  // grey / sad at the moment each mode ACTUALLY renders, and confirm the grace gaps.
   const seen = {}; const copy = {};
-  const t0 = Date.now(); let last = -1;
-  while (Date.now() - t0 < 4000) {
+  const t0 = Date.now(); let lastMode = "";
+  while (Date.now() - t0 < 26000) {
     const c = await readChain(page);
-    if (c.stuckTier !== last) {
-      const el = ((Date.now() - t0) / 1000).toFixed(2);
-      console.log(`  t=${el}s tier=${c.stuckTier} mode=${c.modeShown} caps=${c.capsVisible} grey=${c.greyVisible} sad=${c.sadMode} head="${c.promptHeadText}" sub="${c.promptSub}"`);
-      if (seen[c.stuckTier] === undefined) { seen[c.stuckTier] = el; copy[c.stuckTier] = { head: c.promptHeadText, sub: c.promptSub, caps: c.capsVisible, grey: c.greyVisible, sad: c.sadMode }; }
-      last = c.stuckTier;
+    if (c.promptVisible && c.modeShown && c.modeShown !== lastMode) {
+      const el = +((Date.now() - t0) / 1000).toFixed(2);
+      console.log(`  t=${el}s mode=${c.modeShown} caps=${c.capsVisible} grey=${c.greyVisible} sad=${c.sadMode} head="${c.promptHeadText}" sub="${c.promptSub}"`);
+      if (seen[c.modeShown] === undefined) { seen[c.modeShown] = el; copy[c.modeShown] = { head: c.promptHeadText, sub: c.promptSub, caps: c.capsVisible, grey: c.greyVisible, sad: c.sadMode }; }
+      lastMode = c.modeShown;
     }
-    if (seen[3] !== undefined) break;
-    await sleep(60);
+    if (seen.coldtruth !== undefined) break;
+    await sleep(100);
   }
 
-  ok(seen[1] !== undefined && seen[2] !== undefined && seen[3] !== undefined, `escalated through EVERY tier 0→1→2→3 (t1@${seen[1]}s t2@${seen[2]}s t3@${seen[3]}s)`);
-  // tier-1 is now EXPLICIT: keycaps + a "restart" instruction (was a bare nudge)
-  ok(copy[1] && copy[1].caps && /restart/i.test(copy[1].sub) && /ESC/i.test(copy[1].sub), `tier-1 is EXPLICIT now — R keycaps + "${copy[1] ? copy[1].sub : ""}"`);
-  ok(copy[2] && /fresh start/i.test(copy[2].head) && copy[2].caps, `tier-2 firm restart offer: "${copy[2] ? copy[2].head : ""}"`);
+  ok(seen.gentle !== undefined && seen.firm !== undefined && seen.coldtruth !== undefined,
+    `panel escalated through EVERY mode gentle→firm→cold-truth (gentle@${seen.gentle}s firm@${seen.firm}s cold@${seen.coldtruth}s)`);
+  // the +10s reading grace: each shown tier delays the NEXT by ~10s (of stall).
+  ok(seen.firm !== undefined && seen.gentle !== undefined && (seen.firm - seen.gentle) >= 9,
+    `+10s reading grace delays FIRM ~10s past gentle (Δ=${seen.firm !== undefined ? (seen.firm - seen.gentle).toFixed(1) : "?"}s)`);
+  ok(seen.coldtruth !== undefined && seen.firm !== undefined && (seen.coldtruth - seen.firm) >= 9,
+    `+10s reading grace delays COLD-TRUTH ~10s past firm (Δ=${seen.coldtruth !== undefined ? (seen.coldtruth - seen.firm).toFixed(1) : "?"}s)`);
+  // tier-1 is EXPLICIT: keycaps + a "restart" instruction (was a bare nudge)
+  ok(copy.gentle && copy.gentle.caps && /restart/i.test(copy.gentle.sub) && /ESC/i.test(copy.gentle.sub), `tier-1 is EXPLICIT now — R keycaps + "${copy.gentle ? copy.gentle.sub : ""}"`);
+  ok(copy.firm && /fresh start/i.test(copy.firm.head) && copy.firm.caps, `tier-2 firm restart offer: "${copy.firm ? copy.firm.head : ""}"`);
   // tier-3 cold-truth: blunt copy + grey overlay + sad music, keycaps present
-  ok(copy[3] && /STUCK/i.test(copy[3].head) && copy[3].caps, `tier-3 blunt "cold truth" copy + keycaps: "${copy[3] ? copy[3].head : ""}"`);
-  ok(copy[3] && copy[3].grey, `tier-3 grey-fade overlay SHOWS`);
-  ok(copy[3] && copy[3].sad, `tier-3 sad-music treatment ON`);
+  ok(copy.coldtruth && /STUCK/i.test(copy.coldtruth.head) && copy.coldtruth.caps, `tier-3 blunt "cold truth" copy + keycaps: "${copy.coldtruth ? copy.coldtruth.head : ""}"`);
+  ok(copy.coldtruth && copy.coldtruth.grey, `tier-3 grey-fade overlay SHOWS`);
+  ok(copy.coldtruth && copy.coldtruth.sad, `tier-3 sad-music treatment ON`);
   // and it must CLEAR the instant progress resumes (drive real movement)
   await page.keyboard.down("KeyD"); await sleep(500); await page.keyboard.up("KeyD");
   await page.evaluate(() => { const w = window.__BB.scene.watchdog; w.T1 = 25000; w.T2 = 50000; w.T3 = 75000; });

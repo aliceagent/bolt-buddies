@@ -70,6 +70,21 @@ const promptState = () => page.evaluate(() => {
   };
 });
 
+// T4: the SL4 panel now applies a +10s READING GRACE per shown tier, so the FIRM /
+// COLD-TRUTH panel LAGS the raw watchdog tier by ~10s / ~20s of stall. Poll for the
+// panel to actually reach a mode instead of a fixed sleep (the raw stuckTier still
+// crosses on the compressed windows — the panel just reads more slowly, on purpose).
+const waitMode = async (mode, timeoutMs = 14000) => {
+  const t0 = Date.now();
+  let last = await promptState();
+  while (Date.now() - t0 < timeoutMs) {
+    last = await promptState();
+    if (last.visible && last.modeShown === mode) return last;
+    await sleep(200);
+  }
+  return last;
+};
+
 // ===================== (a) TIER-1 gentle on a real watchdog t1 stall =========
 // 1-1, both robots settled + still at spawn (no grapple skill => no idle co-op
 // hint), watchdog t1 window dropped so the REAL stall crosses it in ~0.5s.
@@ -85,7 +100,9 @@ let a = await promptState();
 ok(a.stuckTier === 1, `watchdog raised t1 (stuckTier=${a.stuckTier})`);
 ok(a.visible && a.modeShown === "gentle", `tier-1 gentle nudge shown (${JSON.stringify({ visible: a.visible, mode: a.modeShown })})`);
 ok(/fresh start/i.test(a.head), `gentle KOBI copy: "${a.head}"`);
-ok(!a.capsVisible, "tier-1 shows NO R keycaps (gentle only)");
+// SL7 made tier-1 EXPLICIT — it now shows the R keycaps (see snap_p2_sl7 (a));
+// this assertion was stale from before SL7 (behaviour + keycap logic unchanged by T4).
+ok(a.capsVisible, "tier-1 shows the R keycaps (explicit since SL7)");
 await shot("sl4-tier1-gentle");
 
 // ===================== (b) TIER-1 DEFERS to the U13 pit co-op hint ============
@@ -123,8 +140,7 @@ await page.evaluate(() => {
   s.watchdog.T1 = 150; s.watchdog.T2 = 350; // cross into the firm tier
   s.watchdog.reset();
 });
-await sleep(1600);
-let c = await promptState();
+let c = await waitMode("firm"); // T4: firm panel lands ~10s after gentle (reading grace)
 ok(c.stuckTier === 2, `watchdog raised t2 (stuckTier=${c.stuckTier})`);
 ok(c.visible && c.modeShown === "firm", `tier-2 firm prompt shown (${JSON.stringify({ visible: c.visible, mode: c.modeShown })})`);
 ok(c.capsVisible, "tier-2 shows the R keycaps");
@@ -191,8 +207,7 @@ await page.evaluate(() => {
   s.watchdog.T1 = 150; s.watchdog.T2 = 350;
   s.watchdog.reset();
 });
-await sleep(1400);
-let e1a = await promptState();
+let e1a = await waitMode("firm"); // T4: wait out the reading grace so the firm panel is up
 ok(e1a.visible && e1a.stuckTier === 2, `prompt up before the movement proof (tier=${e1a.stuckTier}, visible=${e1a.visible})`);
 const x0 = await page.evaluate(() => window.__BB.scene.players[0].x);
 await page.keyboard.down("KeyD"); await sleep(650); await page.keyboard.up("KeyD");
@@ -212,8 +227,7 @@ await page.evaluate(() => {
   s.watchdog.T1 = 150; s.watchdog.T2 = 350;
   s.watchdog.reset();
 });
-await sleep(1400);
-let e2a = await promptState();
+let e2a = await waitMode("firm"); // T4: wait out the reading grace so the firm panel is up
 ok(e2a.visible && e2a.stuckTier === 2, `prompt up before the R×2 proof (tier=${e2a.stuckTier}, visible=${e2a.visible})`);
 const before = await page.evaluate(() => window.__BB.scene._elapsedMs | 0);
 await page.keyboard.press("KeyR"); // 1st R -> U3 confirm toast
