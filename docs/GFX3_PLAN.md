@@ -225,3 +225,8 @@ The single highest-leverage sprint: players see it, tests can't.
 - G1-D5: enemy-kill heavy punch wired inside squishBug (the one enemy-kill
   choke point, reached by both head-stomp and the heavy-stomp radius); crane
   boss hit wired at stompPod (the pod-crunch that damages the crane).
+- G1-D6 (QA sign-off): first QA batch showed 6/8 beat + tut HARD; A/B against
+  pre-G1 src under identical load showed the 2-2 fan-lift step failing once
+  per batch on BOTH builds (varying assignment — the documented D7 contention
+  flake) and the 1-2 reel + tut HARD unreproducible on HEAD (both RECOVERABLE
+  round 2). G1 exonerated: failures environmental, not hit-stop. Signed off.
