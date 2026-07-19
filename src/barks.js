@@ -107,7 +107,9 @@ export class BarkDirector {
     const line = bag.next();
     if (!line) return false;
     this.lastAt = now;
-    scene.game.events.emit("bb:blip", line);
+    // T1: tag barks so UIScene's blip handler can DROP them when a line is already
+    // showing / queued (barks are droppable live-commentary; scripted lines queue).
+    scene.game.events.emit("bb:blip", { text: line, bark: true });
     return true;
   }
 }

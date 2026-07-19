@@ -4645,7 +4645,13 @@ export default class GameScene extends Phaser.Scene {
     // P (or either pad's Start) pauses/resumes. Handled before the pause guard so
     // a paused game can still catch it to resume (physics.pause() freezes bodies,
     // not the scene's update()).
-    if (J(this.pKey) || pads.p(0).pauseJust || pads.p(1).pauseJust) this.togglePause();
+    // T1: pad START doubles as the blip bar's "next text" key, so while a blip is
+    // showing START advances the line (UIScene) instead of opening pause — the same
+    // press must not do both. Keyboard P still pauses unconditionally.
+    const padStart = pads.p(0).pauseJust || pads.p(1).pauseJust;
+    const uiForBlip = this.scene.get("UI");
+    const blipUp = !!(uiForBlip && uiForBlip.blipActive);
+    if (J(this.pKey) || (padStart && !blipUp)) this.togglePause();
     if (this.paused) return;
     const dt = delta / 1000;
 

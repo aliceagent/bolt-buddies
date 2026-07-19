@@ -254,6 +254,14 @@ export default class UIScene extends Phaser.Scene {
         // data so the hub ticker / toasts still read as attributed lines).
         const text = raw.replace(/^\s*KOBI:\s*/i, "");
         const mood = (typeof payload === "object" && payload.mood) || moodForText(text);
+        const bark = typeof payload === "object" && !!payload.bark;
+        // T1 queue discipline. BARKS are droppable live-commentary: if a line is
+        // already showing OR anything is queued, a bark is discarded rather than
+        // piling up (D2 — one event could otherwise force ~12s of forced KOBI).
+        if (bark && (this.blipActive || this.blipQueue.length)) return;
+        // Hard cap of 3 for scripted lines: drop the NEWEST beyond the cap, but
+        // NEVER drop a defeated finale line (it must always land).
+        if (this.blipQueue.length >= 3 && mood !== "defeated") return;
         this.blipQueue.push({ text, mood });
       },
       complete: (info) => {
@@ -324,7 +332,25 @@ export default class UIScene extends Phaser.Scene {
       Object.entries(this.h).forEach(([k, fn]) => E.off(`bb:${k}`, fn));
       stopVO(); // never let a spoken line bleed across a scene swap
       duckMusic(false); // never leave the bus ducked after the HUD is gone
+      if (typeof window !== "undefined" && window.__BB) window.__BB.textbox = null;
     });
+
+    // T1: ENTER is the universal "next text" key for the blip bar (poll it in
+    // update via JustDown so the clear-overlay keydown handler below still owns
+    // ENTER while this.completed is set). Pad START advances too (see update()).
+    this.enterKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
+
+    // T1 probe surface (tools/playtest_textbox.mjs): the live blip text (or null),
+    // the pending queue length, and skip() == one ENTER press.
+    const self = this;
+    if (typeof window !== "undefined") {
+      window.__BB = window.__BB || {};
+      window.__BB.textbox = {
+        get active() { return self.blipActive ? self.blipActive.text : null; },
+        get queueLen() { return self.blipQueue.length; },
+        skip: () => self.skipBlip(),
+      };
+    }
 
     // global mute: the UI overlay owns the in-game M key + corner icon (drawn
     // here, not in GameScene, so the camera zoom never scales it)
@@ -601,17 +627,97 @@ export default class UIScene extends Phaser.Scene {
     this._avBlinkTween = null; // defeated slow-blink loop (started/stopped by mood)
 
     const name = this.add.text(x0 + 72, y0 + 7, "KOBI", { fontFamily: FONT, fontSize: FS.mini, fontStyle: "bold", color: "#ff8ae0" });
+    this.blipName = name;
     this.blipText = this.add.text(x0 + 72, y0 + 26, "", {
       fontFamily: FONT, fontSize: FS.large, color: "#ffd7f4", wordWrap: { width: 806 },
     });
 
-    this.blipBar.add([this.blipGlow, bg, avBase, this.avRing, this.avIris, this.avSquint, this.avFlare, this.avBlink, this.avLid, name, this.blipText]);
+    // T1 slim-bar support: the avatar assembly is grouped so a slim (1-line) bar
+    // can shift the whole eye DOWN to the shorter bar's centre with one .y set,
+    // instead of redrawing every baked avatar layer. Baked at the FULL geometry
+    // (ay = y0 + h/2); layoutBlipBar() nudges the group for the slim variant.
+    this.avatarGroup = this.add.container(0, 0);
+    this.avatarGroup.add([avBase, this.avRing, this.avIris, this.avSquint, this.avFlare, this.avBlink, this.avLid]);
+    this.blipBg = bg;                 // redrawn per line (slim vs full) — see layoutBlipBar
+    this._barX = { x0, w };           // x-geometry is fixed; only y0/h change per line
+
+    // T1 "↵" affordance chip: a dim keycap at the bar's right gutter (right of the
+    // 806px text wrap, so it never overlaps the caption), vertically centred and
+    // styled like the buildHints keycaps. Drawn once; it lives inside blipBar so it
+    // toggles with the bar, and layoutBlipBar() shifts its .y for the slim variant.
+    const chipKw = 30, chipH = 20;
+    const chipX = x0 + w - 8 - chipKw;   // right of text (x0+72+806 = x0+878; chip at x0+882)
+    const chipCy = y0 + h / 2;           // full-bar centre; +12 for slim (layoutBlipBar)
+    const chipG = this.add.graphics();
+    this.drawKeycap(chipG, chipX, chipCy - chipH / 2, chipKw, chipH, 0x5a6a99, 0.7);
+    const chipT = this.add.text(chipX + chipKw / 2, chipCy, "↵", { fontFamily: FONT, fontSize: FS.mini, fontStyle: "bold", color: "#9fb0da" }).setOrigin(0.5);
+    this.enterChip = this.add.container(0, 0);
+    this.enterChip.add([chipG, chipT]);
+
+    this.blipBar.add([this.blipGlow, bg, this.avatarGroup, name, this.blipText, this.enterChip]);
 
     this.blipGlowTween = this.tweens.add({
       targets: this.blipGlow, alpha: { from: 0.15, to: 0.85 },
       duration: 620, yoyo: true, repeat: -1, ease: "sine.inOut", paused: true,
     });
     this.applyKobiMood("gloating"); // draw the initial ring + border-glow colour
+    this.layoutBlipBar(false);      // seed geometry (_blipRect) at the full variant
+  }
+
+  // T1: does the post-wrap caption fit ONE line at the bar's 806px wrap width?
+  // (Measured on the live blipText object so its style/wrap is the authority.)
+  blipTextFits1Line(text) {
+    return this.blipText.getWrappedText(text).length <= 1;
+  }
+
+  // T1: lay the bar out for the current line. Full = h80 @ y0=H-92; slim (1-line
+  // caption) = h56 @ y0=H-92+24 so the BOTTOM edge stays put (H-12) and only the
+  // top moves down. The bg is cleared+redrawn (like Epilogue's paintPlate); the
+  // avatar group + "↵" chip shift to the shorter bar's centre; name/text recentre.
+  // _blipRect is updated so applyKobiMood() traces the border glow on the new rect.
+  layoutBlipBar(slim) {
+    const { x0, w } = this._barX;
+    const H = this.scale.height;
+    const y0 = slim ? (H - 92 + 24) : (H - 92);
+    const h = slim ? 56 : 80;
+    this.blipBg.clear();
+    glassPanel(this.blipBg, { x: x0, y: y0, w, h, r: 10, accent: COLORS.magenta, fillA: 0.86, borderA: 0.7, glow: false });
+    this._blipRect = { x0, y0, w, h };
+    // avatar + chip were baked at the full-bar centre (H-52); nudge to slim centre.
+    const shift = slim ? 12 : 0;
+    this.avatarGroup.y = shift;
+    this.enterChip.y = shift;
+    // name label + caption: slim recentre the single line inside the shorter bar.
+    this.blipName.setY(slim ? y0 + 6 : y0 + 7);
+    this.blipText.setY(slim ? y0 + 24 : y0 + 26);
+    this._blipSlim = slim;
+  }
+
+  // T1: ENTER / pad-START handler for the active blip. Press 1 while typing ->
+  // complete the typewriter instantly; press again (or a press once fully typed)
+  // -> dismiss the line and advance the queue. No-op when nothing is showing.
+  skipBlip() {
+    const b = this.blipActive;
+    if (!b) return;
+    if (b.shown < b.text.length) {
+      b.shown = b.text.length;
+      this.blipText.setText(b.text);
+    } else {
+      this.dismissBlip();
+    }
+  }
+
+  // T1: retire the active line. When the queue empties, hide the bar and release
+  // the music duck (per-line release: dismiss-via-ENTER + auto-hold both land here).
+  dismissBlip() {
+    this.blipActive = null;
+    if (!this.blipQueue.length) {
+      this.blipBar.setVisible(false);
+      this.blipText.setText("");
+      this.blipGlowTween.pause();
+      this.blipGlow.setAlpha(0);
+      duckMusic(false);
+    }
   }
 
   // P9: recolour KOBI's mood ring + the blip-bar border pulse, and droop the
@@ -706,12 +812,27 @@ export default class UIScene extends Phaser.Scene {
       this.continueFromClear();
     }
 
+    // T1 universal dismiss: ENTER (keyboard) or pad START advance the active blip
+    // — press 1 completes the typewriter, press 2 (or a press once fully typed)
+    // dismisses. The clear overlay owns ENTER while this.completed is set (its
+    // keydown/pad path wins), so the blip skip is gated on !this.completed. Pad
+    // START is B_START/pauseJust; GameScene skips its pause-toggle while a blip is
+    // up (see GameScene update) so the same press never both dismisses AND pauses.
+    const skipPressed = Phaser.Input.Keyboard.JustDown(this.enterKey)
+      || pads.p(0).pauseJust || pads.p(1).pauseJust;
+    if (skipPressed && !this.completed && this.blipActive) this.skipBlip();
+
     // typewriter blips
     if (!this.blipActive && this.blipQueue.length) {
       const item = this.blipQueue.shift();
-      this.blipActive = { text: item.text, mood: item.mood || "gloating", shown: 0, hold: 2600 };
+      // T1 length-scaled hold (D1): TEXT SPEED now also shortens the on-screen hold
+      // (uxTextSpeed is a chars/tick MULTIPLIER — bigger = faster typing — so we
+      // DIVIDE by it). clamp(1200, 28ms/char, 2600).
+      const hold = Math.max(1200, Math.min(2600, 28 * item.text.length / uxTextSpeed()));
+      this.blipActive = { text: item.text, mood: item.mood || "gloating", shown: 0, hold };
       this.blipBar.setVisible(true);
       this.blipText.setText("");
+      this.layoutBlipBar(this.blipTextFits1Line(item.text)); // slim bar for 1-line captions
       this.applyKobiMood(this.blipActive.mood); // ring + border pulse + eyelid follow mood
       this.blipGlow.setAlpha(0.15);
       this.blipGlowTween.restart();
@@ -743,16 +864,7 @@ export default class UIScene extends Phaser.Scene {
         this.blipText.setText(s);
       } else {
         b.hold -= delta;
-        if (b.hold <= 0) {
-          this.blipActive = null;
-          if (!this.blipQueue.length) {
-            this.blipBar.setVisible(false);
-            this.blipText.setText("");
-            this.blipGlowTween.pause();
-            this.blipGlow.setAlpha(0);
-            duckMusic(false); // blip cleared -> restore music level
-          }
-        }
+        if (b.hold <= 0) this.dismissBlip(); // auto-clear (same path as ENTER dismiss)
       }
     }
   }
