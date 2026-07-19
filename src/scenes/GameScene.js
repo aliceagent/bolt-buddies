@@ -147,6 +147,12 @@ export default class GameScene extends Phaser.Scene {
     this.keyItems = [];
     this.checkpoints = [];
     this.triggers = []; // Sprint 10: one-shot AABB zones (blip and/or key-glyph reveal)
+    // T3: permanent world labels that recede when no robot is near (door/EXIT
+    // plates, warden badges, tutorial/trigger glyph clusters). Each entry is
+    // { obj, x, y }; a 150ms rolling timer lerps obj.alpha toward a proximity
+    // target (1.0 within 6 tiles, 0.35 beyond 10). Boss HP text is NEVER added.
+    this.proxLabels = [];
+    this._proxT = 0;
     this.pods = [];
     this.ropeFlashes = [];
     this.crane = null;
@@ -469,7 +475,22 @@ export default class GameScene extends Phaser.Scene {
         fontFamily: FONT, fontSize: FS.body, fontStyle: "bold",
         color: p.idx === 0 ? "#4dc9ff" : "#ffa14d",
       }).setOrigin(0.5);
-      return this.add.container(p.x, p.y - 64 - p.idx * 34, [g, t]).setDepth(DEPTH.fx);
+      const cont = this.add.container(p.x, p.y - 64 - p.idx * 34, [g, t]).setDepth(DEPTH.fx);
+      // T2 (D4): give the spawn hint a 9s lifetime. If the action key wasn't
+      // pressed by then (handleAction destroys it on first press), fade out over
+      // 300ms and destroy — then it stops tracking the robot forever. The coach
+      // re-show logic (updateCoach, gated on `actionHints[i] == null`) re-teaches
+      // it later when a player idles adjacent to something actionable.
+      this.time.delayedCall(9000, () => {
+        if (this.actionHints[p.idx] !== cont) return; // already dismissed by a press
+        this.tweens.add({
+          targets: cont, alpha: 0, duration: 300,
+          onComplete: () => {
+            if (this.actionHints[p.idx] === cont) { cont.destroy(); this.actionHints[p.idx] = null; }
+          },
+        });
+      });
+      return cont;
     });
 
     // U1 — contextual "coach" bubbles (pooled). The tutorial teaches every
@@ -768,21 +789,50 @@ export default class GameScene extends Phaser.Scene {
     drawWorldIcon(iconG, def.world || 1, ix, -14, 34, accent);
     c.add([g, topLight, iconG, head, sub]);
     this.introBanner = c;
+    this._introDone = false;
+    this._introHold = null;
+
+    // Single completion path: destroy the banner, drop the keydown listener, and
+    // fire KOBI's start blip EXACTLY once — guarded by _introDone so the normal
+    // slide-out and an any-key fast-out can never double-emit it (T3 / D10).
+    const finish = () => {
+      if (this._introDone) return;
+      this._introDone = true;
+      if (this._introSkipHandler) {
+        this.input.keyboard.off("keydown", this._introSkipHandler);
+        this._introSkipHandler = null;
+      }
+      if (this.introBanner) { this.introBanner.destroy(); this.introBanner = null; }
+      if (def.blips && def.blips.start) this.game.events.emit("bb:blip", def.blips.start);
+    };
+    this._finishIntroBanner = finish;
+
+    // T3 (D10): ANY keydown while the banner is up fast-outs it. Pad buttons are
+    // polled in update() (skipIntroBanner). The banner is purely visual (no input
+    // capture) — a movement key that skips it also moves the robot; that's fine,
+    // the banner is only ~2s at level start (plan-accepted).
+    this._introSkipHandler = () => this.skipIntroBanner();
+    this.input.keyboard.on("keydown", this._introSkipHandler);
 
     this.tweens.add({
       targets: c, y: restY, duration: 240, ease: "back.out",
       onComplete: () => {
-        this.time.delayedCall(1600, () => {
-          this.tweens.add({
-            targets: c, y: offY, duration: 240, ease: "back.in",
-            onComplete: () => {
-              c.destroy();
-              this.introBanner = null;
-              if (def.blips && def.blips.start) this.game.events.emit("bb:blip", def.blips.start);
-            },
-          });
+        this._introHold = this.time.delayedCall(1600, () => {
+          this.tweens.add({ targets: c, y: offY, duration: 240, ease: "back.in", onComplete: finish });
         });
       },
+    });
+  }
+
+  // T3 (D10): fast-out the intro banner on any key/pad press (120ms slide), then run
+  // the same completion path (which fires the start blip exactly once).
+  skipIntroBanner() {
+    if (!this.introBanner || this._introDone) return;
+    if (this._introHold) { this._introHold.remove(); this._introHold = null; }
+    this.tweens.killTweensOf(this.introBanner);
+    this.tweens.add({
+      targets: this.introBanner, y: -70, duration: 120, ease: "back.in",
+      onComplete: () => this._finishIntroBanner(),
     });
   }
 
@@ -1431,6 +1481,9 @@ export default class GameScene extends Phaser.Scene {
           const pw = t.width + pad * 2;
           plate.fillStyle(0x0c1424, 0.95).fillRoundedRect(prx - pw, ply - ph / 2, pw, ph, 2);
           plate.lineStyle(1, 0x44548c).strokeRoundedRect(prx - pw, ply - ph / 2, pw, ph, 2);
+          // T3 (D11): the door id plate (e.g. GATE) recedes when no robot is near.
+          this.addProxLabel(plate, cx, ply);
+          this.addProxLabel(t, cx, ply);
         }
         if (door.isExit) {
           this.exitDoor = door;
@@ -1444,9 +1497,13 @@ export default class GameScene extends Phaser.Scene {
           const panel = this.add.graphics().setDepth(DEPTH.entity);
           panel.fillStyle(0x0a1f16, 0.95).fillRoundedRect(cx - 34, ly - 13, 68, 26, 7);
           panel.lineStyle(2, COLORS.green).strokeRoundedRect(cx - 34, ly - 13, 68, 26, 7);
-          this.add.text(cx, ly, "EXIT", {
+          const exitT = this.add.text(cx, ly, "EXIT", {
             fontFamily: FONT, fontSize: FS.small, fontStyle: "bold", color: TEXT.good,
           }).setOrigin(0.5).setDepth(DEPTH.entity + 1);
+          // T3 (D11): the EXIT sign panel + label recede when no robot is near
+          // (the pulsing glow keeps its own tween — not proximity-managed).
+          this.addProxLabel(panel, cx, ly);
+          this.addProxLabel(exitT, cx, ly);
 
           // P5: marquee dot-lights ringing the door frame, chasing while OPEN.
           // Pooled (built once, hidden); a single head index sweeps them in the
@@ -1695,6 +1752,8 @@ export default class GameScene extends Phaser.Scene {
         const badge = this.add.text(px, img.y + 14, badgeNum, {
           fontFamily: FONT, fontSize: FS.small, fontStyle: "bold", color: "#dff5e6",
         }).setOrigin(0.5).setDepth(DEPTH.entity + 1);
+        // T3 (D11): warden chest badge recedes when no robot is near.
+        this.addProxLabel(badge, px, img.y + 14);
         this.wardens.push({ id: e.id, img, facing, defeated: false, x: px, glow, badge });
         break;
       }
@@ -2191,11 +2250,16 @@ export default class GameScene extends Phaser.Scene {
     }
     // gentle vertical bob
     this.tweens.add({ targets: cont, y: y - 6, duration: 1100, yoyo: true, repeat: -1, ease: "sine.inOut" });
+    // T3 (D6/D11): teaching glyph clusters are never destroyed, but they stop
+    // shouting across the room — proximity-alpha like the door/EXIT/warden labels.
+    this.addProxLabel(cont, x, y);
     return cont;
   }
 
   // Item card: a proper panel — dark rounded body, skill-coloured title bar +
-  // border. Stored in pieces so `equipItemCard` can shrink it to a small tag.
+  // border. Stored in pieces so it can shrink to a small tag (minimizeItemCard)
+  // and expand back (expandItemCard) — reused by both the T2 auto-minimize and
+  // the equip shrink.
   buildItemCard(ped, x, cardY, info) {
     const col = info.color;
     const TB = 24;
@@ -2214,14 +2278,6 @@ export default class GameScene extends Phaser.Scene {
     const W = Math.max(236, Math.ceil(body.width + PADX * 2), Math.ceil(title.width + PADX * 2));
     const H = Math.ceil(TB + body.height + PADY * 2);
     const g = this.add.graphics();
-    // GFX2 "Lumen Lab" glass card: frosted body + sheen glaze + soft glow ring,
-    // skill-coloured title bar with a top gloss, crisp accent border.
-    g.fillStyle(COLORS.hudBg, 0.92).fillRoundedRect(-W / 2, -H / 2, W, H, 10);
-    sheen(g, { x: -W / 2, y: -H / 2 + TB, w: W, h: H - TB, a: 0.05 });
-    g.lineStyle(6, col, 0.14).strokeRoundedRect(-W / 2 - 3, -H / 2 - 3, W + 6, H + 6, 12);
-    g.fillStyle(col, 0.9).fillRoundedRect(-W / 2, -H / 2, W, TB, { tl: 10, tr: 10, bl: 0, br: 0 });
-    g.fillStyle(0xffffff, 0.12).fillRoundedRect(-W / 2 + 2, -H / 2 + 2, W - 4, TB * 0.45, { tl: 8, tr: 8, bl: 0, br: 0 });
-    g.lineStyle(2, col).strokeRoundedRect(-W / 2, -H / 2, W, H, 10);
     title.setY(-H / 2 + 12);
     body.setY(TB / 2); // centered in the area below the coloured title bar
     // sit above the floating "SPACE/L = ACTION" hints (also DEPTH.fx): at spawn a
@@ -2232,26 +2288,139 @@ export default class GameScene extends Phaser.Scene {
     ped.cardG = g;
     ped.cardTitle = title;
     ped.cardBody = body;
+    // Geometry + colour stashed so min<->full redraws are allocation-free.
+    ped.cardFull = { W, H, TB, col, titleY: -H / 2 + 12 };
+    ped.cardMin = { W: 132, H: 30, col };
+    ped.cardState = "full";
+    ped._cardArmed = false;   // T2: armed after 6s → the proximity min<->full picker runs
+    ped._cardSwitchAt = 0;    // T2: last min<->full switch (500ms cooldown, no thrash)
+    ped._cardNear = false;    // T2: robot-within-120px latch, for far→near approach edges
+    this._drawCardFull(ped);
     // P9: 150ms slide-in — the card drops into place from just above with a soft
     // overshoot as it spawns (one-shot tween, no per-frame cost).
     ped.card.setAlpha(0).setY(cardY - 16);
     this.tweens.add({ targets: ped.card, y: cardY, alpha: 1, duration: 150, ease: "back.out" });
+    // T2 (D5): auto-minimize an unclaimed card 6s after its slide-in — unconditionally
+    // (a robot already parked within 120px at spawn is NOT a fresh approach, so it
+    // shrinks anyway). The far→near latch is seeded from the current state so the
+    // sitting robot won't immediately re-expand it; only a genuine walk-up will.
+    this.time.delayedCall(6150, () => {
+      if (!ped.card || ped.taken) return;
+      ped._cardArmed = true;
+      ped._cardNear = this.players.some((p) => !p.dead && Math.hypot(p.x - ped.x, p.y - ped.y) < 120);
+      this.minimizeItemCard(ped, false);
+    });
   }
 
-  // Once equipped the card shrinks to a compact skill tag (title only).
-  equipItemCard(ped) {
-    const col = SKILL_INFO[ped.skill].color;
-    ped.cardBody.destroy();
-    const W = 132, H = 30;
-    ped.cardG.clear();
-    ped.cardG.fillStyle(COLORS.hudBg, 0.92).fillRoundedRect(-W / 2, -H / 2, W, H, 8);
-    sheen(ped.cardG, { x: -W / 2, y: -H / 2, w: W, h: H, a: 0.05 });
-    ped.cardG.lineStyle(1, GLASS_HI, 0.1).lineBetween(-W / 2 + 8, -H / 2 + 1.5, W / 2 - 8, -H / 2 + 1.5);
-    ped.cardG.lineStyle(6, col, 0.14).strokeRoundedRect(-W / 2 - 3, -H / 2 - 3, W + 6, H + 6, 10);
-    ped.cardG.lineStyle(2, col).strokeRoundedRect(-W / 2, -H / 2, W, H, 8);
+  // Draw the FULL card body onto ped.cardG (skill-coloured title bar + glass body).
+  _drawCardFull(ped) {
+    const { W, H, TB, col } = ped.cardFull;
+    const g = ped.cardG;
+    g.clear();
+    // GFX2 "Lumen Lab" glass card: frosted body + sheen glaze + soft glow ring,
+    // skill-coloured title bar with a top gloss, crisp accent border.
+    g.fillStyle(COLORS.hudBg, 0.92).fillRoundedRect(-W / 2, -H / 2, W, H, 10);
+    sheen(g, { x: -W / 2, y: -H / 2 + TB, w: W, h: H - TB, a: 0.05 });
+    g.lineStyle(6, col, 0.14).strokeRoundedRect(-W / 2 - 3, -H / 2 - 3, W + 6, H + 6, 12);
+    g.fillStyle(col, 0.9).fillRoundedRect(-W / 2, -H / 2, W, TB, { tl: 10, tr: 10, bl: 0, br: 0 });
+    g.fillStyle(0xffffff, 0.12).fillRoundedRect(-W / 2 + 2, -H / 2 + 2, W - 4, TB * 0.45, { tl: 8, tr: 8, bl: 0, br: 0 });
+    g.lineStyle(2, col).strokeRoundedRect(-W / 2, -H / 2, W, H, 10);
+  }
+
+  // Draw the compact skill TAG onto ped.cardG (title-only glass pill).
+  _drawCardMin(ped) {
+    const { W, H, col } = ped.cardMin;
+    const g = ped.cardG;
+    g.clear();
+    g.fillStyle(COLORS.hudBg, 0.92).fillRoundedRect(-W / 2, -H / 2, W, H, 8);
+    sheen(g, { x: -W / 2, y: -H / 2, w: W, h: H, a: 0.05 });
+    g.lineStyle(1, GLASS_HI, 0.1).lineBetween(-W / 2 + 8, -H / 2 + 1.5, W / 2 - 8, -H / 2 + 1.5);
+    g.lineStyle(6, col, 0.14).strokeRoundedRect(-W / 2 - 3, -H / 2 - 3, W + 6, H + 6, 10);
+    g.lineStyle(2, col).strokeRoundedRect(-W / 2, -H / 2, W, H, 8);
+  }
+
+  // Shrink a card to its compact skill tag (title only). `permanent` = the equip
+  // shrink: the tag is destroyed 6s later. Otherwise the tag can expand back.
+  minimizeItemCard(ped, permanent) {
+    if (!ped.card || ped.cardState === "min") return;
+    const col = ped.cardMin.col;
+    this._drawCardMin(ped);
+    if (ped.cardBody) ped.cardBody.setVisible(false);
     ped.cardTitle.setColor("#" + col.toString(16).padStart(6, "0")).setFontSize(12).setPosition(0, 0);
-    this.tweens.add({ targets: ped.card, scaleX: { from: 1.12, to: 1 }, scaleY: { from: 1.12, to: 1 }, duration: 260, ease: "back.out" });
-    this.time.delayedCall(6000, () => ped.card && ped.card.setAlpha(0.55));
+    ped.cardState = "min";
+    this.tweens.killTweensOf(ped.card);
+    this.tweens.add({ targets: ped.card, scaleX: { from: 1.12, to: 1 }, scaleY: { from: 1.12, to: 1 }, alpha: 1, duration: 300, ease: "back.out" });
+    if (permanent) {
+      // D5 fix: after equip, DESTROY the tag 6s later instead of dimming to 0.55
+      // and lingering forever.
+      this.time.delayedCall(6000, () => {
+        if (!ped.card) return;
+        this.tweens.add({
+          targets: ped.card, alpha: 0, duration: 300,
+          onComplete: () => { if (ped.card) { ped.card.destroy(); ped.card = null; } },
+        });
+      });
+    }
+  }
+
+  // Expand a minimized (unclaimed) card back to the full panel.
+  expandItemCard(ped) {
+    if (!ped.card || ped.taken || ped.cardState === "full") return;
+    this._drawCardFull(ped);
+    ped.cardTitle.setColor("#0a0f1e").setFontSize(parseInt(FS.mini, 10)).setPosition(0, ped.cardFull.titleY);
+    if (ped.cardBody) ped.cardBody.setVisible(true);
+    ped.cardState = "full";
+    this.tweens.killTweensOf(ped.card);
+    this.tweens.add({ targets: ped.card, scaleX: { from: 0.9, to: 1 }, scaleY: { from: 0.9, to: 1 }, alpha: 1, duration: 300, ease: "back.out" });
+  }
+
+  // Once equipped the card shrinks to a compact skill tag, then self-destructs 6s
+  // later (T2 / D5). Reuses the shared minimize shrink.
+  equipItemCard(ped) {
+    ped.cardMin.col = SKILL_INFO[ped.skill].color;
+    ped._cardArmed = false; // the unclaimed proximity picker never touches it again
+    ped.cardState = "full"; // force minimizeItemCard to run even if already minimized
+    this.minimizeItemCard(ped, true);
+  }
+
+  // T2 (D5): unclaimed item cards auto-minimize 6s after spawn (see buildItemCard),
+  // then re-expand once per APPROACH — a robot crossing from outside 120px to inside
+  // — and retract when it leaves. min<->full state machine, 500ms cooldown so it
+  // never thrashes. Called each frame from update(); reads only positions.
+  updateItemCards(time) {
+    for (const ped of this.pedestals) {
+      if (ped.taken || !ped.card || !ped._cardArmed) continue;
+      if (time < ped._cardSwitchAt + 500) continue; // anti-thrash cooldown (edges survive it)
+      const near = this.players.some((p) => !p.dead &&
+        Math.hypot(p.x - ped.x, p.y - ped.y) < 120);
+      const approached = near && !ped._cardNear; // fresh far→near edge = one approach
+      ped._cardNear = near;
+      if (approached && ped.cardState === "min") { this.expandItemCard(ped); ped._cardSwitchAt = time; }
+      else if (!near && ped.cardState === "full") { this.minimizeItemCard(ped, false); ped._cardSwitchAt = time; }
+    }
+  }
+
+  // T3 (D11): register a permanent world label for proximity-alpha treatment.
+  addProxLabel(obj, x, y) { if (obj) this.proxLabels.push({ obj, x, y }); }
+
+  // T3 (D11): permanent world text recedes when no robot is near. alpha = 1.0 when
+  // the nearest robot is within 6 tiles (288px), easing to 0.35 beyond 10 tiles
+  // (480px). Called every ~150ms; lerps the live alpha toward target for smoothness.
+  updateProxLabels() {
+    if (!this.proxLabels.length) return;
+    for (const e of this.proxLabels) {
+      const o = e.obj;
+      if (!o || !o.scene || o.visible === false) continue; // destroyed/hidden (e.g. defeated warden badge)
+      let d = Infinity;
+      for (const p of this.players) {
+        if (p.dead) continue;
+        const dd = Math.hypot(p.x - e.x, p.y - e.y);
+        if (dd < d) d = dd;
+      }
+      const t = Phaser.Math.Clamp((480 - d) / (480 - 288), 0, 1);
+      const target = 0.35 + 0.65 * t;
+      o.setAlpha(o.alpha + (target - o.alpha) * 0.3);
+    }
   }
 
   // --- actions ---------------------------------------------------------------
@@ -3562,7 +3731,7 @@ export default class GameScene extends Phaser.Scene {
           .setOrigin(0.5).setVisible(false));
       }
       const c = this.add.container(0, 0, [bg, ...texts]).setDepth(DEPTH.fx + 3).setVisible(false);
-      return { c, bg, texts, active: false, key: null, until: 0, guard: 0, follow: null, halfH: 24, halfW: 95 };
+      return { c, bg, texts, active: false, key: null, until: 0, guard: 0, shownAt: 0, follow: null, halfH: 24, halfW: 95 };
     };
     // Faint re-show clones of the floating "SPACE/L = ACTION" hint (U1(d)).
     const reshow = this.players.map((p) => {
@@ -3758,6 +3927,7 @@ export default class GameScene extends Phaser.Scene {
     b.key = key;
     b.follow = follow;
     b.until = this.time.now + dur;
+    b.shownAt = this.time.now; // T3: which of the two bubbles is "second-shown"
     b.guard = this.time.now + 160; // ignore the very press that spawned it
     b.c.setVisible(true).setAlpha(0);
     this.tweens.killTweensOf(b.c);
@@ -3829,6 +3999,9 @@ export default class GameScene extends Phaser.Scene {
     const wv = cam.worldView;
 
     // Reposition + expire active bubbles every frame (cheap; no allocation).
+    // Positions are computed into `pos` first so the two-player avoidance pass can
+    // see both before anything is committed with setPosition.
+    const pos = [null, null];
     for (let i = 0; i < this.players.length; i++) {
       const b = co.bubbles[i];
       if (!b.active) continue;
@@ -3842,8 +4015,55 @@ export default class GameScene extends Phaser.Scene {
       // Keep clear of the KOBI blip bar (bottom of screen) and the top edge.
       const maxWorldY = wv.y + (scH - 104) / zoom - b.halfH;
       const minWorldY = wv.y + 34 / zoom + b.halfH;
+      // T3 (D8): top-clamp FLIP. The old code clamped a too-high bubble straight
+      // DOWN onto the robot near the screen top. Instead, when that clamped-down
+      // rect would cover the followed robot's body, park the bubble BESIDE the
+      // robot — on the side with more viewport room, at the robot's y (the bottom
+      // blip-bar clamp below still applies).
+      if (f.obj && wy < minWorldY) {
+        const rHalfW = (f.obj.displayWidth || 32) / 2;
+        const rHalfH = (f.obj.displayHeight || 44) / 2;
+        if (Math.abs(wx - f.obj.x) < b.halfW + rHalfW && Math.abs(minWorldY - f.obj.y) < b.halfH + rHalfH) {
+          const roomR = (wv.x + wv.width) - f.obj.x, roomL = f.obj.x - wv.x;
+          const side = roomR >= roomL ? 1 : -1;
+          wx = f.obj.x + side * (b.halfW + 40);
+          wy = f.obj.y;
+        }
+      }
       wy = Phaser.Math.Clamp(wy, minWorldY, maxWorldY);
-      b.c.setPosition(wx, wy);
+      // T2 (D5): nudge a bubble off a FULL (non-minimized) item card — mirror it to
+      // the robot's OTHER side horizontally. Cards minimize after 6s so this only
+      // bites during the spawn window (or while a robot lingers by an unclaimed
+      // pedestal), exactly the case D5 called out.
+      if (f.obj) {
+        for (const ped of this.pedestals) {
+          if (ped.taken || !ped.card || ped.cardState !== "full") continue;
+          const cw = ped.cardFull.W, ch = ped.cardFull.H;
+          if (Math.abs(wx - ped.card.x) < b.halfW + cw / 2 && Math.abs(wy - ped.card.y) < b.halfH + ch / 2) {
+            const dir = wx - ped.card.x >= 0 ? 1 : -1; // push to the side away from the card
+            wx = f.obj.x + dir * (b.halfW + 40);
+            break;
+          }
+        }
+      }
+      pos[i] = { wx, wy, minWorldY, maxWorldY };
+    }
+    // T3 (D8): two-player avoidance. If both bubbles are up and their AABBs overlap,
+    // push the SECOND-shown one down by its full height + 8; if that breaks the
+    // bottom (blip-bar) clamp, push it up instead. One bubble never buries the other.
+    if (pos[0] && pos[1]) {
+      const b0 = co.bubbles[0], b1 = co.bubbles[1];
+      if (Math.abs(pos[0].wx - pos[1].wx) < b0.halfW + b1.halfW &&
+          Math.abs(pos[0].wy - pos[1].wy) < b0.halfH + b1.halfH) {
+        const li = (b1.shownAt || 0) >= (b0.shownAt || 0) ? 1 : 0; // later-shown bubble
+        const lp = pos[li], lb = co.bubbles[li];
+        let ny = lp.wy + lb.halfH * 2 + 8;
+        if (ny > lp.maxWorldY) ny = lp.wy - (lb.halfH * 2 + 8); // clamp would break → go up
+        lp.wy = Phaser.Math.Clamp(ny, lp.minWorldY, lp.maxWorldY);
+      }
+    }
+    for (let i = 0; i < this.players.length; i++) {
+      if (pos[i]) co.bubbles[i].c.setPosition(pos[i].wx, pos[i].wy);
     }
 
     // Re-show hints: follow their robot, expire at 4s or on an action press.
@@ -4632,6 +4852,9 @@ export default class GameScene extends Phaser.Scene {
     // the per-session detection toast on the (unzoomed) HUD scene.
     pads.poll(time);
     if (pads.anyButtonJust()) initAudio();
+    // T3 (D10): a pad button also fast-outs the intro banner (keyboard is handled by
+    // a keydown listener installed in showIntroBanner).
+    if (this.introBanner && pads.anyButtonJust()) this.skipIntroBanner();
     const padConn = pads.consumeConnected();
     if (padConn) {
       const uiS = this.scene.get("UI") || this;
@@ -5281,6 +5504,11 @@ export default class GameScene extends Phaser.Scene {
     }
 
     this.players.forEach((p) => (p.standingOn = null));
+    this.updateItemCards(time);
+    // T3 (D11): permanent world labels recede when idle. Rolling ~150ms timer
+    // (not per-frame) lerps each label's alpha toward its proximity target.
+    this._proxT -= delta;
+    if (this._proxT <= 0) { this._proxT = 150; this.updateProxLabels(); }
     this.updateCoach(time);
     this.updateLockFeedback(time, delta);
     this.updateHandholdHint(time, delta);

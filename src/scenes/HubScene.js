@@ -533,6 +533,8 @@ export default class HubScene extends Phaser.Scene {
     this.ring.setPosition(n.x, n.y);
     this.ring2.setPosition(n.x, n.y);
     this.nameText.setText(n.unlocked ? `${n.lvl.id}  "${n.lvl.name}"` : `${n.lvl.id}  — locked`);
+    // T3 (D7): selection change clears the toast (and cancels its auto-clear timer).
+    if (this._toastTimer) { this._toastTimer.remove(); this._toastTimer = null; }
     this.toastText.setText("");
     // slight scale pulse on the selected node
     if (this.pulseTween) this.pulseTween.remove();
@@ -543,17 +545,28 @@ export default class HubScene extends Phaser.Scene {
     });
   }
 
+  // T3 (D7): a hub toast that auto-clears after 3.5s (timer reset on each re-set).
+  // The clear-on-selection-change path in updateSelection() still applies.
+  showToast(msg) {
+    this.toastText.setText(msg);
+    if (this._toastTimer) this._toastTimer.remove();
+    this._toastTimer = this.time.delayedCall(3500, () => {
+      this.toastText.setText("");
+      this._toastTimer = null;
+    });
+  }
+
   enter() {
     if (this.entering) return;
     const n = this.nodes[this.sel];
     if (!n.unlocked) {
       sfx.lockedDeny();
-      this.toastText.setText("KOBI: That wing is LOCKED. Doors are my whole THING.");
+      this.showToast("KOBI: That wing is LOCKED. Doors are my whole THING.");
       return;
     }
     if (n.lvl.wip) {
       sfx.menuDeny();
-      this.toastText.setText("KOBI: This wing is still under construction. Even I have limits. (coming soon)");
+      this.showToast("KOBI: This wing is still under construction. Even I have limits. (coming soon)");
       return;
     }
     this.entering = true;
