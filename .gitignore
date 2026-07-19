@@ -47,3 +47,4 @@ tools/campaign.report.json
 sfx_audition.build.html
 tools/beat/report.json
 tools/softlock/report.json
+_diag_reel.mjs
