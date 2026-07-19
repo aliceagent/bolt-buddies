@@ -259,3 +259,47 @@ The single highest-leverage sprint: players see it, tests can't.
   per batch on BOTH builds (varying assignment — the documented D7 contention
   flake) and the 1-2 reel + tut HARD unreproducible on HEAD (both RECOVERABLE
   round 2). G1 exonerated: failures environmental, not hit-stop. Signed off.
+- G3-D1: `isWebGL(scene)` added to src/ui/paint.js is the ONE renderer gate for
+  the whole sprint (R1). Every new halo/cone/tint/dark-glow object, bake and
+  breathing tween routes through it; pre-existing ad-hoc `renderer.type` checks
+  were left untouched (out of scope, R6). Under ?canvas=1 all of it early-returns
+  or no-ops — zero new objects, byte-identical to pre-G3.
+- G3-D2: machinery bloom = ONE pooled `addDeviceHalo()` (reuses the baked
+  `glowBlob`, additive, per-world/-device tint) — NO new halo texture needed.
+  Staggered sine breathing (1400-2200ms, per-index `delay` so no unison), depth =
+  device depth − 1, hard cap ≤40 (`this.deviceHalos`). State-coupled halos
+  (levers on/off, magswitches on/re-arm, active checkpoint) toggle `setVisible`
+  at the EXISTING state sites (pullLever, the timed-door lever re-arm, the
+  checkpoint activate/deactivate handler) — no per-frame polling. Constant halos:
+  beam turrets (laseremit) + phase-wall shimmer tiles.
+- G3-D3: cores were NOT given a new halo object — the core container already owns
+  an additive `glowBlob` bloom child (baked, alpha 0.5). G3 just adds a WebGL-
+  gated slow breathing tween to that existing child (Canvas keeps the static 0.5,
+  and the child is additive on both tiers already, so Canvas is unchanged). The
+  tween shares the coreImg/orbit-spin lifecycle (dies with the container on
+  pickup). Not counted against the ≤40 cap (no new object).
+- G3-D4: phase-wall halos are added in a POST-spawn pass (after buildConduits) so
+  the discrete interactive devices (levers/checkpoints/turrets/magnets), which
+  spawn earlier, claim the ≤40 cap first; the shimmer curtain takes the remainder
+  (loop breaks the moment addDeviceHalo returns null). "Prioritise interactive
+  over decor" honoured without a priority sort.
+- G3-D5: tinted depth — the FAR parallax grid gets `accent2` `setTint` gated by
+  isWebGL (mirrors the near grid, which was already tinted via an ungated setTint
+  that no-ops on Canvas; the near grid was left as-is per R6). The motes were
+  ALREADY accent2-tinted (buildBackground); the call is now `isWebGL ? accent2 :
+  0xffffff` so the gate is explicit and Canvas renders the same white specks it
+  always did. Alphas unchanged on both.
+- G3-D6: light cones — one soft `lightCone` texture baked at boot ONLY under
+  isWebGL (the bake itself is gated), placed additively (alpha 0.09) under each
+  addDustShafts source, angle-matched, at DEPTH.bg−2 (below terrain, with the
+  shaft). addDustShafts is already WebGL-only-called; the cone-add carries its
+  own isWebGL + texture-exists guard as belt-and-suspenders. Lamp props were NOT
+  individually coned (the dust-shaft sources are the meaningful light sources;
+  per-status-lamp cones would multiply objects for little read).
+- G3-D7: player dark-zone glow — the dark-zone system exposes a BOOLEAN `inDark()`
+  (not a continuous factor). One additive `glowBlob` per buddy (WebGL only, dark-
+  zone levels only) eases its alpha 0→~0.5 toward `inDark(p.x,p.y)` and back
+  (0.15/frame lerp) and follows the buddy — riding the EXISTING per-player pass
+  in the dark-mask update (the glow-erase loop), so NO new update loop. Canvas
+  leaves `_darkGlows` unset, making that block a no-op. Verified: buddy glow
+  alphas settle ~0.44 inside a 4-3 dark zone (screenshot g3-w4-l43-darkglow).

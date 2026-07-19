@@ -1,4 +1,12 @@
+import Phaser from "phaser";
 import { COLORS } from "../constants.js";
+
+// GFX3 G3: the ONE renderer gate. Every WebGL-only ambience site (halos, cones,
+// tints, dark-zone glow) routes through this — no ad-hoc renderer.type checks
+// (R1). Under ?canvas=1 it returns false, so gated work is skipped entirely.
+export function isWebGL(scene) {
+  return scene.game.renderer.type === Phaser.WEBGL;
+}
 
 // GFX2 "Lumen Lab" — shared drawing-recipe library.
 //

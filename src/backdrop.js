@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { DEPTH, WORLD_THEMES } from "./constants.js";
+import { isWebGL } from "./ui/paint.js";
 
 // Shared layered-background helpers so the Title, Hub and Game screens all wear
 // the same procedural depth treatment. Everything sits below `DEPTH.terrain` and
@@ -151,6 +152,19 @@ export function addDustShafts(scene, world) {
       ease: "sine.inOut",
     });
     beams.push(img);
+    // GFX3 G3: a static soft light cone under each shaft source — narrow apex at
+    // the beam origin, fanning downward. WebGL-gated (R1) and only when the bake
+    // ran; additive, alpha 0.05-0.12, below terrain (DEPTH.bg-2, with the shaft).
+    if (isWebGL(scene) && scene.textures.exists("lightCone")) {
+      scene.add
+        .image(img.x, scene.worldH * 0.4 - 120, "lightCone")
+        .setOrigin(0.5, 0)
+        .setScrollFactor(0.3)
+        .setAngle(b.angle)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setAlpha(0.09)
+        .setDepth(DEPTH.bg - 2);
+    }
   }
   return beams;
 }

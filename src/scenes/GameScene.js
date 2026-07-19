@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { TILE, COLORS, PHYS, DEPTH, SKILL_INFO, WORLD_THEMES, FADE_NAVY, FONT, FS, TEXT, PARTICLES } from "../constants.js";
-import { ringGlow, glowShape, iconChip, iconGlow, softBody, sheen, GLASS_HI } from "../ui/paint.js";
+import { ringGlow, glowShape, iconChip, iconGlow, softBody, sheen, GLASS_HI, isWebGL } from "../ui/paint.js";
 import { LEVELS } from "../levels/registry.js";
 import { makeGrid } from "../levels/builder.js";
 import devW3 from "../levels/dev_w3.js";
@@ -142,6 +142,7 @@ export default class GameScene extends Phaser.Scene {
     // would clobber the per-world dim). These two collections are reset every
     // create() and consumed later by buildTerrain()/spawnEntity().
     this.lightPools = [];
+    this.deviceHalos = []; // GFX3 G3: machinery bloom halos (WebGL only, cap <=40)
     this._flickBuckets = [[], [], []];
     this.coreItems = [];
     this.keyItems = [];
@@ -305,6 +306,14 @@ export default class GameScene extends Phaser.Scene {
     // P5: trace lever/plate → device wiring now that every entity exists.
     this.buildConduits();
 
+    // GFX3 G3: phase-wall bloom halos, added AFTER entities so the discrete
+    // interactive devices (levers/checkpoints/turrets/magnets) claim the <=40
+    // cap first; the shimmer curtain takes whatever budget remains. Constant
+    // (phase walls are always emissive). WebGL-gated inside addDeviceHalo.
+    for (const s of this.shimmerPts) {
+      if (!this.addDeviceHalo(s.x, s.y - 2, 0xc39dff, { alpha: 0.24, scale: 0.42, depth: DEPTH.terrain - 1 })) break;
+    }
+
     // Sprint 10: static key-glyph clusters declared in the level def (tutorial).
     (def.glyphs || []).forEach((gz) => this.addGlyphs(gz.x * TILE + 24, gz.y * TILE + 24, gz.caps));
 
@@ -449,6 +458,17 @@ export default class GameScene extends Phaser.Scene {
       this._darkStampRect = this.make.image({ key: "darkpx", add: false }).setOrigin(0, 0);
       this._darkStampGlow = this.make.image({ key: "glowmask", add: false });
       this._darkStampCone = this.make.image({ key: "conemask", add: false }).setOrigin(0, 0.5);
+      // GFX3 G3: one additive personal glow per buddy in dark-zone levels. WebGL
+      // only (R1) — Canvas leaves `_darkGlows` null so the follow/ramp in the
+      // dark-mask update below is a no-op (zero new objects, byte-identical). The
+      // glow follows its buddy and ramps alpha 0 -> ~0.5 with the local darkness.
+      if (isWebGL(this)) {
+        this._darkGlows = this.players.map((p) =>
+          this.add.image(p.x, p.y - 8, "glowBlob")
+            .setBlendMode(Phaser.BlendModes.ADD)
+            .setTint(p.idx === 0 ? COLORS.beep : COLORS.boop)
+            .setScale(1.4).setAlpha(0).setDepth(DEPTH.player - 1));
+      }
     }
 
     // camera
@@ -867,13 +887,17 @@ export default class GameScene extends Phaser.Scene {
     addGradient(this, world);
 
     // (2) far parallax grid — dim, larger tile scale to avoid moire with the near layer
-    this.add
+    const farGrid = this.add
       .tileSprite(-2 * W, -2 * H, this.worldW + 4 * W, this.worldH + 4 * H, "bggrid")
       .setOrigin(0)
       .setScrollFactor(0.4)
       .setTileScale(1.7)
       .setAlpha(0.2)
       .setDepth(DEPTH.bg - 9);
+    // GFX3 G3: tinted depth — the far grid takes the per-world accent2 under WebGL
+    // (mirrors the near grid's tint below). Tint only, alpha unchanged; skipped on
+    // Canvas so the reference tier renders the untinted grid exactly as before.
+    if (isWebGL(this)) farGrid.setTint(theme.accent2);
 
     // (3) near parallax grid — brighter (accent tint shows under WebGL only)
     this.add
@@ -898,8 +922,9 @@ export default class GameScene extends Phaser.Scene {
         .setScale(2.6 + (i % 3) * 0.7);
     }
 
-    // (5) ambient dust motes
-    addMotes(this, theme.accent2);
+    // (5) ambient dust motes — GFX3 G3: accent2-tinted under WebGL, neutral white
+    // on Canvas (the emitter tint no-ops there anyway, so behaviour is unchanged).
+    addMotes(this, isWebGL(this) ? theme.accent2 : 0xffffff);
 
     // (6) P3 world-backdrop identity. All layers sit at DEPTH.bg-5..bg-1, strictly
     // below DEPTH.terrain — behind gameplay, never occluding sprites/HUD/bubbles.
@@ -1323,6 +1348,33 @@ export default class GameScene extends Phaser.Scene {
     return img;
   }
 
+  // GFX3 G3: place ONE additive bloom halo behind an emissive device (lit levers,
+  // magnets, checkpoints, beam turrets, phase walls). WebGL tier ONLY (R1) — under
+  // ?canvas=1 this early-returns, creating zero objects. Reuses the baked glowBlob
+  // (soft radial); tinted + additive so machinery reads as lit. Slow sine alpha
+  // breathing via a tween (R3, no per-frame work), duration 1.4-2.2s and delay
+  // phase-offset per instance so halos never pulse in unison. Depth is passed by
+  // the caller = its device's depth MINUS one (sits immediately below the device).
+  // Hard-capped at 40 halos/level; interactive devices claim the cap before decor.
+  addDeviceHalo(x, y, tint, opts = {}) {
+    if (!isWebGL(this)) return null; // WebGL ambience tier only
+    if (this.deviceHalos.length >= 40) return null; // spec cap
+    const { scale = 0.5, alpha = 0.3, depth = DEPTH.entity - 1, visible = true } = opts;
+    const i = this.deviceHalos.length;
+    const img = this.add.image(x, y, "glowBlob")
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setTint(tint).setScale(scale).setAlpha(alpha)
+      .setDepth(depth).setVisible(visible);
+    // staggered breathing: deterministic per-index duration + delay (no unison)
+    this.tweens.add({
+      targets: img, alpha: { from: alpha * 0.45, to: alpha },
+      duration: 1400 + ((i * 173) % 800), delay: (i * 190) % 1600,
+      yoyo: true, repeat: -1, ease: "sine.inOut",
+    });
+    this.deviceHalos.push(img);
+    return img;
+  }
+
   // --- entities --------------------------------------------------------------
   spawnEntity(e) {
     const px = e.x * TILE + 24;
@@ -1406,7 +1458,9 @@ export default class GameScene extends Phaser.Scene {
         // drawn handle, pivots at the base hub — a flip is a rotation tween
         const handle = this.add.image(px, py + 8, "lever_handle")
           .setOrigin(0.5, 1).setDepth(DEPTH.entity + 1).setAngle(-6);
-        this.levers.push({ id: e.id, x: px, y: py, on: false, img, handle });
+        // GFX3 G3: bloom halo, state-coupled to `on` (hidden until flipped lit).
+        const leverHalo = this.addDeviceHalo(px, py, this.theme.accent, { visible: false });
+        this.levers.push({ id: e.id, x: px, y: py, on: false, img, handle, halo: leverHalo });
         break;
       }
       case "plate": {
@@ -1606,6 +1660,10 @@ export default class GameScene extends Phaser.Scene {
         const cont = this.add.container(px, py).setDepth(DEPTH.pickup);
         cont.coreIndex = this.coreIdx++;
         const glow = this.add.image(0, 0, "glowBlob").setScale(0.42).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.5);
+        // GFX3 G3: slow bloom breathing on the core's existing halo (WebGL only —
+        // Canvas keeps the static 0.5 alpha, byte-identical). Tween dies with the
+        // container on pickup (same lifecycle as the coreImg/orbit spins below).
+        if (isWebGL(this)) this.tweens.add({ targets: glow, alpha: { from: 0.34, to: 0.6 }, duration: 1700, yoyo: true, repeat: -1, ease: "sine.inOut" });
         const coreImg = this.add.image(0, 0, "core");
         const orbit = this.add.container(0, 0);
         orbit.add(this.add.image(14, 0, "px").setScale(0.7).setBlendMode(Phaser.BlendModes.ADD));
@@ -1626,7 +1684,10 @@ export default class GameScene extends Phaser.Scene {
         // P8: green light pool at the base, revealed only while this checkpoint is
         // the active one (toggled with the lamp texture in the activation handler).
         const pool = this.addLightPool(px, py + 6, COLORS.green, { alpha: 0.26, scale: 1.1, visible: false });
-        this.checkpoints.push({ x: px, y: py, img, active: false, cone, pool });
+        // GFX3 G3: bloom halo behind the lamp, revealed only while this is the
+        // ACTIVE checkpoint (toggled alongside cone/pool in the activation handler).
+        const cpHalo = this.addDeviceHalo(px, py - 9, COLORS.green, { visible: false });
+        this.checkpoints.push({ x: px, y: py, img, active: false, cone, pool, halo: cpHalo });
         break;
       }
       case "trigger": {
@@ -1890,7 +1951,9 @@ export default class GameScene extends Phaser.Scene {
         // excludes it from hand-pulls and grapple targeting.
         const img = this.add.image(px, py + 4, "magswitch").setDepth(DEPTH.entity);
         this.addLightPool(px, py + 6, 0xff9e3d, { alpha: 0.22, scale: 0.8 });
-        this.levers.push({ id: e.id, x: px, y: py, on: false, img, handle: null, mag: true });
+        // GFX3 G3: bloom halo, state-coupled to the coil (hidden until magnetised).
+        const magHalo = this.addDeviceHalo(px, py, 0xff9e3d, { visible: false });
+        this.levers.push({ id: e.id, x: px, y: py, on: false, img, handle: null, mag: true, halo: magHalo });
         this._w3 = true;
         break;
       }
@@ -2121,6 +2184,8 @@ export default class GameScene extends Phaser.Scene {
         // Freeze holds the angle (the state below is simply not stepped).
         const img = this.add.image(px, py, "laseremit").setDepth(DEPTH.entity + 1);
         this.addLightPool(px, py, 0xff5566, { alpha: 0.2, scale: 0.8 });
+        // GFX3 G3: constant bloom halo behind the always-emissive beam turret.
+        this.addDeviceHalo(px, py, 0xff5566, { alpha: 0.26, depth: DEPTH.entity });
         this.lasers.push({
           img, x: px, y: py,
           len: (e.len || 5) * TILE,
@@ -2673,6 +2738,7 @@ export default class GameScene extends Phaser.Scene {
 
   pullLever(lev) {
     lev.on = true;
+    if (lev.halo) lev.halo.setVisible(true); // GFX3 G3: light the bloom halo (lit state)
     if (lev.handle) {
       this.tweens.add({ targets: lev.handle, angle: 60, duration: 240, ease: "back.out" });
       this.sparks.explode(this.fxBudget(10), lev.handle.x, lev.y - 22); // spark burst at the knob
@@ -5163,6 +5229,7 @@ export default class GameScene extends Phaser.Scene {
             o.img.setTexture("checkpoint").setAlpha(0.85); // dim grey lamp
             if (o.cone) o.cone.setVisible(false);
             if (o.pool) o.pool.setVisible(false); // P8: extinguish its light pool
+            if (o.halo) o.halo.setVisible(false); // GFX3 G3: extinguish bloom halo
           });
           cp.active = true;
           // U9 (F16): a NEW segment begins — reset the streak counter + one-shot
@@ -5172,6 +5239,7 @@ export default class GameScene extends Phaser.Scene {
           cp.img.setTexture("checkpoint_on").setAlpha(1); // green lamp
           if (cp.cone) cp.cone.setVisible(true); // light-cone below
           if (cp.pool) cp.pool.setVisible(true); // P8: light pool lit while active
+          if (cp.halo) cp.halo.setVisible(true); // GFX3 G3: bloom halo lit while active
           // expanding ring burst on activation
           const ring = this.add.image(cp.x, cp.y - 31, "ring").setDepth(DEPTH.fx)
             .setBlendMode(Phaser.BlendModes.ADD);
@@ -5281,6 +5349,7 @@ export default class GameScene extends Phaser.Scene {
           const l = this.levers.find((v) => v.id === id);
           if (l && l.on) {
             l.on = false;
+            if (l.halo) l.halo.setVisible(false); // GFX3 G3: extinguish bloom halo on re-arm
             if (l.handle) this.tweens.add({ targets: l.handle, angle: -6, duration: 200 });
             // W3W4 L32: a re-armed TIMED magswitch pops visibly back out (its
             // coil lamp was flipped lit by pullLever; without this reset a
@@ -7113,6 +7182,14 @@ export default class GameScene extends Phaser.Scene {
       }
       const G = this._darkStampGlow;
       for (const p of this.players) {
+        // GFX3 G3: buddy dark-zone glow rides the SAME player pass (no new loop).
+        // Alpha eases 0 -> ~0.5 with the darkness factor (inDark, the value the
+        // dark-zone system already computes) and back out; position follows here.
+        const gl = this._darkGlows && this._darkGlows[p.idx];
+        if (gl) {
+          const target = !p.dead && p.visible && this.inDark(p.x, p.y) ? 0.5 : 0;
+          gl.setAlpha(gl.alpha + (target - gl.alpha) * 0.15).setPosition(p.x, p.y - 8);
+        }
         if (p.dead || !p.visible) continue;
         const dia = (PHYS.glowRadius * 2 + 60) * z; // gradient reaches past the nominal radius
         G.setPosition((p.x - vx) * z, (p.y - 8 - vy) * z);

@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { COLORS, WORLD_THEMES, PARTICLES } from "../constants.js";
-import { softBody, specular, sheen, haloCircle, ringGlow, fakeRadial, glowShape, iconChip, iconGlow, ditherRect } from "../ui/paint.js";
+import { softBody, specular, sheen, haloCircle, ringGlow, fakeRadial, glowShape, iconChip, iconGlow, ditherRect, isWebGL } from "../ui/paint.js";
 
 // Every texture in the game is generated here with Graphics — zero asset files.
 export default class BootScene extends Phaser.Scene {
@@ -506,6 +506,27 @@ export default class BootScene extends Phaser.Scene {
         g.fillRect(half + dx, 0, 1, 660);
       }
     });
+
+    // GFX3 G3: soft downward light cone — narrow at the top apex, fanning wider and
+    // dimmer toward the base, soft-edged both ways. Placed additively under lamp /
+    // dust-shaft sources (backdrop.js), alpha 0.05-0.12. The BAKE ITSELF is gated
+    // to WebGL (R1) — the Canvas reference tier never creates the texture and the
+    // gated placement below never runs there. Canvas-safe per-row strips.
+    if (isWebGL(this)) {
+      make("lightCone", 128, 240, (g) => {
+        const cx = 64;
+        for (let y = 0; y < 240; y++) {
+          const t = y / 240;                 // 0 apex -> 1 base
+          const halfW = 5 + t * (cx - 5);    // narrow at the source, full at the base
+          const vFade = 1 - t * 0.82;        // dimmer toward the base
+          for (let dx = -halfW; dx <= halfW; dx++) {
+            const f = 1 - Math.abs(dx) / halfW; // 0 edge -> 1 centre
+            g.fillStyle(0xffffff, 0.06 * f * f * vFade);
+            g.fillRect(Math.round(cx + dx), y, 1, 1);
+          }
+        }
+      });
+    }
 
     // Soft vignette edge: a 1-D gradient (opaque black at the outer edge -> clear
     // inward). Placed as four thin border bands (top/bottom/left/right) rather than
