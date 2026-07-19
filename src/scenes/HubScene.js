@@ -571,8 +571,11 @@ export default class HubScene extends Phaser.Scene {
     }
     this.entering = true;
     sfx.levelEnter();
-    // quick fade transition, then hand off to the level
-    this.cameras.main.fadeOut(250, 4, 6, 20);
+    // quick fade transition, then hand off to the level. GFX3 G1: tinted to the
+    // TARGET world's fade (duration unchanged, R6).
+    const tf = WORLD_THEMES[n.lvl.world] && WORLD_THEMES[n.lvl.world].fade;
+    const [fr, fg, fb] = tf != null ? [(tf >> 16) & 0xff, (tf >> 8) & 0xff, tf & 0xff] : [4, 6, 20];
+    this.cameras.main.fadeOut(250, fr, fg, fb);
     this.cameras.main.once("camerafadeoutcomplete", () => {
       this.scene.start("Game", { levelIndex: n.idx });
     });

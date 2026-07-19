@@ -208,3 +208,20 @@ The single highest-leverage sprint: players see it, tests can't.
   Canvas-tier fps and test invariance (precedent: props/vignette gating).
 - G0-D3: builders push to `buddies dev` themselves on landing (recycle
   protocol; a recycle this session destroyed local-only state again).
+- G1-D1: the plan's stale exit-fade line numbers (4391/4401) resolve to the two
+  live GameScene fadeOuts: doExit (→Hub) = the hub-bound one → FADE_NAVY;
+  doRestart (→level reload) = the level-bound one → destination world's fade
+  (destination == the same level's world).
+- G1-D2: level-clear flash softened by multiplying the warm RGB by uxFlashScale()
+  (255/244/214 × fs), fired right after physics.pause() in finishLevel, before
+  the 500ms overlay delayedCall. uxFlashScale never returns 0, but the ×0 skip
+  guard is kept as specified.
+- G1-D3: impactPunch restore is a single self-rescheduling delayedCall — if a
+  later call extended _hitStopUntil it re-arms for the remainder instead of
+  unpausing early, and it refuses to unpause while frozen/paused/complete own
+  physics (never clobbers a menu/clear/freeze pause).
+- G1-D4: no separate "gear" pickup exists in the game; the light punch for
+  "core/gear pickup" is wired at the single data-core pickup site (sfx.core).
+- G1-D5: enemy-kill heavy punch wired inside squishBug (the one enemy-kill
+  choke point, reached by both head-stomp and the heavy-stomp radius); crane
+  boss hit wired at stompPod (the pod-crunch that damages the crane).

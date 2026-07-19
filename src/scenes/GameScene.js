@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { TILE, COLORS, PHYS, DEPTH, SKILL_INFO, WORLD_THEMES, FONT, FS, TEXT, PARTICLES } from "../constants.js";
+import { TILE, COLORS, PHYS, DEPTH, SKILL_INFO, WORLD_THEMES, FADE_NAVY, FONT, FS, TEXT, PARTICLES } from "../constants.js";
 import { ringGlow, glowShape, iconChip, iconGlow, softBody, sheen, GLASS_HI } from "../ui/paint.js";
 import { LEVELS } from "../levels/registry.js";
 import { makeGrid } from "../levels/builder.js";
@@ -163,6 +163,12 @@ export default class GameScene extends Phaser.Scene {
     this.coreIdx = 0;
     this.complete = false;
     this.leaving = false; // guards ESC/R fades so input during a fade can't double-trigger
+
+    // GFX3 G1 — impact feel. `camPunch` is the zoom-punch multiplier updateCamera
+    // applies to its computed zoom (1 = no punch); `_hitStopUntil` is the live
+    // hit-stop deadline (0 = none). See impactPunch(). Reset per entry/restart.
+    this.camPunch = 1;
+    this._hitStopUntil = 0;
 
     // U8 (F15): per-run counters — DISPLAY-ONLY, passive observers of play. They
     // never touch physics or logic. `_elapsedMs` accumulates active (un-paused,
@@ -452,7 +458,8 @@ export default class GameScene extends Phaser.Scene {
     this.camPos = { x: this.players[0].x, y: this.players[0].y, zoom: 1 };
     // 250ms fade-in on every entry (unifies title/hub/game transitions). Visual
     // only — never blocks input, so the beat runner + suites drive immediately.
-    cam.fadeIn(250, 4, 6, 20);
+    // GFX3 G1: tinted to the CURRENT world's fade (duration unchanged, R6).
+    cam.fadeIn(250, ...this.worldFade(this.def.world));
 
     this.rope = this.add.graphics().setDepth(DEPTH.rope);
     // U6 — throw-arc + rope-tether preview overlay. One shared Graphics on the
@@ -2677,6 +2684,7 @@ export default class GameScene extends Phaser.Scene {
     }
     this.fireConduits("lever", lev.id); // P5: light the wire to its device (cosmetic)
     sfx.lever();
+    this.impactPunch("light"); // GFX3 G1: lever flip
   }
 
   findGrappleTarget(p) {
@@ -2752,6 +2760,51 @@ export default class GameScene extends Phaser.Scene {
     if (a > 0) this.cameras.main.shake(duration, a);
   }
 
+  // GFX3 G1 — a world's transition-fade colour as [r, g, b] for cam.fade*().
+  // Falls back to FADE_NAVY for an unknown world.
+  worldFade(world) {
+    const t = WORLD_THEMES[world];
+    if (!t || t.fade == null) return FADE_NAVY;
+    return [(t.fade >> 16) & 0xff, (t.fade >> 8) & 0xff, t.fade & 0xff];
+  }
+
+  // GFX3 G1 — hit-stop + zoom punch. `kind` is "light" (40ms stop, 1.5% zoom)
+  // or "heavy" (70ms stop, 3% zoom). Skipped whole when SCREEN SHAKE is off (R2).
+  // The stop pauses physics and lifts it on a SINGLE re-checking timer: a fresh
+  // call while a stop is live EXTENDS `_hitStopUntil` (never stacks a second
+  // timer that would unpause early). While TIME-FREEZE (`this.frozen`) owns the
+  // world we skip the stop and keep only the zoom punch, so the two never fight
+  // over `isPaused`. The zoom punch tweens `camPunch` (applied in updateCamera),
+  // so it is inert when a snap tool has stubbed updateCamera to a no-op.
+  impactPunch(kind) {
+    const s = uxShakeScale();
+    if (s === 0) return;
+    const heavy = kind === "heavy";
+    const k = (heavy ? 0.03 : 0.015) * s;
+
+    if (this._punchTween) this._punchTween.remove();
+    this.camPunch = 1;
+    this._punchTween = this.tweens.add({
+      targets: this, camPunch: 1 + k, duration: 90, yoyo: true, ease: "Quad.easeOut",
+      onComplete: () => { this.camPunch = 1; this._punchTween = null; },
+    });
+
+    if (this.frozen) return; // freeze holds the world; zoom punch only
+    const stopMs = heavy ? 70 : 40;
+    const live = this._hitStopUntil > this.time.now;
+    this._hitStopUntil = Math.max(this._hitStopUntil, this.time.now + stopMs);
+    if (live) return; // extend the open window; the pending timer re-checks
+    this.physics.world.isPaused = true;
+    const resume = () => {
+      const remain = this._hitStopUntil - this.time.now;
+      if (remain > 0) { this.time.delayedCall(remain, resume); return; } // extended
+      this._hitStopUntil = 0;
+      // never clobber a pause owned by the menu / level-clear / freeze
+      if (!this.frozen && !this.paused && !this.complete) this.physics.world.isPaused = false;
+    };
+    this.time.delayedCall(stopMs, resume);
+  }
+
   // --- heavy impact ------------------------------------------------------------
   heavyImpact(p, strong) {
     const radius = strong ? 100 : 74;
@@ -2800,6 +2853,7 @@ export default class GameScene extends Phaser.Scene {
     // it stays within the ~120 particle cap). Keeps the base pop; just adds the puff.
     if (bug._squishGhost) this.craneSmoke.explode(this.fxBudget(6), bug.x, bug.y - 4);
     sfx.squish(bug.x, bug.y);
+    this.impactPunch("heavy"); // GFX3 G1: enemy kill
     this.stampSplat(bug.x, bug.body ? bug.body.bottom - 2 : bug.y + 12);
     if (bug.glow) bug.glow.destroy();
     // A5: hide the rig's pooled feeler parts before the host is destroyed (the rig's
@@ -2920,6 +2974,7 @@ export default class GameScene extends Phaser.Scene {
   stompPod(pod) {
     this.boom.explode(this.fxBudget(18), pod.x, pod.y);
     sfx.podCrunch(pod.x, pod.y);
+    this.impactPunch("heavy"); // GFX3 G1: crane boss hit
     if (pod.ring) pod.ring.destroy();
     pod.destroy();
     const c = this.crane;
@@ -3313,6 +3368,7 @@ export default class GameScene extends Phaser.Scene {
     st.taken = true;
     H.coresTaken++;
     sfx.heartUnplug(st.x, st.y);
+    this.impactPunch("heavy"); // GFX3 G1: heart station core pulled
     this.boom.explode(this.fxBudget(14), st.x, st.y - 6);
     this.starBurst.explode(this.fxBudget(8), st.x, st.y - 10);
     if (st.ring) { this.tweens.killTweensOf(st.ring); st.ring.destroy(); st.ring = null; }
@@ -4618,7 +4674,8 @@ export default class GameScene extends Phaser.Scene {
   doExit() {
     this.leaving = true; // fade out, then hand off — guard blocks a double trigger
     this.clearConfirm();
-    this.cameras.main.fadeOut(250, 4, 6, 20);
+    // GFX3 G1: hub-bound exit stays navy (duration unchanged, R6).
+    this.cameras.main.fadeOut(250, ...FADE_NAVY);
     this.cameras.main.once("camerafadeoutcomplete", () => {
       this.scene.stop("UI");
       this.scene.start("Hub", { sel: this.levelIndex });
@@ -4628,7 +4685,9 @@ export default class GameScene extends Phaser.Scene {
   doRestart() {
     this.leaving = true;
     this.clearConfirm();
-    this.cameras.main.fadeOut(250, 4, 6, 20);
+    // GFX3 G1: level-bound (restart) exit tints to the destination world's fade
+    // — the same world we reload into (duration unchanged, R6).
+    this.cameras.main.fadeOut(250, ...this.worldFade(this.def.world));
     this.cameras.main.once("camerafadeoutcomplete", () => {
       this.scene.stop("UI");
       // devLevel rides along (null in normal play) so an R-restart of the W3
@@ -5075,6 +5134,7 @@ export default class GameScene extends Phaser.Scene {
           this.boom.explode(this.fxBudget(10), c.x, c.y);
           this.starBurst.explode(this.fxBudget(9), c.x, c.y); // radial star burst
           sfx.core();
+          this.impactPunch("light"); // GFX3 G1: core pickup
           // bonus fanfare the moment the third core of the level is collected
           if (this.coresGot.every(Boolean)) this.time.delayedCall(220, () => sfx.coresFanfare());
           this.game.events.emit("bb:cores", this.coresGot); // state authority (pip)
@@ -8054,6 +8114,10 @@ export default class GameScene extends Phaser.Scene {
 
     playJingle("jingle_clear"); // stops the level track, plays the clear cadence
     this.physics.pause();
+    // GFX3 G1: one warm pop the instant the level clears, before the overlay
+    // settles (500ms below). Softened by the FLASH option (skipped when 0).
+    const fclr = uxFlashScale();
+    if (fclr > 0) this.cameras.main.flash(220, 255 * fclr, 244 * fclr, 214 * fclr);
     if (this.def.blips && this.def.blips.clear) this.game.events.emit("bb:blip", this.def.blips.clear);
     // U9 (F17): finishing with ALL three cores -> a greedy-respect KOBI line,
     // layered into the clear flow via the SAME blip queue (it queues AFTER the
@@ -8240,7 +8304,10 @@ export default class GameScene extends Phaser.Scene {
     // and the audio listener read) is never changed, so gameplay stays frozen.
     if (this.zoomKick > 0.0005) this.zoomKick = Phaser.Math.Linear(this.zoomKick, 0, Math.min(1, dt * 16));
     else this.zoomKick = 0;
-    cam.setZoom(this.camPos.zoom + this.zoomKick);
+    // GFX3 G1: camPunch (1 = none) is the impactPunch zoom-punch multiplier —
+    // it scales the RENDERED zoom only, leaving camPos.zoom (the world coords the
+    // beat kit + audio listener read) untouched, exactly like zoomKick above.
+    cam.setZoom((this.camPos.zoom + this.zoomKick) * this.camPunch);
     cam.centerOn(this.camPos.x, this.camPos.y);
     // publish the camera midpoint + on-screen half-extents for proximity SFX
     setListener(this.camPos.x, this.camPos.y, this.scale.width / 2 / this.camPos.zoom, this.scale.height / 2 / this.camPos.zoom);

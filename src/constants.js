@@ -75,15 +75,24 @@ export const COLORS = {
 // so recolouring here recolours the backdrops for free. Two ADDITIVE fields feed
 // the new art only: `accent3` (a third supporting hue) and `warmth` (a warm key
 // light for rim/specular). Existing keys keep their meaning; nothing renamed.
+// GFX3 G1: `fade` is each world's scene-transition colour — its `bgBottom`
+// pulled ~25% toward `accent` (dark and moody, never bright). GameScene entry/
+// level-bound fades and the Hub→level fade tint to it; hub-bound + Title/Onboard
+// fades stay FADE_NAVY. Durations at those call sites are unchanged (R6).
 export const WORLD_THEMES = {
-  1: { accent: 0xffb347, accent2: 0x35f0ff, accent3: 0xff7a5c, warmth: 0xffcf8f, bgTop: 0x7a3f52, bgBottom: 0x0b0710, glow: 0xf08a55 },
-  2: { accent: 0xc39dff, accent2: 0x59ffb0, accent3: 0xc9a24b, warmth: 0x8fe8d0, bgTop: 0x0f5a52, bgBottom: 0x03100e, glow: 0x2fc2a8 },
-  3: { accent: 0xffd24d, accent2: 0xff4dd2, accent3: 0x8b4a9c, warmth: 0xffcf6b, bgTop: 0x4a1e6e, bgBottom: 0x0c0616, glow: 0xcf5cff },
+  1: { accent: 0xffb347, accent2: 0x35f0ff, accent3: 0xff7a5c, warmth: 0xffcf8f, bgTop: 0x7a3f52, bgBottom: 0x0b0710, glow: 0xf08a55, fade: 0x48321e },
+  2: { accent: 0xc39dff, accent2: 0x59ffb0, accent3: 0xc9a24b, warmth: 0x8fe8d0, bgTop: 0x0f5a52, bgBottom: 0x03100e, glow: 0x2fc2a8, fade: 0x33334a },
+  3: { accent: 0xffd24d, accent2: 0xff4dd2, accent3: 0x8b4a9c, warmth: 0xffcf6b, bgTop: 0x4a1e6e, bgBottom: 0x0c0616, glow: 0xcf5cff, fade: 0x493924 },
   // W3W4 M4: World 4 committed to its designed identity — near-black datacenter/
   // void, DEEP VIOLET-BLACK (the darkest world), thin neon seams (cyan accent2)
   // over a violet accent. Only backdrop/mood consumers read these.
-  4: { accent: 0x8f7bff, accent2: 0x35f0ff, accent3: 0x3a3f8f, warmth: 0xffd9a0, bgTop: 0x1a1450, bgBottom: 0x020208, glow: 0x5b3fd8 },
+  4: { accent: 0x8f7bff, accent2: 0x35f0ff, accent3: 0x3a3f8f, warmth: 0xffd9a0, bgTop: 0x1a1450, bgBottom: 0x020208, glow: 0x5b3fd8, fade: 0x252046 },
 };
+
+// Neutral navy scene-fade [r, g, b] — the pre-GFX3 hardcoded value, now the ONE
+// named source for every fade that must NOT take a world tint (hub-bound exit,
+// Hub/Title/Onboard entry).
+export const FADE_NAVY = [4, 6, 20];
 
 // --- P11: FX particle palette ----------------------------------------------
 // One coherent colour system for EVERY emitter, grouped by physical family so
