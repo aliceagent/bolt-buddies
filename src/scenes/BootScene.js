@@ -477,6 +477,43 @@ export default class BootScene extends Phaser.Scene {
       for (let x = 60; x < STRIP_W - 40; x += 128) g.fillRect(x, 466, 4, 6);
     });
 
+    // GFX3 G4: foreground occlusion silhouettes — ONE neutral near-black family
+    // (not per-world; the shapes are near-black so a world tint is imperceptible,
+    // and a neutral bake stays byte-identical on BOTH tiers — the faint per-world
+    // setTint at add time only ENHANCES under WebGL, no-ops on Canvas). Opaque in
+    // the texture; the placer dials the layer to alpha ~0.92. Ceiling props hang
+    // from y=0 (origin top) so they read as top-of-frame silhouettes; the post is
+    // rooted at its bottom. INK sits a touch above pure black so the form still
+    // separates from the darkest backdrops.
+    const INK = 0x070910;
+    const INKE = 0x11141f; // a hair lighter for a thin rim so the silhouette has an edge
+    // cable loop: two ceiling mounts with a drooping catenary + a small pulley
+    make("fgCable", 220, 130, (g) => {
+      g.fillStyle(INK, 1).fillRect(6, 0, 26, 16).fillRect(188, 0, 26, 16); // mounts
+      g.lineStyle(7, INK, 1).beginPath();
+      g.moveTo(19, 12);
+      for (let t = 0; t <= 1.001; t += 0.08) g.lineTo(19 + t * 182, 12 + Math.sin(t * Math.PI) * 96); // droop
+      g.strokePath();
+      g.fillStyle(INK, 1).fillRect(104, 84, 12, 34).fillCircle(110, 120, 9); // hanging pulley
+      g.lineStyle(2, INKE, 1).strokeCircle(110, 120, 9);
+    });
+    // pipe stub: a thick elbow dropping from the ceiling with a flange + valve nub
+    make("fgPipe", 120, 128, (g) => {
+      g.fillStyle(INK, 1).fillRect(0, 0, 120, 20); // ceiling pipe run
+      g.fillStyle(INK, 1).fillRect(70, 12, 22, 116); // vertical drop
+      g.fillStyle(INK, 1).fillRect(60, 40, 42, 12).fillRect(60, 92, 42, 12); // two flanges
+      g.fillStyle(INK, 1).fillCircle(81, 116, 15); // valve nub
+      g.lineStyle(2, INKE, 1).strokeCircle(81, 116, 15).strokeRect(0, 0, 120, 20);
+    });
+    // vent lip: a wide hood with louver teeth on its underside
+    make("fgVent", 168, 86, (g) => {
+      g.fillStyle(INK, 1).fillRect(0, 0, 168, 30); // hood body
+      g.fillStyle(INK, 1).beginPath(); // slanted lip
+      g.moveTo(0, 30); g.lineTo(168, 30); g.lineTo(150, 52); g.lineTo(18, 52); g.closePath(); g.fillPath();
+      g.fillStyle(INK, 1);
+      for (let x = 26; x < 148; x += 20) g.fillRect(x, 52, 8, 24 + ((x >> 3) & 3) * 4); // louver teeth
+      g.lineStyle(2, INKE, 1).strokeRect(0, 0, 168, 30);
+    });
     // Low-lying fog: a soft additive band with a sine-billowed top edge that
     // completes whole cycles across the width, so it tiles seamlessly AND its
     // horizontal drift is visible. Two of these are layered at different speeds.

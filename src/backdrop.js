@@ -77,6 +77,113 @@ export function addPropStrip(scene, world) {
     .setDepth(DEPTH.bg - 5);
 }
 
+// GFX3 G4: sparse near-camera FOREGROUND occlusion silhouettes (BOTH tiers —
+// cached dark images, no per-frame work). At DEPTH.foreground (above players)
+// so they pass IN FRONT of the buddies for a depth read.
+//
+// Readability is enforced geometrically, not just by depth:
+//  - Ceiling props (cable/pipe/vent) parallax horizontally (scrollFactorX
+//    1.12-1.18) but are PINNED to the top screen band (scrollFactorY 0), so the
+//    0.62-1.06 dynamic zoom + vertical camera-follow can never drop them into
+//    the center action band — they live in the top ~third at worst.
+//  - Density <=1 prop per ~600px of level width; `keepOut` is a list of world-x
+//    ranges ([lo,hi]) around spawns/exits/stations/checkpoints — any ceiling
+//    prop whose world-x falls inside one is dropped. Callers skip this entirely
+//    for the tutorial and the 4-3 boss arena (no props there at all).
+// NOTE (G4-D4): the plan's "occasional floor-corner posts" were cut. A floor
+// post lives in the BOTTOM band where the buddies stand, so it can only be safe
+// if screen-fixed at the extreme edge — but a screen-fixed post cannot honour a
+// world-x keep-out (screenshot review caught one landing on a spawn's robots +
+// skill pedestals), and a world-anchored bottom post sweeps through the players
+// at center-bottom under parallax. Neither satisfies "fix via keep-out, never
+// accept", so the ceiling silhouettes carry the foreground identity alone.
+// Deterministic layout: a level-id-seeded PRNG (never Math.random) so every load
+// draws the identical set.
+export function addForegroundStrip(scene, world, keepOut = []) {
+  const worldW = scene.worldW;
+  const budget = Math.floor(worldW / 600); // <=1 prop per ~600px of width
+  if (budget <= 0) return [];
+  const theme = WORLD_THEMES[world] || WORLD_THEMES[1];
+  const webgl = isWebGL(scene);
+  // level-id-seeded PRNG (deterministic, allocation-free)
+  const id = (scene.def && scene.def.id) || "lvl";
+  let s = 0; for (let i = 0; i < id.length; i++) s = (Math.imul(s, 31) + id.charCodeAt(i)) | 0;
+  const rnd = () => {
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const inKeepOut = (x) => keepOut.some((r) => x >= r[0] && x <= r[1]);
+  const made = [];
+  const ceilKeys = ["fgCable", "fgPipe", "fgVent"];
+  // Ceiling props: one per width band, jittered, dropped if it lands in a
+  // keep-out range. Pinned to the top band via scrollFactorY 0.
+  const ceilBudget = budget;
+  for (let i = 0; i < ceilBudget; i++) {
+    const bandLo = (i / ceilBudget) * worldW;
+    const bandW = worldW / ceilBudget;
+    const x = bandLo + bandW * (0.25 + rnd() * 0.5);
+    if (inKeepOut(x)) continue;
+    const key = ceilKeys[(rnd() * ceilKeys.length) | 0];
+    const img = scene.add
+      .image(x, 2 + rnd() * 10, key)
+      .setOrigin(0.5, 0)
+      .setScrollFactor(1.12 + rnd() * 0.06, 0) // X: foreground parallax; Y: top-band pinned
+      .setDepth(DEPTH.foreground)
+      .setAlpha(0.92);
+    if (webgl) img.setTint(theme.accent); // enhance-only under WebGL (no-op Canvas)
+    made.push(img);
+  }
+  return made;
+}
+
+// GFX3 G4: per-world WEATHER identity — ONE drifting element IN the playfield
+// (scrollFactor ~0.9, so it parallaxes WITH the world, unlike the screen-fixed
+// addMotes ambience). WebGL-gated at the call site (R1); Canvas keeps only the
+// screen-fixed motes. Reuses the "px" particle texture, <=24 alive, created ONCE
+// at level build with NO update-loop work (R3). The spawn box spans the whole
+// level so a handful drift through the viewport wherever the camera is; the
+// per-world tint/motion carries the identity:
+//   W1 warm dust drift (slow, sparse, warmth-tinted)
+//   W2 rare rising ember sparks (approximated level-wide — vent positions aren't
+//      known here; warm, rising, low cap)
+//   W3 plum/mint spore twinkles (fade-in/out via short life = the twinkle)
+//   W4 indigo motes
+// No W4 storm/snow level exists (checked the level defs: only 3-3 is storm, and
+// it is World 3 scrap, not W4 snow), so no snow-streak variant ships.
+export function addWeather(scene, world) {
+  const theme = WORLD_THEMES[world] || WORLD_THEMES[1];
+  const worldW = scene.worldW;
+  const worldH = scene.worldH;
+  const cfg = {
+    1: { tint: theme.warmth, cap: 20, freq: 420, life: 9000, sx: [-8, 8], sy: [-6, -2], scale: [0.1, 0.3], alpha: { min: 0.05, max: 0.18 } },
+    2: { tint: 0xffb347, cap: 12, freq: 620, life: 2600, sx: [-6, 6], sy: [-46, -20], scale: { start: 0.24, end: 0.05 }, alpha: { start: 0.5, end: 0 } },
+    3: { tint: 0x8affc9, cap: 24, freq: 360, life: 2200, sx: [-5, 5], sy: [-7, 3], scale: { start: 0.06, end: 0.24 }, alpha: { start: 0, end: 0 }, twinkle: true },
+    4: { tint: theme.accent, cap: 22, freq: 400, life: 9000, sx: [-7, 7], sy: [-5, 3], scale: [0.1, 0.28], alpha: { min: 0.06, max: 0.2 } },
+  }[world] || {};
+  const em = scene.add
+    .particles(0, 0, "px", {
+      x: { min: 0, max: worldW },
+      y: { min: 0, max: worldH },
+      speedX: { min: cfg.sx[0], max: cfg.sx[1] },
+      speedY: { min: cfg.sy[0], max: cfg.sy[1] },
+      // W3 spores twinkle: alpha rises then falls across a short life (two-stop
+      // ramp), everything else uses the cfg alpha as-is.
+      scale: cfg.scale,
+      alpha: cfg.twinkle ? { values: [0, 0.5, 0], interpolation: "linear" } : cfg.alpha,
+      lifespan: cfg.life,
+      frequency: cfg.freq,
+      quantity: 1,
+      maxAliveParticles: cfg.cap,
+      tint: cfg.tint,
+      blendMode: Phaser.BlendModes.ADD,
+    })
+    .setScrollFactor(0.9)
+    .setDepth(DEPTH.entity - 1);
+  return em;
+}
+
 // W2 low-lying fog: two additive strips drifting at different speeds, screen-fixed
 // to a short bottom band. IMPORTANT: they drift by translating the whole sprite's
 // x (wrapped by the texture width) — NOT by tilePositionX, which under the Canvas

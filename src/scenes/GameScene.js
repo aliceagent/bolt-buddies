@@ -7,7 +7,7 @@ import devW3 from "../levels/dev_w3.js";
 import devW4 from "../levels/dev_w4.js";
 import { completeLevel, loadSave } from "../save.js";
 import { initAudio, sfx, installMute, playTrack, setMusicLayer, playJingle, trackForLevel, setListener, clearListener, proximity, setLoop, stopLoops, pauseDuck, setSadMusic } from "../audio.js";
-import { addGradient, addMotes, addPropStrip, addFogBand, addDrips, addDustShafts, addVignette } from "../backdrop.js";
+import { addGradient, addMotes, addPropStrip, addFogBand, addDrips, addDustShafts, addVignette, addForegroundStrip, addWeather } from "../backdrop.js";
 import Player from "../objects/Player.js";
 import { uxHints, uxShakeScale, uxFlashScale, saveRecord, fmtTime, markTutorialDone } from "../ux.js";
 import { pads, showPadToast } from "../pad.js";
@@ -312,6 +312,21 @@ export default class GameScene extends Phaser.Scene {
     // (phase walls are always emissive). WebGL-gated inside addDeviceHalo.
     for (const s of this.shimmerPts) {
       if (!this.addDeviceHalo(s.x, s.y - 2, 0xc39dff, { alpha: 0.24, scale: 0.42, depth: DEPTH.terrain - 1 })) break;
+    }
+
+    // GFX3 G4: foreground occlusion silhouettes (BOTH tiers). Skipped ENTIRELY in
+    // the tutorial and the 4-3 boss arena (finale) for readability. Keep-out is a
+    // 96px world-x band around every spawn, door/exit, skill station (pedestal)
+    // and checkpoint — all known now that entities exist; any ceiling prop landing
+    // inside one is dropped by addForegroundStrip.
+    if (!def.tutorial && !def.finale) {
+      const KEEP = 96;
+      const ko = [];
+      def.spawns.forEach(([tx]) => ko.push([tx * TILE + 24 - KEEP, tx * TILE + 24 + KEEP]));
+      this.pedestals.forEach((p) => ko.push([p.x - KEEP, p.x + KEEP]));
+      this.checkpoints.forEach((c) => ko.push([c.x - KEEP, c.x + KEEP]));
+      this.doors.forEach((d) => ko.push([d.wireX - KEEP, d.wireX + KEEP]));
+      this.foregroundProps = addForegroundStrip(this, WORLD_THEMES[def.world] ? def.world : 1, ko);
     }
 
     // Sprint 10: static key-glyph clusters declared in the level def (tutorial).
@@ -925,6 +940,10 @@ export default class GameScene extends Phaser.Scene {
     // (5) ambient dust motes — GFX3 G3: accent2-tinted under WebGL, neutral white
     // on Canvas (the emitter tint no-ops there anyway, so behaviour is unchanged).
     addMotes(this, isWebGL(this) ? theme.accent2 : 0xffffff);
+
+    // GFX3 G4: per-world in-playfield weather — WebGL only (R1); Canvas keeps just
+    // the screen-fixed motes above. Created ONCE, <=24 alive, no update loop (R3).
+    if (isWebGL(this)) this.weather = addWeather(this, world);
 
     // (6) P3 world-backdrop identity. All layers sit at DEPTH.bg-5..bg-1, strictly
     // below DEPTH.terrain — behind gameplay, never occluding sprites/HUD/bubbles.

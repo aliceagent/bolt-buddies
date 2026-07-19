@@ -296,6 +296,46 @@ The single highest-leverage sprint: players see it, tests can't.
   own isWebGL + texture-exists guard as belt-and-suspenders. Lamp props were NOT
   individually coned (the dust-shaft sources are the meaningful light sources;
   per-status-lamp cones would multiply objects for little read).
+- G4-D1: `DEPTH.foreground` = 26 (between rope:25 and fx:30). ABOVE player/entity so
+  the silhouettes occlude the buddies for a depth read; BELOW the fx particle band and
+  every `fx+N` screen-fixed pseudo-HUD (coach bubbles fx+3, action hints fx+40..60,
+  intro banner fx+50) and the separate UIScene blip bar — never occludes UI/blips.
+- G4-D2: foreground = ONE neutral near-black baked family (`fgCable`/`fgPipe`/`fgVent`),
+  NOT per-world. The shapes are near-black so a world tint is imperceptible AND a neutral
+  bake stays byte-identical on both tiers; per-world identity is a WebGL-only enhance
+  `setTint(accent)` (no-ops on Canvas). Opaque in the texture, alpha 0.92 at add time.
+- G4-D3: ceiling props use scrollFactorX 1.12-1.18 (foreground parallax) but
+  scrollFactorY 0 (pinned to the top screen band) — the only way to guarantee "top ~22%
+  of screen" independent of the 0.62-1.06 dynamic zoom + vertical camera-follow (they
+  sit in the top ~third at worst, never the center action band). Density = floor(worldW/
+  600); keep-out = a 96px world-x band around every spawn, door/exit, pedestal (skill
+  station) and checkpoint (positions known once entities exist — the call runs late in
+  create(), not in buildBackground). Skipped ENTIRELY for the tutorial + 4-3 arena
+  (def.tutorial / def.finale) — asserted prop-free (foregroundProps.length 0).
+- G4-D4: the plan's "occasional floor-corner posts" were CUT after screenshot review. A
+  floor post lives in the BOTTOM band where the buddies stand: edge-safe only if
+  screen-fixed, but a screen-fixed post cannot honour a world-x keep-out (a QA shot
+  caught one sitting on 3-1's spawn robots + skill pedestals), and a world-anchored
+  bottom post sweeps through the players at center-bottom under parallax. Neither
+  satisfies "fix via keep-out, never accept", so the ceiling silhouettes carry the
+  foreground identity alone (`fgPost` bake dropped too).
+- G4-D5: Canvas fps A/B on 2-2 (heaviest W2, ?canvas=1, two 5s samples): BEFORE avg
+  42.1 / 39.9, AFTER avg 46.5 / 40.9 — no drop beyond run-to-run noise (after marginally
+  higher). The strips are a handful of cached static images, so they stay on BOTH tiers
+  UNGATED; only the enhance-tint is WebGL-gated. (New QA scripts: tools/qa_g4_fps.mjs,
+  tools/qa_g4_shots.mjs — new files, tools/ originals untouched per R6.)
+- G4-D6: weather = per-world in-playfield drift — ONE `addWeather` emitter (reuses "px",
+  scrollFactor 0.9 so it parallaxes WITH the world, DEPTH.entity-1, <=24 alive, created
+  once, NO update loop). WebGL-gated at the call site (R1); Canvas keeps only the
+  screen-fixed motes. W1 warm dust, W2 rare rising embers (approximated LEVEL-WIDE — vent
+  x-positions aren't known at buildBackground), W3 plum/mint spore twinkle (fade in/out
+  via a 3-stop alpha interpolation over a short life), W4 indigo motes. NO snow-streak
+  variant: the level defs were checked — only 3-3 is a storm and it is World-3 scrap, so
+  no W4 storm/snow level exists (hence no g4-storm shot).
+- G4-D7 (QA): playtest 42/42; 2-2 beat matrix 1/2 GREEN then 2/2 GREEN on the re-run (the
+  B:P1=H fail was the documented fan-lift "T down in the yard" flake — recovered, no NEW
+  failure mode); per-world WebGL+Canvas shots (tools/shots/gfx3/g4-w{1..4}-{webgl,canvas})
+  with 0 page errors; every shot eyeballed clear of player/station/hazard/pickup overlap.
 - G3-D7: player dark-zone glow — the dark-zone system exposes a BOOLEAN `inDark()`
   (not a continuous factor). One additive `glowBlob` per buddy (WebGL only, dark-
   zone levels only) eases its alpha 0→~0.5 toward `inDark(p.x,p.y)` and back

@@ -176,6 +176,11 @@ export const DEPTH = {
   badge: 21,
   reticle: 24,
   rope: 25,
+  // GFX3 G4: near-camera foreground occlusion silhouettes. ABOVE player/entity
+  // (so they pass in front of the buddies for a depth read) but BELOW the fx
+  // particle band and every fx+N screen-fixed pseudo-HUD (coach bubbles, hints,
+  // intro banner) and the separate UIScene blip bar — never occlude UI/blips.
+  foreground: 26,
   fx: 30,
 };
 
