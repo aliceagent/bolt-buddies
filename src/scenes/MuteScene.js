@@ -5,6 +5,7 @@ import {
   setMusicVolume, setSfxVolume, setVoiceVolume, toggleMute,
 } from "../audio.js";
 import { sheen, GLASS_HI } from "../ui/paint.js";
+import { springFocus } from "../ui/kit.js";
 
 // Global audio dropdown (always-on-top overlay scene).
 //
@@ -77,6 +78,10 @@ export default class MuteScene extends Phaser.Scene {
       } else {
         hit.on("pointerdown", (p) => { initAudio(); this.drag = row.id; this.setVolFromX(row, p.x); });
       }
+      // GFX3 G2: focus spring on hover (pointer-only dropdown — this is the sole
+      // focus signal for the sliders + mute toggle). Additive to the existing
+      // click/drag handlers, so activation behaviour is unchanged.
+      hit.on("pointerover", () => springFocus(this, label));
       return { ...row, label, value, hit };
     });
 

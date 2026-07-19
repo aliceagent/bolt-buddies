@@ -7,7 +7,7 @@ import {
 } from "../audio.js";
 import { pads, showPadToast } from "../pad.js";
 import { getUxOptions, setUxOption } from "../ux.js";
-import { menuBackdrop, neonPanel, drawRowSelect, chipRow, hexStr } from "../ui/kit.js";
+import { menuBackdrop, neonPanel, drawRowSelect, chipRow, hexStr, springFocus } from "../ui/kit.js";
 
 const ACCENT = WORLD_THEMES[1].accent; // amber — matches the title-screen standard
 
@@ -131,6 +131,10 @@ export default class SettingsScene extends Phaser.Scene {
       this.sel = next;
       sfx.menuMove();
       this.render();
+      // GFX3 G2: focus spring on the newly selected row label (keyboard + pad
+      // both reach moveSel). Adjust (A/D) intentionally does NOT spring — it's a
+      // value change, not a focus change. Nav order/wrap are untouched.
+      springFocus(this, this.rows[this.sel].label);
     }
   }
 

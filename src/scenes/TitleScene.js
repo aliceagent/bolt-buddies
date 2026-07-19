@@ -6,7 +6,7 @@ import { loadSave, storeSave, totalCores, campaignComplete } from "../save.js";
 import { initAudio, sfx, playTrack, installMute } from "../audio.js";
 import { pads, showPadToast } from "../pad.js";
 import { tutorialDone, uxFlashScale } from "../ux.js";
-import { keyCap as kitKeyCap, chipRow as kitChipRow, neonPanel, addSkyline } from "../ui/kit.js";
+import { keyCap as kitKeyCap, chipRow as kitChipRow, neonPanel, addSkyline, springFocus } from "../ui/kit.js";
 import { MOTION } from "../anim/motion.js";
 import { ringGlow, specular, glassPanel } from "../ui/paint.js";
 
@@ -490,6 +490,7 @@ export default class TitleScene extends Phaser.Scene {
     });
 
     this.updateMenu();
+    this._menuBuilt = true; // GFX3 G2: arm the focus spring only after first paint
 
     // playtest / introspection surface
     window.__BB = window.__BB || {};
@@ -530,10 +531,19 @@ export default class TitleScene extends Phaser.Scene {
     this.menuItems.forEach((it, i) => {
       const on = i === this.sel;
       this.drawButton(it, on);
+      this.tweens.killTweensOf(it.cont); // clear any in-flight focus spring
       it.cont.setScale(on ? 1.05 : 1);
       it.chev.setVisible(on);
       it.labelObj.setColor(on ? "#fff2d8" : "#9fb0d6");
     });
+    // GFX3 G2: focus spring on the newly selected button — both mouse hover
+    // (pointerover → selectIndex) and keyboard/pad (moveSel) land here, so the
+    // ONE springFocus drives both. Skipped on the initial build so the menu
+    // doesn't pop on load. Base is the selected rest scale (1.05), not 1.
+    if (this._menuBuilt) {
+      const it = this.menuItems[this.sel];
+      if (it) springFocus(this, it.cont);
+    }
   }
 
   // KOBI's corner eye glances toward the currently selected button

@@ -178,5 +178,21 @@ export function iconGlow(g, x, y, r, color, a = 0.22) {
   fakeRadial(g, { x, y, r, color, steps: 4, aCenter: a, aEdge: 0 });
 }
 
+// --- ditherRect ---------------------------------------------------------------
+// GFX3 G2: sparse mono de-banding speckle, stamped OVER a finished soft-gradient
+// fill inside a bake step. 1×1px dots, ~1 per 24px² of area, exactly half white /
+// half black at alpha ~0.03, scattered uniformly. Math.random is fine here —
+// every caller is a boot-once texture bake (generateTexture), so this is
+// visual-only and NEVER runs per frame (R3). Turns Canvas-2D gradient banding
+// into grain that must stay INVISIBLE as texture at 100% zoom: tune the density
+// or alpha DOWN before up if a screenshot shows the speckle as noise.
+export function ditherRect(g, w, h) {
+  const n = Math.round((w * h) / 24);
+  for (let i = 0; i < n; i++) {
+    g.fillStyle(i & 1 ? 0xffffff : 0x000000, 0.03);
+    g.fillRect((Math.random() * w) | 0, (Math.random() * h) | 0, 1, 1);
+  }
+}
+
 // Re-export the near-white glass highlight tone so kit/paint consumers share it.
 export const GLASS_HI = COLORS.glassHi != null ? COLORS.glassHi : 0xffffff;

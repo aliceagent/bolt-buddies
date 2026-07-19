@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { COLORS, WORLD_THEMES, PARTICLES } from "../constants.js";
-import { softBody, specular, sheen, haloCircle, ringGlow, fakeRadial, glowShape, iconChip, iconGlow } from "../ui/paint.js";
+import { softBody, specular, sheen, haloCircle, ringGlow, fakeRadial, glowShape, iconChip, iconGlow, ditherRect } from "../ui/paint.js";
 
 // Every texture in the game is generated here with Graphics — zero asset files.
 export default class BootScene extends Phaser.Scene {
@@ -305,6 +305,8 @@ export default class BootScene extends Phaser.Scene {
         g.fillStyle(Phaser.Display.Color.GetColor(c.r, c.g, c.b));
         g.fillRect(0, Math.floor(i * strip), 64, Math.ceil(strip) + 1);
       }
+      // GFX3 G2: de-band the large soft gradient with a bake-time mono speckle.
+      ditherRect(g, 64, 720);
     };
     // Soft radial glow: concentric circles of rising alpha toward the centre.
     const blob = (color) => (g) => {
@@ -312,6 +314,8 @@ export default class BootScene extends Phaser.Scene {
         g.fillStyle(color, 0.035 * (1 - r / 128));
         g.fillCircle(128, 128, r);
       }
+      // GFX3 G2: de-band the soft radial falloff with a bake-time mono speckle.
+      ditherRect(g, 256, 256);
     };
     // generic white versions (tintable under WebGL) + colour-baked world variants
     make("bgGradient", 64, 720, gradient(0xffffff, 0x000000));

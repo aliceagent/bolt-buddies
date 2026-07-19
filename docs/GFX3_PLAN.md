@@ -225,6 +225,35 @@ The single highest-leverage sprint: players see it, tests can't.
 - G1-D5: enemy-kill heavy punch wired inside squishBug (the one enemy-kill
   choke point, reached by both head-stomp and the heavy-stomp radius); crane
   boss hit wired at stompPod (the pod-crunch that damages the crane).
+- G2-D1: the only large soft-gradient TEXTURE bakes are BootScene's `gradient()`
+  (bgGradient + bgGradient1..4) and `blob()` (glowBlob + glowBlob1..4) helpers;
+  the ONE shared `ditherRect(g,w,h)` (src/ui/paint.js) is called from both. No
+  separate "storm sky" bake exists (the 3-3 "storm" is pooled scrap-chunk
+  sprites, not a sky). The epilogue sky is a LIVE command-list graphics
+  (this.add.graphics re-rendered every frame), not a generateTexture bake:
+  stamping ~1/24px² speckle onto it would replay tens of thousands of fillRects
+  per frame (R3 violation, worst on the Canvas tier), so it is intentionally NOT
+  dithered — matching the plan's "epilogue sky IF baked" wording.
+- G2-D2: Hub level nodes are NOT wired with springFocus. `updateSelection` already
+  runs a continuous selection pulse (a repeat:-1 sine tween on a `proxy.s` whose
+  onUpdate writes n.circle/n.label scale every frame); a one-shot spring on the
+  same scale channel is clobbered each frame by that onUpdate, and R6 forbids
+  changing the existing pulse's timing to make room. Fights → skipped per the 2b
+  "keep existing treatment; skip if it fights" rule. The pulse + double reticle
+  ring + KOBI glance remain the node's focus animation.
+- G2-D3: springFocus springs relative to each widget's OWN rest scale (memoised on
+  the object as `_springBase`), because the Title's selected button rests at 1.05,
+  not 1 — springing to an absolute 1.06 would have SHRUNK it. Title routes both
+  mouse (pointerover→selectIndex) and keyboard/pad (moveSel) through updateMenu,
+  which kills any in-flight spring per item before re-setting base scale, so a
+  deselected item can never be left enlarged by a lingering tween.
+- G2-D4: Settings rows + Mute slider/toggle rows spring the row LABEL only (their
+  highlight glow is redrawn into a per-row Graphics, not a discrete alpha object,
+  and the rows aren't containerised). Left-origin labels grow a few px rightward;
+  at 6% this reads as a gentle nudge. Pause items are centre-origin text (symmetric
+  pop). Settings/Pause spring on moveSel (focus change) only — never on A/D value
+  adjust; Mute (pointer-only) springs on a newly-added pointerover, additive to the
+  existing click/drag handlers so activation is unchanged.
 - G1-D6 (QA sign-off): first QA batch showed 6/8 beat + tut HARD; A/B against
   pre-G1 src under identical load showed the 2-2 fan-lift step failing once
   per batch on BOTH builds (varying assignment — the documented D7 contention

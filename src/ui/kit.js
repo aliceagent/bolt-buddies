@@ -153,6 +153,42 @@ export function chipRow(scene, cx, y, items, colNum, colStr) {
   }
 }
 
+// --- springFocus --------------------------------------------------------------
+// GFX3 G2: shared menu hover/focus spring. A quick scale pop RELATIVE to the
+// widget's OWN rest scale (some widgets rest at !=1 — e.g. the Title's selected
+// button rests at 1.05) plus an optional glow/underline alpha bump. Mouse
+// pointerover AND keyboard/pad focus-change route through this ONE function so
+// both feel identical. Cosmetic only: it never changes selection or activation
+// and always settles back to the rest scale, so keyboard nav order/wrap/activation
+// keys are untouched (R6). Kills any in-flight spring on the target first so
+// rapid re-focus never stacks. Allocation is event-driven (a tween per focus
+// change), never per frame (R3).
+export function springFocus(scene, go, opts = {}) {
+  if (!scene || !go) return;
+  // rest scale remembered per-object so repeated springs never drift the base
+  // (a kill mid-pop leaves scaleX off-rest — the memo keeps the true base).
+  const base = opts.base != null ? opts.base
+    : (go._springBase != null ? go._springBase : go.scaleX);
+  go._springBase = base;
+  scene.tweens.killTweensOf(go);
+  scene.tweens.add({
+    targets: go, scaleX: base * 1.06, scaleY: base * 1.06,
+    duration: 80, ease: "Back.easeOut", yoyo: true,
+    onComplete: () => go.setScale(base),
+  });
+  const glow = opts.glow;
+  if (glow) {
+    const ga = glow._springA != null ? glow._springA : glow.alpha;
+    glow._springA = ga;
+    scene.tweens.killTweensOf(glow);
+    scene.tweens.add({
+      targets: glow, alpha: Math.min(1, ga + (opts.glowBump != null ? opts.glowBump : 0.3)),
+      duration: 80, ease: "sine.out", yoyo: true,
+      onComplete: () => glow.setAlpha(ga),
+    });
+  }
+}
+
 // --- maskless iris wipe -------------------------------------------------------
 // A KOBI iris transition drawn WITHOUT a mask: a single very-thick black ring
 // whose inner radius is `r`. With a thickness larger than the screen diagonal the

@@ -3,7 +3,7 @@ import { COLORS, FONT, FS, TEXT } from "../constants.js";
 import { sfx, installMute, pauseDuck } from "../audio.js";
 import { pads, showPadToast } from "../pad.js";
 import { addMotes } from "../backdrop.js";
-import { neonPanel, drawRowSelect, chipRow, addSkyline, hexStr } from "../ui/kit.js";
+import { neonPanel, drawRowSelect, chipRow, addSkyline, hexStr, springFocus } from "../ui/kit.js";
 
 
 // In-game pause overlay (Sound Sprint S4). Launched ON TOP of the still-active
@@ -101,6 +101,9 @@ export default class PauseScene extends Phaser.Scene {
       this.sel = next;
       sfx.menuMove();
       this.render();
+      // GFX3 G2: focus spring on the newly selected item (keyboard + pad both
+      // reach moveSel). Items are centre-origin text, so the pop is symmetric.
+      springFocus(this, this.items[this.sel]);
     }
   }
 
