@@ -56,7 +56,7 @@ async function grappleSelfRescueAndReel(bb, buddyRole) {
   for (let att = 0; att < 4 && !buddyOut; att++) {
     await bb.walkTo("G", 39, { tol: 10, timeout: 4000 }).catch(() => {});
     await bb.face("G", "left");
-    try { await bb.reelPartner("G", { partnerRole: buddyRole }); } catch { /* retry */ }
+    try { await bb.reelPartner("G", { partnerRole: buddyRole }); } catch (e) { console.log("  REEL-ERR:", e.message); }
     await sleep(400);
     buddyOut = (await bb.state()).players[bi].ty < 14;
   }
@@ -119,7 +119,7 @@ export default [
       for (let att = 0; att < 5 && !out; att++) {
         await bb.walkTo("G", 33, { tol: 8, timeout: 4000 }).catch(() => {});
         await bb.face("G", "right");
-        try { await bb.reelPartner("G", { partnerRole: "H" }); } catch { /* retry */ }
+        try { await bb.reelPartner("G", { partnerRole: "H" }); } catch (e) { console.log("  REEL-ERR:", e.message); }
         await sleep(400);
         out = (await bb.state()).players[hi].ty < 14;
       }
