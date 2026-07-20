@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { COLORS, WORLD_THEMES, FONT, FS, TEXT } from "../constants.js";
+import { COLORS, WORLD_THEMES, FONT, FONT_DISPLAY, FS, TEXT } from "../constants.js";
 import { addGradient, addMotes } from "../backdrop.js";
 import { LEVELS } from "../levels/registry.js";
 import { loadSave, storeSave, totalCores, campaignComplete } from "../save.js";
@@ -239,7 +239,7 @@ export default class TitleScene extends Phaser.Scene {
 
   buildSubtitle(W, cy) {
     const sub = this.add.text(W / 2, cy, "a 2-player rescue mission", {
-      fontFamily: FONT, fontSize: FS.head, color: TEXT.dim,
+      fontFamily: FONT_DISPLAY, fontSize: FS.head, fontStyle: "600", color: TEXT.dim,
     }).setOrigin(0.5);
     // slow hue shimmer: sweep the colour around the wheel (setColor works under
     // canvas — it is a CSS string, not a WebGL tint).
@@ -453,7 +453,7 @@ export default class TitleScene extends Phaser.Scene {
       const cont = this.add.container(W / 2, y);
       const g = this.add.graphics();
       const label = this.add.text(0, 0, it.label, {
-        fontFamily: FONT, fontSize: FS.title, fontStyle: "bold", color: TEXT.bright,
+        fontFamily: FONT_DISPLAY, fontSize: FS.title, fontStyle: "bold", color: TEXT.bright,
       }).setOrigin(0.5);
       const chev = this.add.text(-bw / 2 + 26, 0, "▶", {
         fontFamily: FONT, fontSize: FS.lead, color: TEXT.bright,

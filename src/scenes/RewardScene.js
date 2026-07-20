@@ -22,7 +22,7 @@
 // <= ~9 presses (or ~35s hands-off) reaches scene.start("Title"). Nothing is
 // ever gated. Probe surface: __BB.reward ({act, page}).
 import Phaser from "phaser";
-import { COLORS, FONT, FS, TEXT, WORLD_THEMES } from "../constants.js";
+import { COLORS, FONT, FONT_DISPLAY, FS, TEXT, WORLD_THEMES } from "../constants.js";
 import { initAudio, sfx, playTrack, installMute } from "../audio.js";
 import { pads } from "../pad.js";
 import { loadSave, totalCores, worldCoreCount, worldPhotos, hundredPercent } from "../save.js";
@@ -465,10 +465,10 @@ export default class RewardScene extends Phaser.Scene {
 
     // title + engraving (the bible's exact medal cards)
     cont.add(this.add.text(W / 2, 74, "MEDAL CEREMONY", {
-      fontFamily: FONT, fontSize: FS.mini, fontStyle: "bold", color: TEXT.dim, letterSpacing: 2,
+      fontFamily: FONT_DISPLAY, fontSize: FS.mini, fontStyle: "bold", color: TEXT.dim, letterSpacing: 2,
     }).setOrigin(0.5));
     cont.add(this.add.text(W / 2, 110, this.medal.title, {
-      fontFamily: FONT, fontSize: FS.title, fontStyle: "bold", color: gold ? "#ffd94d" : "#e0c184",
+      fontFamily: FONT_DISPLAY, fontSize: FS.title, fontStyle: "bold", color: gold ? "#ffd94d" : "#e0c184",
     }).setOrigin(0.5));
     cont.add(this.add.text(W / 2, 142, this.medal.engraving, {
       fontFamily: FONT, fontSize: FS.body, fontStyle: "italic", color: "#ffe9c9",
@@ -534,7 +534,7 @@ export default class RewardScene extends Phaser.Scene {
   // spread 0 — the reward title card (FINALE_BIBLE "Titles": exact lines)
   pageAlbumTitle(W, H, p) {
     p.add(this.add.text(W / 2, H / 2 - 74, "THE FAMILY ALBUM", {
-      fontFamily: FONT, fontSize: FS.h2, fontStyle: "bold", color: "#5a3a22",
+      fontFamily: FONT_DISPLAY, fontSize: FS.h2, fontStyle: "bold", color: "#5a3a22",
     }).setOrigin(0.5));
     p.add(this.add.text(W / 2, H / 2 - 18, "You made it home. All of you.", {
       fontFamily: FONT, fontSize: FS.head, fontStyle: "italic", color: "#7a5638",
@@ -600,7 +600,7 @@ export default class RewardScene extends Phaser.Scene {
     // right leaf: heading + the data-core star stickers
     const rx = W / 2 + 240;
     p.add(this.add.text(rx, ay + 88, `WING ${w + 1}`, {
-      fontFamily: FONT, fontSize: FS.title, fontStyle: "bold", color: "#5a3a22",
+      fontFamily: FONT_DISPLAY, fontSize: FS.title, fontStyle: "bold", color: "#5a3a22",
     }).setOrigin(0.5));
     p.add(this.add.text(rx, ay + 122, WORLD_INFO[w] ? WORLD_INFO[w].name : "", {
       fontFamily: FONT, fontSize: FS.small, fontStyle: "italic", color: "#7a5638",
@@ -632,7 +632,7 @@ export default class RewardScene extends Phaser.Scene {
   pageStats(W, H, p) {
     const { ay } = this.albumGeom;
     p.add(this.add.text(W / 2, ay + 92, "THE NUMBERS", {
-      fontFamily: FONT, fontSize: FS.title, fontStyle: "bold", color: "#5a3a22",
+      fontFamily: FONT_DISPLAY, fontSize: FS.title, fontStyle: "bold", color: "#5a3a22",
     }).setOrigin(0.5));
     p.add(this.add.text(W / 2, ay + 126, "(KOBI counted. Twice.)", {
       fontFamily: FONT, fontSize: FS.small, fontStyle: "italic", color: "#7a5638",
@@ -708,10 +708,10 @@ export default class RewardScene extends Phaser.Scene {
     card.add(g);
     // headline — big crayon letters
     card.add(this.add.text(-2, -216, "WE BEAT", {
-      fontFamily: FONT, fontSize: FS.h3, fontStyle: "bold", color: "#d84848",
+      fontFamily: FONT_DISPLAY, fontSize: FS.h3, fontStyle: "bold", color: "#d84848",
     }).setOrigin(0.5).setAngle(-2));
     card.add(this.add.text(-2, -166, "BOLT BUDDIES!", {
-      fontFamily: FONT, fontSize: FS.h2, fontStyle: "bold", color: "#d84848",
+      fontFamily: FONT_DISPLAY, fontSize: FS.h2, fontStyle: "bold", color: "#d84848",
     }).setOrigin(0.5).setAngle(1.5));
     // left: the glowing-window art (the epilogue's final shot, postcard-sized)
     const art = this.add.container(-212, 6);

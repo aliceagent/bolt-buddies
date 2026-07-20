@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { TILE, COLORS, PHYS, DEPTH, SKILL_INFO, WORLD_THEMES, FADE_NAVY, FONT, FS, TEXT, PARTICLES } from "../constants.js";
+import { TILE, COLORS, PHYS, DEPTH, SKILL_INFO, WORLD_THEMES, FADE_NAVY, FONT, FONT_DISPLAY, FS, TEXT, PARTICLES } from "../constants.js";
 import { ringGlow, glowShape, iconChip, iconGlow, softBody, sheen, GLASS_HI, isWebGL } from "../ui/paint.js";
 import { LEVELS } from "../levels/registry.js";
 import { makeGrid } from "../levels/builder.js";
@@ -814,7 +814,7 @@ export default class GameScene extends Phaser.Scene {
     // with clear margins (container array below keeps the plate behind the text).
     const headStr = def.tutorial ? def.name.toUpperCase() : `CHAMBER ${def.id} — ${def.name.toUpperCase()}`;
     const head = this.add.text(0, -15, headStr, {
-      fontFamily: FONT, fontSize: FS.title, fontStyle: "bold", color: TEXT.bright,
+      fontFamily: FONT_DISPLAY, fontSize: FS.title, fontStyle: "bold", color: TEXT.bright,
     }).setOrigin(0.5);
     const pair = (def.skills || []).map((k) => (SKILL_INFO[k] ? SKILL_INFO[k].name : k.toUpperCase())).join("   +   ");
     const sub = this.add.text(0, 18, pair, {

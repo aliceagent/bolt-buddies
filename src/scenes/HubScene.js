@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { COLORS, WORLD_THEMES, FONT, FS, TEXT } from "../constants.js";
+import { COLORS, WORLD_THEMES, FONT, FONT_DISPLAY, FS, TEXT } from "../constants.js";
 import { LEVELS, WORLD_INFO, KOBI_HUB_LINES } from "../levels/registry.js";
 import { loadSave, totalCores, campaignComplete } from "../save.js";
 import { getRecord, fmtClock } from "../ux.js";
@@ -46,7 +46,7 @@ export default class HubScene extends Phaser.Scene {
     this._webglIris = this.fromClear && this.game.renderer.type === Phaser.WEBGL;
     if (!this._webglIris) this.cameras.main.fadeIn(250, 4, 6, 20); // 250ms fade-in on entry
     this.add.text(W / 2, 46, "DYNACORE LABS — SECTOR MAP", {
-      fontFamily: FONT, fontSize: FS.h3, fontStyle: "bold", color: TEXT.neon,
+      fontFamily: FONT_DISPLAY, fontSize: FS.h3, fontStyle: "bold", color: TEXT.neon,
     }).setOrigin(0.5);
     // cores counter — chip with a mini core icon + a pooled count-up on entry
     this.buildCoresChip(W / 2, 82, totalCores(this.save), 36);
@@ -90,7 +90,7 @@ export default class HubScene extends Phaser.Scene {
       badge.fillStyle(COLORS.dark, worldUnlocked ? 0.85 : 0.55).fillCircle(px + 30, py + 17, 15);
       drawWorldIcon(badge, wi + 1, px + 30, py + 17, 24, accent);
       this.add.text(px + 52, py + 17, `WORLD ${wi + 1} — ${info.name.toUpperCase()}`, {
-        fontFamily: FONT, fontSize: FS.large, fontStyle: "bold",
+        fontFamily: FONT_DISPLAY, fontSize: FS.large, fontStyle: "bold",
         color: worldUnlocked ? "#0a0e1a" : "#6b7aa8",
       }).setOrigin(0, 0.5);
       this.add.text(px + 20, py + 52, info.skills, { fontFamily: FONT, fontSize: FS.small, color: "#7f8fc0" });
@@ -162,7 +162,7 @@ export default class HubScene extends Phaser.Scene {
     this.tweens.add({ targets: this.ring2, angle: 360, duration: 8000, repeat: -1 });
 
     this.nameText = this.add.text(W / 2, H - 92, "", {
-      fontFamily: FONT, fontSize: FS.head, fontStyle: "bold", color: TEXT.good,
+      fontFamily: FONT_DISPLAY, fontSize: FS.head, fontStyle: "bold", color: TEXT.good,
     }).setOrigin(0.5).setDepth(5);
     this.toastText = this.add.text(W / 2, H - 64, "", {
       fontFamily: FONT, fontSize: FS.body, color: TEXT.warn,

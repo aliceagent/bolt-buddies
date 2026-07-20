@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { COLORS, WORLD_THEMES, FONT, FS, TEXT } from "../constants.js";
+import { COLORS, WORLD_THEMES, FONT, FONT_DISPLAY, FS, TEXT } from "../constants.js";
 import { initAudio, sfx, playTrack, installMute } from "../audio.js";
 import { pads, showPadToast } from "../pad.js";
 import { menuBackdrop, chipRow, hexStr, mulColor } from "../ui/kit.js";
@@ -36,7 +36,7 @@ export default class WalkthroughScene extends Phaser.Scene {
     this.cameras.main.fadeIn(250, 4, 6, 20);
 
     this.add.text(W / 2, 64, "WALKTHROUGHS", {
-      fontFamily: FONT, fontSize: FS.h1, fontStyle: "bold", color: TEXT.neon,
+      fontFamily: FONT_DISPLAY, fontSize: FS.h1, fontStyle: "bold", color: TEXT.neon,
       stroke: "#0b3a44", strokeThickness: 8,
     }).setOrigin(0.5);
     this.add.text(W / 2, 112, "stuck in a chamber? watch the robot pros beat it!", {
@@ -211,7 +211,7 @@ export default class WalkthroughScene extends Phaser.Scene {
     // level id + name (left-aligned next to the icon)
     const tx = -w / 2 + 84;
     const id = this.add.text(tx, -h * 0.16, "CHAMBER " + e.id, {
-      fontFamily: FONT, fontSize: FS.lead, fontStyle: "bold", color: hexStr(accent),
+      fontFamily: FONT_DISPLAY, fontSize: FS.lead, fontStyle: "bold", color: hexStr(accent),
     }).setOrigin(0, 0.5);
     const name = this.add.text(tx, h * 0.16, e.name, {
       fontFamily: FONT, fontSize: FS.small, color: TEXT.body,

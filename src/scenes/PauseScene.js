@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { COLORS, FONT, FS, TEXT } from "../constants.js";
+import { COLORS, FONT, FONT_DISPLAY, FS, TEXT } from "../constants.js";
 import { sfx, installMute, pauseDuck } from "../audio.js";
 import { pads, showPadToast } from "../pad.js";
 import { addMotes } from "../backdrop.js";
@@ -45,7 +45,7 @@ export default class PauseScene extends Phaser.Scene {
     this._rowW = pw - 56;
 
     this.add.text(W / 2, py + 46, "PAUSED", {
-      fontFamily: FONT, fontSize: FS.h2, fontStyle: "bold", color: TEXT.neon,
+      fontFamily: FONT_DISPLAY, fontSize: FS.h2, fontStyle: "bold", color: TEXT.neon,
     }).setOrigin(0.5);
 
     this.sel = 0;
@@ -58,7 +58,7 @@ export default class PauseScene extends Phaser.Scene {
       this._itemY.push(cy);
       this.itemBg.push(this.add.graphics());
       return this.add.text(W / 2, cy, t, {
-        fontFamily: FONT, fontSize: FS.title, fontStyle: "bold", color: TEXT.body,
+        fontFamily: FONT_DISPLAY, fontSize: FS.title, fontStyle: "bold", color: TEXT.body,
       }).setOrigin(0.5);
     });
 

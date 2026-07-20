@@ -25,6 +25,17 @@
     <meta name="twitter:image:alt" content="BOLT BUDDIES — Beep, Boop and their robo-puppy Bolt in the neon lab." />
     <title>Bolt Buddies</title>
     <style>
+      /* GFX4 F1: display font (headings/buttons). Variable weight 600-700,
+         latin subset, served same-origin — no runtime CDN fetch. Body/terminal
+         text keeps mono (the deliberate "KOBI terminal" voice). font-display
+         swap so a slow font never blocks first paint; main.js also races the
+         load against a ~1500ms timeout before booting Phaser. */
+      @font-face {
+        font-family: "Fredoka";
+        src: url(/fonts/fredoka-latin.woff2) format("woff2");
+        font-weight: 600 700;
+        font-display: swap;
+      }
       html, body { height: 100%; margin: 0; padding: 0; }
       body {
         background: #070b14;

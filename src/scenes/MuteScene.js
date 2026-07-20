@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { COLORS, FONT, FS, TEXT } from "../constants.js";
+import { COLORS, FONT, FONT_DISPLAY, FS, TEXT } from "../constants.js";
 import {
   initAudio, sfx, getMuteState, getAudioSettings,
   setMusicVolume, setSfxVolume, setVoiceVolume, toggleMute,
@@ -57,7 +57,7 @@ export default class MuteScene extends Phaser.Scene {
     this.panelGfx.lineStyle(2, COLORS.panelEdge, 1).strokeRoundedRect(PANEL.x, PANEL.y, PANEL.w, PANEL.h, PANEL.r);
 
     this.title = this.add.text(PANEL.x + PANEL.w / 2, PANEL.y + 16, "AUDIO", {
-      fontFamily: FONT, fontSize: FS.mini, fontStyle: "bold", color: TEXT.neon,
+      fontFamily: FONT_DISPLAY, fontSize: FS.mini, fontStyle: "bold", color: TEXT.neon,
     }).setOrigin(0.5).setDepth(1001).setVisible(false);
 
     // the slider fills / knobs are drawn on one pooled graphics, redrawn on change
@@ -65,7 +65,7 @@ export default class MuteScene extends Phaser.Scene {
 
     this.rowObjs = ROWS.map((row) => {
       const label = this.add.text(PANEL.x + 14, row.y, row.label, {
-        fontFamily: FONT, fontSize: FS.small, fontStyle: "bold", color: TEXT.body,
+        fontFamily: FONT_DISPLAY, fontSize: FS.small, fontStyle: "bold", color: TEXT.body,
       }).setOrigin(0, 0.5).setDepth(1001).setVisible(false);
       const value = this.add.text(PANEL.x + PANEL.w - 12, row.y, "", {
         fontFamily: FONT, fontSize: FS.small, fontStyle: "bold", color: TEXT.good,

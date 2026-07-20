@@ -179,3 +179,49 @@ R9 (NEW, this round): TEXT-FIT discipline. Any call site switched to the
 - F0-D1: font = Fredoka variable (OFL 1.1), latin subset, single 29 KB woff2,
   staged pre-round at public/fonts/ with license; body text keeps mono as the
   deliberate "KOBI terminal" voice (two-voice type system).
+- F1-D1: type system shipped. index.html carries the @font-face (Fredoka,
+  /fonts/fredoka-latin.woff2, weight 600 700, display swap). main.js wraps the
+  whole boot in `boot()` and calls `warmDisplayFont().finally(boot)` — a
+  best-effort `document.fonts.load('700 32px Fredoka')` raced against a 1500ms
+  timeout, swallowing any error; the game boots regardless (verified: woff2
+  route-blocked → Title boots in ~1.6s, mono fallback, zero page errors).
+  constants.js keeps FONT and adds FONT_DISPLAY = '"Fredoka","Courier New",
+  monospace'. Weight per site: bold(700) on headers/buttons, "600" on the two
+  subtitle/eyebrow captions.
+- F1-D2: FONT_DISPLAY switched at these HEADING/BUTTON sites (file:line):
+  TitleScene.js:242 subtitle, :456 menu button labels. HubScene.js:49 map
+  title, :93 world-panel titles, :165 level-name footer. SettingsScene.js:55
+  SETTINGS header, :59 "AUDIO & COMFORT" eyebrow, :73 row labels.
+  PauseScene.js:48 PAUSED header, :61 menu items. MuteScene.js:60 "AUDIO"
+  title, :68 row labels. GameScene.js:817 intro-banner level title (`head`).
+  UIScene.js:141 clear-overlay winTitle. WalkthroughScene.js:39 scene header,
+  :214 grid-card CHAMBER titles. RewardScene.js:468 MEDAL CEREMONY eyebrow,
+  :471 medal title, :537 THE FAMILY ALBUM, :603 WING N, :635 THE NUMBERS,
+  :711/:714 share-card WE BEAT / BOLT BUDDIES! headline.
+- F1-D3: deliberately LEFT MONO (R9 mono-forever + not-a-heading), with reason:
+  the drawn "BOLT BUDDIES" title wordmark (custom-drawn, untouched); Title
+  chevron glyph + "new!" pip + story prose + P1/P2 legend + KOBI corner caption;
+  intro-banner skill-pair subline (SKILL names, in-world voice); UIScene blip
+  bar, gadget/skill cards, "X = ACTION" chips, key-caps, stats row, and the KOBI
+  grade line (spec: grade stays mono); Settings/Mute value readouts (bars use
+  █/░ box glyphs — mono alignment is load-bearing); Hub node ids, "SIGNAL LOST",
+  skills subtext, DATA-CORES counter, help line, KOBI bark; Walkthrough subtitle,
+  "◀ TITLE" button, per-card level NAME, "NO SIGNAL" error; Reward engravings,
+  facts, stats lines, sticky-notes, tagline, footer, stamp, crayon caption, and
+  all credits (credits are R9 mono-forever).
+- F1-D4: EpilogueScene switched NOTHING. Its 7 storybook pages are drawn scenes
+  whose only text is the caption plate (story PROSE — mono by spec) + speaker
+  tag + hint; the only large-title text in the scene is the credits roll
+  (R9 mono-forever) and in-world signs ("NIGHT-LIGHT ON DUTY"). There is no
+  distinct "page-title" text object to switch, so the plan's "Epilogue page
+  TITLES" line has no applicable call site — logged rather than forcing a switch
+  onto prose/credits.
+- F1-D5: fit discipline (R9) — NO new fontSize changes were needed. Fredoka is
+  wider than Courier but every switched string clears its panel at 1280x720
+  (screenshot-verified, both tiers). The clear-overlay winTitle already had a
+  per-variant size (tutorial "ORIENTATION COMPLETE!" 38px, others 44px,
+  UIScene.js:275); the widest tutorial title fits the 620px panel comfortably in
+  Fredoka, so that pre-existing sizing was kept untouched. Auto-sizing panels
+  (intro banner `bw`) grow to the wider head as designed; no test-probed
+  geometry was resized. QA: playtest 42/42, playtest_audio 29/29, tut_sanity
+  21/21; both-tier shots at tools/shots/gfx4/f1-*.png; zero page errors.

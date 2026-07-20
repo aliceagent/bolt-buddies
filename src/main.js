@@ -18,6 +18,26 @@ import { playVO, playForText, voIdForText, voState } from "./audio/vo.js";
 import { sfxSampleState } from "./audio/sfxsamples.js";
 import { initAudio } from "./audio.js";
 
+// GFX4 F1: warm the display font before the first scene paints so the Title
+// renders in Fredoka on a normal load — but NEVER block the game on it. Race
+// document.fonts.load against a ~1500ms timeout; on timeout, rejection, or a
+// browser without the Font Loading API, we boot anyway and the mono fallback
+// stack renders instead (font-display:swap swaps it in later if it arrives).
+// This whole block is best-effort — it can neither throw nor hang the boot.
+async function warmDisplayFont() {
+  try {
+    if (!document.fonts || !document.fonts.load) return;
+    await Promise.race([
+      document.fonts.load("700 32px Fredoka"),
+      new Promise((resolve) => setTimeout(resolve, 1500)),
+    ]);
+  } catch {
+    // swallow — a font failure must never stop the game booting
+  }
+}
+
+async function boot() {
+
 const game = new Phaser.Game({
   // ?canvas=1 forces the canvas renderer (the automated playtest uses it —
   // headless SwiftShader WebGL runs in slow motion for its first seconds)
@@ -96,3 +116,10 @@ window.__BB.audio.sfx = { voices: sfx, kobi, counts: sfxCounts, reset: resetSfxC
 // VO test surface (tools/playtest_vo.mjs): trigger a clip by id or caption text,
 // resolve a caption -> clip id, and read the live player state ({ playing, id }).
 window.__BB.audio.vo = { play: playVO, playForText, idForText: voIdForText, state: voState };
+
+} // end boot()
+
+// Warm the display font (bounded), then boot regardless of the outcome. Using
+// .finally guarantees boot() runs whether the font resolves, rejects, or the
+// timeout wins — the game is never gated on the font.
+warmDisplayFont().finally(boot);

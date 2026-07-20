@@ -5,6 +5,14 @@ export const TILE = 48;
 // of redeclaring a local `const FONT`.
 export const FONT = "'Courier New', monospace";
 
+// GFX4 F1: display font for HEADINGS/BUTTONS only (Title menu buttons, scene
+// headers, panel titles, overlay titles). Fredoka is a rounded proportional
+// face; the mono stack is the fallback so a font load failure/timeout renders
+// mono without blocking boot. Body/terminal text keeps `FONT` on purpose (the
+// two-voice type system — KOBI speaks mono). Weight is set per-site via
+// fontStyle "600"/"bold" (the woff2 is a 600-700 variable file).
+export const FONT_DISPLAY = '"Fredoka", "Courier New", monospace';
+
 // Size tokens (px strings, ready to drop straight into a Phaser text style).
 // One coherent scale swept across every `add.text` call so sibling UI shares a
 // rhythm. Roadmap named h1/h2/body/small; the extra rungs cover the real spread

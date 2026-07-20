@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { WORLD_THEMES, FONT, FS, TEXT } from "../constants.js";
+import { WORLD_THEMES, FONT, FONT_DISPLAY, FS, TEXT } from "../constants.js";
 import {
   initAudio, sfx, installMute,
   getAudioSettings, setMusicVolume, setSfxVolume, toggleMute,
@@ -52,11 +52,11 @@ export default class SettingsScene extends Phaser.Scene {
     neonPanel(panel, px, py, pw, ph, { accent: ACCENT, radius: 16 });
     // header caption riding the accent bar
     this.add.text(W / 2, 96, "SETTINGS", {
-      fontFamily: FONT, fontSize: FS.h1, fontStyle: "bold", color: TEXT.neon,
+      fontFamily: FONT_DISPLAY, fontSize: FS.h1, fontStyle: "bold", color: TEXT.neon,
       stroke: "#0b3a44", strokeThickness: 8,
     }).setOrigin(0.5);
     this.add.text(px + 22, py + 22, "AUDIO & COMFORT", {
-      fontFamily: FONT, fontSize: FS.mini, fontStyle: "bold", color: hexStr(ACCENT),
+      fontFamily: FONT_DISPLAY, fontSize: FS.mini, fontStyle: "600", color: hexStr(ACCENT),
     }).setOrigin(0, 0.5).setAlpha(0.9);
 
     // rows: 0 music, 1 sfx, 2 mute, 3 VOICE (KOBI/narrator speech on/off), then
@@ -70,7 +70,7 @@ export default class SettingsScene extends Phaser.Scene {
     this.rows = rowY.map((y, i) => {
       const bg = this.add.graphics(); // selected-row chevron + glow (drawn in render)
       const label = this.add.text(labelX, y, "", {
-        fontFamily: FONT, fontSize: FS.head, fontStyle: "bold", color: TEXT.body,
+        fontFamily: FONT_DISPLAY, fontSize: FS.head, fontStyle: "bold", color: TEXT.body,
       }).setOrigin(0, 0.5);
       const value = this.add.text(valueX, y, "", {
         fontFamily: FONT, fontSize: FS.head, color: TEXT.bright,

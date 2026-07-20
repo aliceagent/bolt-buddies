@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { COLORS, WORLD_THEMES, FONT, FS, TEXT } from "../constants.js";
+import { COLORS, WORLD_THEMES, FONT, FONT_DISPLAY, FS, TEXT } from "../constants.js";
 import { LEVELS } from "../levels/registry.js";
 import { sfx, installMute, duckMusic, playForText, stopVO } from "../audio.js";
 import { uxTextSpeed } from "../ux.js";
@@ -138,7 +138,7 @@ export default class UIScene extends Phaser.Scene {
     const winTopLight = this.add.image(0, -ph / 2 + 6, "toplight")
       .setOrigin(0.5, 0).setDisplaySize(pw - 64, ph * 0.5).setAlpha(0.1);
     this.winTitle = this.add.text(0, -108, "CHAMBER CLEAR!", {
-      fontFamily: FONT, fontSize: FS.h2, fontStyle: "bold", color: TEXT.good,
+      fontFamily: FONT_DISPLAY, fontSize: FS.h2, fontStyle: "bold", color: TEXT.good,
     }).setOrigin(0.5);
     this.winSub = this.add.text(0, -58, "", { fontFamily: FONT, fontSize: FS.large, color: TEXT.body }).setOrigin(0.5);
     // three core slots: dim ring + "?" until revealed, then a core pops into place
