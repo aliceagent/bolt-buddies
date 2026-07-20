@@ -239,9 +239,24 @@ export function runIris(scene, opts = {}) {
   };
   scene.sys.events.once("shutdown", cleanup);
   scene.sys.events.once("destroy", cleanup);
+  // GFX4 F5-QA: the scene HANDOFF must never hinge on a single tween callback —
+  // a skipped onComplete under frame-pacing stress would strand the game on a
+  // full-black iris (caught by a campaign run timing out at "Hub after NEW
+  // GAME"). finish() is guaranteed-once and also armed on a hard time backstop,
+  // so the transition always lands even if the tween's callback never fires.
+  // (Scene shutdown kills the clock + tween, so neither path outlives the scene.)
+  let finished = false;
+  const finish = () => {
+    if (finished || done) { cleanup(); return; }
+    finished = true;
+    cleanup();
+    if (onComplete) onComplete();
+  };
   scene.tweens.add({
     targets: st, r: to, duration, ease,
     onUpdate: () => { if (!done && g.scene) drawIris(g, cx, cy, st.r, fill); },
-    onComplete: () => { cleanup(); if (onComplete) onComplete(); },
+    onComplete: finish,
+    onStop: finish,
   });
+  scene.time.delayedCall(duration + 300, finish);
 }
