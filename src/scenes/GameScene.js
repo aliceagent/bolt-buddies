@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { TILE, COLORS, PHYS, DEPTH, SKILL_INFO, WORLD_THEMES, FADE_NAVY, FONT, FONT_DISPLAY, FS, TEXT, PARTICLES } from "../constants.js";
-import { ringGlow, glowShape, iconChip, iconGlow, softBody, sheen, glassPanel, GLASS_HI, desat, isWebGL, farStrip, nearStrip, atmoBand } from "../ui/paint.js";
+import { ringGlow, glowShape, iconChip, iconGlow, softBody, sheen, glassPanel, GLASS_HI, desat, isWebGL, farStrip, nearStrip, atmoBand, landmark, LANDMARK_SIZES } from "../ui/paint.js";
 import { LEVELS } from "../levels/registry.js";
 import { makeGrid } from "../levels/builder.js";
 import devW3 from "../levels/dev_w3.js";
@@ -328,6 +328,7 @@ export default class GameScene extends Phaser.Scene {
     // 96px world-x band around every spawn, door/exit, skill station (pedestal)
     // and checkpoint — all known now that entities exist; any ceiling prop landing
     // inside one is dropped by addForegroundStrip.
+    this.landmarks = []; this._landmarkX = []; // GFX5 S4: default-empty (scene reused across restarts; tutorial/4-3 stay empty)
     if (!def.tutorial && !def.finale) {
       const KEEP = 96;
       const ko = [];
@@ -340,6 +341,10 @@ export default class GameScene extends Phaser.Scene {
       // G4 keep-out band list (spawns/pedestals/checkpoints/doors) — skipped in the
       // tutorial + 4-3 arena by this guard, exactly like the foreground strip.
       this.scatterWallDecals(ko);
+      // GFX5 S4: 1-2 big landmark set-pieces on the background wall space, reusing
+      // the SAME G4 keep-out list — skipped in the tutorial + 4-3 arena by this
+      // guard, exactly like the foreground strip and the S2 wall decals.
+      this.landmarks = this.placeLandmarks(ko);
     }
 
     // Sprint 10: static key-glyph clusters declared in the level def (tutorial).
@@ -1347,6 +1352,65 @@ export default class GameScene extends Phaser.Scene {
         .setAlpha(0.42 + rnd() * 0.12);
       chosen.push(c);
     }
+  }
+
+  // GFX5 S4: place 1-2 big landmark set-pieces on the level's background wall
+  // space so each level is recognisable at a glance. Deterministic: a level-id
+  // seeded PRNG (mulberry32+hashStr, matching G4/S2 — never Math.random) picks
+  // the count, the variant(s) and the x positions, so the SAME level id always
+  // draws the SAME landmarks in the SAME spots. Static Images at depth bg-4.2
+  // (above the near band bg-4.5, below fog bg-4 / terrain), scrollFactor 0.7,
+  // origin (0.5,1) so the form stands on the level's ground line — its foot
+  // sinks a hair below it so terrain occludes the base (reads as furniture
+  // behind the back wall). REUSES the SAME G4 keep-out band list `ko` (checked
+  // against the landmark's FULL body width, since these are wide) so a landmark
+  // never looms over a spawn/pedestal/checkpoint/door — and, like scatterWall-
+  // Decals, it sits inside the create() `!tutorial && !finale` guard. Textures
+  // are baked both tiers; this placement runs both tiers (fps-measured free on
+  // 2-2 Canvas, S4-D3).
+  placeLandmarks(ko) {
+    const world = WORLD_THEMES[this.def.world] ? this.def.world : 1;
+    const specs = LANDMARK_SIZES[world];
+    if (!specs) return [];
+    const worldW = this.worldW, rows = this.def.rows, cols = this.def.cols;
+    const g = this.grid;
+    // ground line = world-y of the DOMINANT floor row in the lower band
+    let bestRow = rows - 1, bestCount = -1;
+    for (let y = Math.floor(rows / 2); y < rows; y++) {
+      let c = 0;
+      for (let x = 0; x < cols; x++) if (g[y][x] === "#") c++;
+      if (c >= bestCount) { bestCount = c; bestRow = y; }
+    }
+    const groundY = bestRow * TILE + 24; // mid of that floor row (base sinks below terrain)
+    const rnd = mulberry32(hashStr((this.def.id || "lvl") + ":s4landmarks"));
+    const inKO = (a, b) => ko.some(([lo, hi]) => a <= hi && b >= lo);
+    const count = rnd() < (worldW > 3400 ? 0.2 : 0.4) ? 1 : 2; // seeded 1-2
+    const first = rnd() < 0.5 ? 0 : 1;
+    const order = count === 1 ? [first] : (first === 0 ? [0, 1] : [1, 0]); // 2-landmark levels use BOTH variants
+    const placed = [];
+    const made = [];
+    for (const v of order) {
+      const [lw] = specs[v];
+      const hw = lw / 2;
+      const margin = hw + 40;
+      if (worldW - 2 * margin < 40) continue;
+      let x = null;
+      for (let tries = 0; tries < 48; tries++) {
+        const cand = margin + rnd() * (worldW - 2 * margin);
+        if (inKO(cand - hw, cand + hw)) continue;                       // keep-out (full body)
+        if (placed.some((px) => Math.abs(px - cand) < Math.max(lw, 320))) continue; // spacing
+        x = cand; break;
+      }
+      if (x == null) continue;
+      placed.push(x);
+      made.push(this.add.image(x, groundY, `lm${world}${v ? "b" : "a"}`)
+        .setOrigin(0.5, 1)
+        .setScrollFactor(0.7)
+        .setDepth(DEPTH.bg - 4.2)
+        .setAlpha(0.85));
+    }
+    this._landmarkX = placed.map((p) => Math.round(p)); // exposed for QA review
+    return made;
   }
 
   // Emit from a pooled emitter only while it is still live. A scene restart (R,
@@ -7719,16 +7783,23 @@ export default class GameScene extends Phaser.Scene {
       g.fillStyle(tone, 1).fillRect(0, railY, 512, 12);
       g.fillStyle(edge, 1).fillRect(0, railY, 512, 3);
       g.fillStyle(edge, 1).fillRect(196, railY + 10, 44, 16); // trolley
-      // hanging scrap hooks: chain links down to a hook + a scrap chunk
-      [60, 240, 340, 470].forEach((x) => {
+      // hanging scrap hooks: chain links down to a hook + a scrap chunk.
+      // GFX5 S4: per-rig bake-time variance (seeded scale + x-jitter + mirrored
+      // hook curl) so the four scrap rigs don't read as photocopies.
+      [60, 240, 340, 470].forEach((x0) => {
+        const sc = 0.88 + rnd() * 0.28, fl = rnd() < 0.5, x = x0 + (rnd() - 0.5) * 16;
         const len = railY + 90 + Math.floor(rnd() * 130);
-        g.lineStyle(4, tone, 1);
-        for (let cy = railY + 12; cy < len; cy += 14) g.strokeCircle(x, cy + 6, 5); // chain links
-        g.lineStyle(6, edge, 1);
-        g.beginPath(); g.arc(x, len + 16, 10, Math.PI * 0.1, Math.PI * 0.95, false); g.strokePath(); // hook
-        if (rnd() < 0.7) { // scrap chunk snagged on the hook
+        g.lineStyle(4 * sc, tone, 1);
+        for (let cy = railY + 12; cy < len; cy += 14) g.strokeCircle(x, cy + 6, 5 * sc); // chain links
+        g.lineStyle(6 * sc, edge, 1);
+        g.beginPath();
+        if (fl) g.arc(x, len + 16, 10 * sc, Math.PI * 0.05, Math.PI * 0.9, true);
+        else g.arc(x, len + 16, 10 * sc, Math.PI * 0.1, Math.PI * 0.95, false);
+        g.strokePath(); // hook
+        if (rnd() < 0.7) { // scrap chunk snagged on the hook (flipped with the rig)
+          const m = fl ? -1 : 1;
           g.fillStyle(tone, 1);
-          g.fillTriangle(x - 16, len + 34, x + 14, len + 26, x + 4, len + 52);
+          g.fillTriangle(x - 16 * m, len + 34, x + 14 * m, len + 26, x + 4 * m, len + 52);
           g.fillRect(x - 10, len + 30, 20, 12);
         }
       });
@@ -7754,7 +7825,8 @@ export default class GameScene extends Phaser.Scene {
       g.fillStyle(tone, 1).fillRect(130, beamY, 10, 864 - beamY);
       g.fillStyle(tone, 1).fillRect(360, beamY, 10, 864 - beamY);
       g.fillStyle(edge, 1);
-      for (let x = 145; x < 360; x += 30) g.fillRect(x, beamY + 14, 6, 12 + Math.floor(rnd() * 12));
+      // GFX5 S4: per-tine width + x-jitter so the gantry tines aren't a comb copy.
+      for (let x = 145; x < 360; x += 30) g.fillRect(x + (rnd() - 0.5) * 8, beamY + 14, 4 + rnd() * 5, 10 + Math.floor(rnd() * 16));
     });
     // GFX5 S3: W3 FAR + NEAR parallax bands + drifting-atmo wisp band. WebGL-gated
     // bake (R1, lightCone precedent) — Canvas never creates them. Recipes single-
@@ -7764,6 +7836,11 @@ export default class GameScene extends Phaser.Scene {
       make("propnear3", 512, 864, (g) => nearStrip(g, 3));
       make("atmo3", 256, 140, (g) => atmoBand(g, 3));
     }
+    // GFX5 S4: W3 landmark set-pieces (both tiers — textures only). Placement
+    // decides the ship tier (GameScene.placeLandmarks).
+    LANDMARK_SIZES[3].forEach(([lw, lh], i) => {
+      make(`lm3${i ? "b" : "a"}`, lw, lh, (g) => landmark(g, 3, i, lw, lh));
+    });
   }
 
   // W3W4 L33: the SCRAP STORM texture set (3-3 only), baked lazily with its own
@@ -8128,9 +8205,12 @@ export default class GameScene extends Phaser.Scene {
       const tone = shade(V, 0.22);  // violet darkened to near-silhouette
       const seam = shade(N, 0.55);  // the thin neon seams
       const rnd = seeded(404);
-      // server-rack rows: tall dark cabinets with sparse lit LED dots
-      [30, 120, 330, 430].forEach((x, i) => {
-        const w = 64 + (i % 2) * 14;
+      // server-rack rows: tall dark cabinets with sparse lit LED dots.
+      // GFX5 S4: per-rack seeded width + x-jitter so the cabinets don't read as a
+      // photocopied row (kept clear of the x=0/512 wrap edges).
+      [30, 120, 330, 430].forEach((x0, i) => {
+        const w = 58 + Math.floor(rnd() * 26);
+        const x = x0 + (rnd() - 0.5) * 12;
         const topY = 300 + Math.floor(rnd() * 120);
         g.fillStyle(tone, 1).fillRect(x, topY, w, 864 - topY);
         g.fillStyle(shade(V, 0.3), 1).fillRect(x, topY, w, 6); // cap
@@ -8182,6 +8262,11 @@ export default class GameScene extends Phaser.Scene {
       make("propnear4", 512, 864, (g) => nearStrip(g, 4));
       make("atmo4", 256, 140, (g) => atmoBand(g, 4));
     }
+    // GFX5 S4: W4 landmark set-pieces (both tiers — textures only). Placement
+    // decides the ship tier (GameScene.placeLandmarks).
+    LANDMARK_SIZES[4].forEach(([lw, lh], i) => {
+      make(`lm4${i ? "b" : "a"}`, lw, lh, (g) => landmark(g, 4, i, lw, lh));
+    });
   }
 
   // W3W4 L43: the KOBI-heart finale texture set (4-3 only), baked lazily with

@@ -279,3 +279,60 @@ Goal: every level recognizable at a glance ("the room with the...").
 - S3-D5 (QA): near-band scrollFactor 0.6 → 0.72 — the builder's honest caveat
   (mid pinned at 0.55 by Canvas invariance left mid/near in near-lockstep);
   0.72 restores a distinct third rate. WebGL-only object, freely tuned.
+- S4-D1: per-world landmark FAMILY (two each) single-sourced as ONE pure-draw
+  helper `landmark(g,world,v,w,h)` + a `LANDMARK_SIZES[world]=[[w,h],[w,h]]`
+  table in paint.js, so the SAME recipe bakes identically at BOTH bake sites
+  (W1/W2 in BootScene, W3/W4 lazily in GameScene.ensureW3/W4Textures). Keys
+  `lm<world>a`/`lm<world>b`. Families: W1 assembly arm+gantry (300×300) / gantry-
+  crane silo (260×400); W2 boiler stack (200×400) / giant fan ring, static blades
+  (320×320); W3 magnet coil tower (220×400) / crane-claw idol (260×360); W4 server
+  monolith (200×390) / KOBI eye mural (320×320). Tones follow the far/near-band
+  recipe (scale·desat) so the S4 family sits at the very bottom of the S1
+  value+saturation hierarchy — dark silhouette furniture, NOT gameplay (R9). Only
+  a few small accent-lit indicator dots (halo a≈0.14 + core a≈0.62); no hot masses.
+  Bakes are BOTH tiers (textures only, zero runtime cost — R1); the PLACEMENT
+  decides the ship tier. QA (WebGL, tools/shots/gfx5s4/s4-<id>.png): the
+  distinctive-shaped variants (fan ring, eye mural, coil tower+sphere, claw,
+  assembly arm) read clearly as recognisable set-pieces; the boxy variants
+  (boiler/monolith/silo) are quieter silhouette variety — the R9-correct side to
+  err on. Chosen over per-site hand-drawn art so the two bake sites can't drift.
+- S4-D2: placement = `GameScene.placeLandmarks(ko)`, called inside the SAME
+  create() `!tutorial && !finale` guard as the G4 foreground strip + S2 wall
+  decals (so the tutorial's teaching sightlines and the 4-3 finale arena stay
+  landmark-free — verified 0 in s4-tut.png / s4-4-3.png). Deterministic: a level-
+  id seeded PRNG `mulberry32(hashStr(def.id + ":s4landmarks"))` (never Math.random,
+  R4) picks the count (1-2; wider levels lean to 2), the variant order (2-landmark
+  levels use BOTH a+b for a distinct read) and the x positions by rejection
+  sampling (48 tries: reject if the landmark's FULL body width intersects a G4
+  keep-out band — the SAME `ko` list of spawns/pedestals/checkpoints/doors — or if
+  within max(lw,320)px of an already-placed landmark). y = origin (0.5,1) on the
+  level's ground line = world-y of the DOMINANT floor row in the lower band; the
+  foot sinks a hair below so terrain (depth 5) occludes it → reads as furniture
+  behind the back wall. scrollFactor 0.7, depth DEPTH.bg-4.2 (above near band
+  bg-4.5, below fog bg-4/terrain), alpha 0.85. Per-level result (deterministic):
+  1-1 1 [1424]; 1-2 2 [2208,1690]; 1-3 2 [847,1451]; 2-1 2 [1962,726]; 2-2 1
+  [2420]; 2-3 1 [2668]; 3-1 2 [884,2478]; 3-2 2 [2380,1189]; 3-3 2 [2639,1649];
+  4-1 2 [2750,3104]; 4-2 2 [2397,967]; 4-3 0; tut 0. Also inits this.landmarks/
+  _landmarkX to [] before the guard so the reused scene instance stays empty on
+  tutorial/4-3 across restarts.
+- S4-D3: fps A/B on 2-2 Canvas (qa_g4_fps.mjs, 2×5s) — BEFORE (stash) avg
+  38.4/33.3, AFTER avg 39.5/31.9; combined delta ≈ -0.15 fps, well inside the
+  container's ~6 fps pass-to-pass noise (landmarks are 1-2 static Images/level;
+  the prop-strip variance is bake-time, zero runtime). Under the 2 fps budget, so
+  landmarks + variance ship BOTH tiers with NO isWebGL gate (G4 4a precedent).
+  Suites: playtest 42/42 green; beat 1-2/2-2/3-2/4-2 A+B = 8/8 GREEN (wd/sl peak
+  0; 4-2 A took 1 death but completed all 8 steps — normal laser-garden, no flake
+  hit). Zero page errors across every screenshot + fps + playtest run.
+- S4-D4 (variance): the plan's "instance variance on the existing prop-strip
+  stamps" is applied as BAKE-TIME variance (not placement variance) — the strip
+  repetition lives INSIDE the baked propStrip<w> texture (a tileSprite tiles it),
+  so the fix is to jitter each stamped shape within the bake using the existing
+  seeded rnd (deterministic, R4; static one-time bake, R3). Applied to the most
+  photocopied repeated families per strip: W1 ceiling hook rigs (per-rig scale
+  0.9-1.15 + x-jitter ±9 + mirrored hook curl) + conveyor tines (width + x-jitter);
+  W2 flange bands (x-jitter + width) + valve wheels (scale + spoke phase); W3 scrap
+  hooks (scale + x-jitter + mirrored curl + flipped chunk) + gantry tines; W4 server
+  racks (seeded width + x-jitter). All jitter kept small so every shape stays clear
+  of the x=0/512 wrap edges (the strip still tiles seamlessly). Before/after pair
+  (Canvas tier, isolates the mid strip): tools/shots/gfx5s4/s4-variance-before.png
+  vs s4-variance-after.png (byte-different; the four identical hook rigs now vary).
