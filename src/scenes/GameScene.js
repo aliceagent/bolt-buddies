@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { TILE, COLORS, PHYS, DEPTH, SKILL_INFO, WORLD_THEMES, FADE_NAVY, FONT, FONT_DISPLAY, FS, TEXT, PARTICLES } from "../constants.js";
-import { ringGlow, glowShape, iconChip, iconGlow, softBody, sheen, glassPanel, GLASS_HI, isWebGL } from "../ui/paint.js";
+import { ringGlow, glowShape, iconChip, iconGlow, softBody, sheen, glassPanel, GLASS_HI, desat, isWebGL } from "../ui/paint.js";
 import { LEVELS } from "../levels/registry.js";
 import { makeGrid } from "../levels/builder.js";
 import devW3 from "../levels/dev_w3.js";
@@ -7608,8 +7608,10 @@ export default class GameScene extends Phaser.Scene {
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
     make("propStrip3", 512, 864, (g) => {
-      const tone = shade(0xffb347, 0.32); // W3 amber-orange darkened to silhouette
-      const edge = shade(0xffb347, 0.5);
+      // GFX5 S1: amber desaturated ~18% before darkening to silhouette — prop
+      // strip fill kept low in the saturation hierarchy (matches W1/W2 in Boot).
+      const tone = shade(desat(0xffb347, 0.18), 0.32); // W3 amber-orange -> silhouette
+      const edge = shade(desat(0xffb347, 0.18), 0.5);
       const rnd = seeded(303);
       // overhead crane rail spanning the strip + a trolley block
       const railY = 130;
@@ -8010,17 +8012,21 @@ export default class GameScene extends Phaser.Scene {
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
     make("propStrip4", 512, 864, (g) => {
-      const tone = shade(0x8f7bff, 0.22);  // violet darkened to near-silhouette
-      const seam = shade(0x35f0ff, 0.55);  // the thin neon seams
+      // GFX5 S1: violet + neon-cyan bases desaturated ~18% before darkening — the
+      // prop-strip fill (incl. the thin floor seams) sits low in the saturation
+      // hierarchy, matching W1/W2/W3. Lit accents on gameplay objects still pop.
+      const V = desat(0x8f7bff, 0.18), N = desat(0x35f0ff, 0.18);
+      const tone = shade(V, 0.22);  // violet darkened to near-silhouette
+      const seam = shade(N, 0.55);  // the thin neon seams
       const rnd = seeded(404);
       // server-rack rows: tall dark cabinets with sparse lit LED dots
       [30, 120, 330, 430].forEach((x, i) => {
         const w = 64 + (i % 2) * 14;
         const topY = 300 + Math.floor(rnd() * 120);
         g.fillStyle(tone, 1).fillRect(x, topY, w, 864 - topY);
-        g.fillStyle(shade(0x8f7bff, 0.3), 1).fillRect(x, topY, w, 6); // cap
+        g.fillStyle(shade(V, 0.3), 1).fillRect(x, topY, w, 6); // cap
         // rack unit seams
-        g.fillStyle(shade(0x8f7bff, 0.13), 1);
+        g.fillStyle(shade(V, 0.13), 1);
         for (let cy = topY + 18; cy < 850; cy += 26) g.fillRect(x + 4, cy, w - 8, 3);
         // sparse blinking-LED dots (baked lit; sparse = calm)
         for (let cy = topY + 24; cy < 840; cy += 26) {
@@ -8032,7 +8038,7 @@ export default class GameScene extends Phaser.Scene {
       });
       // thin neon floor seams running the strip
       g.fillStyle(seam, 1).fillRect(0, 700, 512, 2);
-      g.fillStyle(shade(0x35f0ff, 0.3), 1).fillRect(0, 703, 512, 1);
+      g.fillStyle(shade(N, 0.3), 1).fillRect(0, 703, 512, 1);
       g.fillStyle(seam, 1).fillRect(0, 820, 512, 2);
       // hanging cable bundles swooping between ceiling points
       g.lineStyle(3, tone, 1);

@@ -28,6 +28,20 @@ function scale(hex, f) {
   const b = Math.min(255, Math.round((hex & 255) * f));
   return (r << 16) | (g << 8) | b;
 }
+// GFX5 S1: desaturate an 0xRRGGBB colour by fraction f (0 = unchanged, 1 = full
+// grey). Pulls each channel toward the colour's own luminance — a BAKE-TIME
+// saturation cut for the pure-background textures (grids, glow blobs, silhouette
+// prop-strip fills, fog) so gameplay surfaces, G3 accents and interactives pop
+// against a lower-saturation backdrop (the "saturation hierarchy"). Canvas-safe:
+// returns a plain colour int, never a runtime setTint. NEVER applied to entity /
+// gadget / enemy / UI textures.
+export function desat(hex, f) {
+  const r = (hex >> 16) & 255, g = (hex >> 8) & 255, b = hex & 255;
+  const lum = 0.3 * r + 0.59 * g + 0.11 * b;
+  const mix = (v) => Math.max(0, Math.min(255, Math.round(v + (lum - v) * f)));
+  return (mix(r) << 16) | (mix(g) << 8) | mix(b);
+}
+
 // Blend an 0xRRGGBB colour toward white by t (0 = hue, 1 = white).
 function toWhite(hex, t) {
   const r = Math.round(((hex >> 16) & 255) + (255 - ((hex >> 16) & 255)) * t);

@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { COLORS, WORLD_THEMES, PARTICLES } from "../constants.js";
-import { softBody, specular, sheen, haloCircle, ringGlow, fakeRadial, glowShape, iconChip, iconGlow, ditherRect, isWebGL } from "../ui/paint.js";
+import { softBody, specular, sheen, haloCircle, ringGlow, fakeRadial, glowShape, iconChip, iconGlow, ditherRect, desat, isWebGL } from "../ui/paint.js";
 import { CURSOR_URI, CURSOR_HOTSPOT } from "../ui/cursor.js";
 
 // Every texture in the game is generated here with Graphics — zero asset files.
@@ -52,12 +52,20 @@ export default class BootScene extends Phaser.Scene {
     };
     const tileTex = (world) => (g) => {
       const c = TILE[world];
-      // uniform dark gap on every edge -> seamless tiling in any direction
-      g.fillStyle(c.gap, 1).fillRect(0, 0, 48, 48);
+      const theme = WORLD_THEMES[world];
+      // GFX5 S1: uniform HUED-dark mortar on every edge -> seamless tiling in any
+      // direction. theme.mortar is a world-tinted dark (warm umber / sea-green /
+      // wine / void-blue) — the gap still reads as a groove, but a coloured one.
+      g.fillStyle(theme.mortar, 1).fillRect(0, 0, 48, 48);
       // rounded plate with baked 4-tone soft shading (inset 1.5px all round)
       softBody(g, { x: 1.5, y: 1.5, w: 45, h: 45, r: 7, base: c.base });
       // a small glassy top-left sheen dab — the Lumen "lit plate" read
       specular(g, { x: 15, y: 13, w: 12, h: 5, a: 0.16 });
+      // GFX5 S1: baked 1px accent-tinted rim-light along the plate's TOP edge ONLY
+      // (a≈0.18) so floors catch the world's light. Kept x∈[5,43], y=2.5 (well
+      // inside the 1.5px inset) — every edge pixel (x=0/47, y=0/47) stays pure
+      // mortar tone on all four sides, so the seam contract is preserved exactly.
+      g.fillStyle(theme.edgeLight, 0.18).fillRect(5, 2.5, 38, 1);
       if (world === 1) {
         // warm steel: warm top glaze + four steel rivets
         g.fillStyle(c.warm, 0.08).fillRoundedRect(3, 3, 42, 12, { tl: 6, tr: 6, bl: 0, br: 0 });
@@ -278,17 +286,20 @@ export default class BootScene extends Phaser.Scene {
       // Finer, softer grid — a low-alpha 16px sub-grid under the 48px main lines,
       // with faint nodes at main intersections. Lines run 0..80 (the 96 line is
       // supplied by the next tile's 0) so the 96px period tiles with no doubling.
-      g.lineStyle(1, 0x131c32, 0.26); // fine sub-grid
+      // GFX5 S1: grid line/node tones pulled ~18% toward grey (bake-time desat) so
+      // this pure-background layer sits lower in the saturation hierarchy — the
+      // per-world accent2 tint (WebGL, added at placement) still reads on top.
+      g.lineStyle(1, desat(0x131c32, 0.18), 0.26); // fine sub-grid
       for (let i = 0; i < 96; i += 16) {
         g.lineBetween(i, 0, i, 96);
         g.lineBetween(0, i, 96, i);
       }
-      g.lineStyle(1, 0x1a2542, 0.42); // main grid
+      g.lineStyle(1, desat(0x1a2542, 0.18), 0.42); // main grid
       for (let i = 0; i < 96; i += 48) {
         g.lineBetween(i, 0, i, 96);
         g.lineBetween(0, i, 96, i);
       }
-      g.fillStyle(0x223056, 0.4); // soft nodes at main intersections
+      g.fillStyle(desat(0x223056, 0.18), 0.4); // soft nodes at main intersections
       for (let x = 0; x < 96; x += 48) for (let y = 0; y < 96; y += 48) g.fillCircle(x, y, 1.4);
     });
     // Vertical gradient strips + radial glow blobs for the layered backgrounds.
@@ -324,7 +335,10 @@ export default class BootScene extends Phaser.Scene {
     for (const w of Object.keys(WORLD_THEMES)) {
       const t = WORLD_THEMES[w];
       make(`bgGradient${w}`, 64, 720, gradient(t.bgTop, t.bgBottom));
-      make(`glowBlob${w}`, 256, 256, blob(t.glow));
+      // GFX5 S1: per-world glow blob desaturated ~18% (bake-time) — a pure-background
+      // layer, dropped in the saturation hierarchy so gameplay/G3 accents pop. The
+      // generic white `glowBlob` (gameplay pool/pickup glows) is left untouched.
+      make(`glowBlob${w}`, 256, 256, blob(desat(t.glow, 0.18)));
     }
 
     // GFX4 F4a: per-world hub-panel PREVIEW strips — a low-res "poster" of the
@@ -444,8 +458,11 @@ export default class BootScene extends Phaser.Scene {
     // W1 "Assembly Wing": ceiling hooks + jointed arms up top, vats + conveyor
     // gantries along the floor. Warm accent darkened to a silhouette brown.
     make("propStrip1", STRIP_W, STRIP_H, (g) => {
-      const tone = shade(WORLD_THEMES[1].accent, 0.34);
-      const edge = shade(WORLD_THEMES[1].accent, 0.52);
+      // GFX5 S1: accent desaturated ~18% before darkening to silhouette — the
+      // prop-strip fill sits low in the saturation hierarchy (backgrounds recede,
+      // gameplay pops). The small warm status/window lights below keep full hue.
+      const tone = shade(desat(WORLD_THEMES[1].accent, 0.18), 0.34);
+      const edge = shade(desat(WORLD_THEMES[1].accent, 0.18), 0.52);
       const rnd = seeded(101);
       // an overhead gantry rail spanning the width, up in the open ceiling area,
       // so the assembly identity reads even where the floor props are occluded.
@@ -496,8 +513,9 @@ export default class BootScene extends Phaser.Scene {
     // W2 "Maintenance Tunnels": horizontal pipe runs with elbows + valve wheels,
     // sagging cables from the ceiling, and wall vents. Violet accent darkened.
     make("propStrip2", STRIP_W, STRIP_H, (g) => {
-      const tone = shade(WORLD_THEMES[2].accent, 0.30);
-      const edge = shade(WORLD_THEMES[2].accent, 0.46);
+      // GFX5 S1: accent desaturated ~18% before darkening to silhouette (see W1).
+      const tone = shade(desat(WORLD_THEMES[2].accent, 0.18), 0.30);
+      const edge = shade(desat(WORLD_THEMES[2].accent, 0.18), 0.46);
       const rnd = seeded(202);
       const pipe = (y, h) => {
         g.fillStyle(tone, 1).fillRect(0, y, STRIP_W, h);
@@ -590,7 +608,9 @@ export default class BootScene extends Phaser.Scene {
         { k: 3, amp: 18, base: 110, a: 0.1 },
       ];
       for (const b of bands) {
-        g.fillStyle(0xe6ebf7, b.a);
+        // GFX5 S1: haze tone desaturated ~18% (bake-time) — the fog is a
+        // pure-background layer and stays low in the saturation hierarchy.
+        g.fillStyle(desat(0xe6ebf7, 0.18), b.a);
         for (let x = 0; x < STRIP_W; x += 4) {
           const topY = b.base + b.amp * Math.sin((b.k * x / STRIP_W) * Math.PI * 2);
           g.fillRect(x, topY, 5, 220 - topY);

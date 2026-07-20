@@ -156,3 +156,25 @@ Goal: every level recognizable at a glance ("the room with the...").
 - S0-D2: new parallax bands + atmosphere WebGL-gated by the Canvas fps
   precedent (props/vignette were already trimmed there); Canvas keeps today's
   exact layer set — test-tier invariance by construction.
+- S1-D1: saturation hierarchy implemented as one shared bake-time helper
+  `desat(hex, f)` in paint.js (pulls each channel toward the colour's own
+  luminance; f=0 unchanged, 1 grey). Applied at f≈0.18 (~18%, inside the plan's
+  15-20%) to the SIX pure-background bake sites — bggrid line/node tones, per-
+  world `glowBlob<w>`, propStrip1/2 accent fills (Boot) + propStrip3/4 tone/seam
+  fills (GameScene ensureW3/W4), and the fogBand haze. The generic white
+  `glowBlob` (gameplay pool/pickup glows) and ALL entity/gadget/enemy/UI
+  textures are untouched (R9). Chosen over per-site hand-tuned colours so the
+  cut is uniform and one number tunes the whole hierarchy.
+- S1-D2: tile-gap groove now reads `theme.mortar` (a HUED dark — warm umber W1 /
+  deep sea-green W2 / wine W3 / void-blue W4) instead of the old per-tile cool
+  near-black, and each plate gets a baked 1px accent-tinted TOP-edge rim-light
+  (`theme.edgeLight`, a=0.18) drawn at y=2.5 over x∈[5,43]. Seam contract held
+  exactly: every 48×48 edge pixel (x=0/47, y=0/47) stays pure mortar on all four
+  sides; plate inset + silhouette unchanged. Verified at 2x zoom (s1-seams.png)
+  — grooves read as clean lines, no edge discontinuities.
+- S1-D3: WORLD_THEMES tonal range widened per world — bgTop lifted/aired-out,
+  bgBottom deepened (identity hue kept; bgGradient<w> re-bakes automatically from
+  the loop). GFX3 `fade` fields reviewed against the deepened bgBottom: all four
+  authored transition tones still harmonize with the new palette, so NO fade
+  values were changed. G3 accent/accent2 tints are unchanged constants and still
+  read against the lower-saturation backdrops (they now pop MORE, per R9).
