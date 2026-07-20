@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { COLORS } from "../constants.js";
+import { COLORS, WORLD_THEMES } from "../constants.js";
 
 // GFX3 G3: the ONE renderer gate. Every WebGL-only ambience site (halos, cones,
 // tints, dark-zone glow) routes through this — no ad-hoc renderer.type checks
@@ -213,6 +213,130 @@ export function ditherRect(g, w, h) {
   for (let i = 0; i < n; i++) {
     g.fillStyle(i & 1 ? 0xffffff : 0x000000, 0.03);
     g.fillRect((Math.random() * w) | 0, (Math.random() * h) | 0, 1, 1);
+  }
+}
+
+// --- GFX5 S3: parallax-band + atmosphere bake recipes ------------------------
+// The three-band silhouette depth (far / mid / near) plus the drifting-haze
+// layer are single-sourced here as pure-draw helpers (matching the paint.js
+// contract: paint into a `g` you own, return nothing) so the SAME per-world
+// recipe bakes identically at BOTH bake sites — W1/W2 in BootScene, W3/W4 lazily
+// in GameScene.ensureW3/W4Textures. Every one of these is WebGL-only: the bake
+// itself is gated by `isWebGL` at both call sites (matching the G3 lightCone
+// gated-bake precedent), so the Canvas reference tier never even creates the
+// textures and its layer set stays byte-identical to today's single mid strip.
+//
+// SEAM DISCIPLINE (both strips are 512×864 tileSprites that tile horizontally):
+// all discrete shapes are kept clear of the x=0 / x=512 wrap edges, and any
+// full-width element is constant along x — so the strip meets itself seamlessly,
+// exactly like the existing propStrip<n> bakes.
+
+// A tiny allocation-free seeded PRNG (mulberry32-ish), matching the propStrip
+// bake convention (deterministic layout, never Math.random for placement, R4).
+function bandRnd(seed) {
+  let s = seed | 0;
+  return () => {
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// FAR band: the darkest, hulking simple mega-shapes (distant towers / silos /
+// ducts). Tone = the world accent heavily DESATURATED then deeply DARKENED, so
+// the far mass sits at the very bottom of the S1 value+saturation hierarchy and
+// recedes below the mid band. Placed at scrollFactor ~0.18, just above the
+// gradient. 512×864.
+export function farStrip(g, world) {
+  const theme = WORLD_THEMES[world] || WORLD_THEMES[1];
+  const tone = scale(desat(theme.accent, 0.55), 0.15); // near-silhouette dark mass
+  const edge = scale(desat(theme.accent, 0.45), 0.26); // a hair-lighter top rim (distant sky-catch)
+  const rnd = bandRnd(700 + world);
+  const H = 864;
+  // one full-width distant conduit band high up (constant along x → tiles)
+  g.fillStyle(tone, 1).fillRect(0, 116, 512, 24);
+  g.fillStyle(edge, 1).fillRect(0, 116, 512, 3);
+  // 3 big towers/silos rising from the floor, kept clear of the wrap edges
+  const towers = [
+    { x: 44, w: 92, top: 258, cap: 0 },
+    { x: 210, w: 122, top: 176, cap: 1 },
+    { x: 372, w: 100, top: 322, cap: 0 },
+  ];
+  towers.forEach((t) => {
+    g.fillStyle(tone, 1).fillRect(t.x, t.top, t.w, H - t.top);
+    g.fillStyle(edge, 1).fillRect(t.x, t.top, t.w, 4); // top rim
+    if (t.cap === 0) {
+      // domed silo cap
+      g.fillStyle(tone, 1).fillRoundedRect(t.x + t.w * 0.18, t.top - 30, t.w * 0.64, 36, 12);
+    } else {
+      // chimney/duct stack + a squat drum
+      g.fillStyle(tone, 1).fillRect(t.x + 14, t.top - 52, 16, 52);
+      g.fillStyle(tone, 1).fillRoundedRect(t.x + t.w - 40, t.top - 24, 34, 26, 8);
+    }
+    // a couple of faint horizontal banding lines so the mass isn't flat
+    g.fillStyle(edge, 0.5);
+    for (let by = t.top + 60; by < H - 40; by += 90) g.fillRect(t.x, by, t.w, 2);
+  });
+}
+
+// NEAR band: larger but SPARSER structures with small accent-lit window /
+// indicator dots. Fills stay desaturated (S1); the dots use the world accent (a
+// low-alpha halo + a brighter core) since they read as distant lit windows.
+// Placed at scrollFactor ~0.6, above the mid band, below fog/terrain. 512×864.
+export function nearStrip(g, world) {
+  const theme = WORLD_THEMES[world] || WORLD_THEMES[1];
+  const tone = scale(desat(theme.accent, 0.32), 0.30);
+  const edge = scale(desat(theme.accent, 0.32), 0.48);
+  const lit = theme.accent;
+  const warm = theme.warmth;
+  const rnd = bandRnd(900 + world);
+  const H = 864;
+  // two big near structures, widely spaced (SPARSE), clear of the wrap edges
+  const blocks = [
+    { x: 34, w: 148, top: 452 },
+    { x: 326, w: 158, top: 520 },
+  ];
+  blocks.forEach((b) => {
+    g.fillStyle(tone, 1).fillRect(b.x, b.top, b.w, H - b.top);
+    g.fillStyle(edge, 1).fillRect(b.x, b.top, b.w, 5); // lit roof edge
+    // sparse window/indicator dot grid — accent-lit at low alpha (distant lights)
+    for (let wy = b.top + 24; wy < H - 24; wy += 42) {
+      for (let wx = b.x + 18; wx < b.x + b.w - 14; wx += 36) {
+        if (rnd() < 0.42) {
+          g.fillStyle(lit, 0.14).fillRect(wx - 2, wy - 2, 10, 10); // soft window halo
+          g.fillStyle(lit, 0.5).fillRect(wx + 1, wy + 1, 4, 4);    // lit core
+        }
+      }
+    }
+    // a mast/antenna + beacon on the roof
+    const mx = b.x + b.w * 0.5;
+    g.fillStyle(tone, 1).fillRect(mx - 3, b.top - 42, 6, 42);
+    g.fillStyle(warm, 0.16).fillCircle(mx, b.top - 42, 6);
+    g.fillStyle(warm, 0.75).fillCircle(mx, b.top - 42, 2.6); // beacon
+  });
+}
+
+// ATMO band: a 256×140 field of soft, low-alpha wisps, per-world tinted (warm
+// haze W1, steam W2, spore mist W3, void wisps W4). FULLY TRANSPARENT at the
+// left/right edges (all wisp centres held inside [86,170] with capped radii) so
+// the drifting tileSprite (tilePositionX tween) wraps seamlessly. Baked faint;
+// the layer alpha is capped ≤0.10 at add time.
+export function atmoBand(g, world) {
+  const theme = WORLD_THEMES[world] || WORLD_THEMES[1];
+  const tint = { 1: theme.warmth, 2: 0xcfeee4, 3: theme.accent2, 4: theme.accent }[world] || theme.warmth;
+  const rnd = bandRnd(500 + world);
+  for (let i = 0; i < 10; i++) {
+    const cx = 86 + rnd() * 84;   // [86,170] → with rw≤56 stays inside [30,226]
+    const cy = 22 + rnd() * 96;
+    const rw = 30 + rnd() * 26;   // half-width 30..56
+    const rh = 12 + rnd() * 14;
+    const steps = 4;
+    for (let k = 0; k < steps; k++) {
+      const t = k / (steps - 1); // 0 outer → 1 inner
+      g.fillStyle(tint, 0.04 + 0.14 * t);
+      g.fillEllipse(cx, cy, rw * 2 * (1 - 0.62 * t), rh * 2 * (1 - 0.62 * t));
+    }
   }
 }
 

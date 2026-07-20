@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { COLORS, WORLD_THEMES, PARTICLES } from "../constants.js";
-import { softBody, specular, sheen, haloCircle, ringGlow, fakeRadial, glowShape, iconChip, iconGlow, ditherRect, desat, isWebGL } from "../ui/paint.js";
+import { softBody, specular, sheen, haloCircle, ringGlow, fakeRadial, glowShape, iconChip, iconGlow, ditherRect, desat, isWebGL, farStrip, nearStrip, atmoBand } from "../ui/paint.js";
 import { CURSOR_URI, CURSOR_HOTSPOT } from "../ui/cursor.js";
 
 // Every texture in the game is generated here with Graphics — zero asset files.
@@ -712,6 +712,20 @@ export default class BootScene extends Phaser.Scene {
       g.fillStyle(WORLD_THEMES[2].accent3, 0.5); // brass pilot flames along the low pipe
       for (let x = 60; x < STRIP_W - 40; x += 128) g.fillRect(x, 466, 4, 6);
     });
+
+    // GFX5 S3: the FAR + NEAR parallax silhouette bands and the drifting-atmo
+    // wisp band for W1/W2 (W3/W4 bake lazily in GameScene.ensureW3/W4Textures).
+    // The BAKE ITSELF is WebGL-gated (R1) — the Canvas reference tier never
+    // creates these textures, so its backdrop keeps only the single mid strip,
+    // matching the G3 lightCone gated-bake precedent. Recipes are single-sourced
+    // in paint.js (farStrip/nearStrip/atmoBand) so both bake sites stay identical.
+    if (isWebGL(this)) {
+      for (const w of [1, 2]) {
+        make(`propfar${w}`, STRIP_W, STRIP_H, (g) => farStrip(g, w));
+        make(`propnear${w}`, STRIP_W, STRIP_H, (g) => nearStrip(g, w));
+        make(`atmo${w}`, 256, 140, (g) => atmoBand(g, w));
+      }
+    }
 
     // GFX3 G4: foreground occlusion silhouettes — ONE neutral near-black family
     // (not per-world; the shapes are near-black so a world tint is imperceptible,

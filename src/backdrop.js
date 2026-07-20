@@ -77,6 +77,81 @@ export function addPropStrip(scene, world) {
     .setDepth(DEPTH.bg - 5);
 }
 
+// --- GFX5 S3: three-band parallax depth (WebGL only) -------------------------
+// The single silhouette prop strip (addPropStrip above) becomes the MID band.
+// These add the FAR and NEAR bands + a drifting atmosphere layer. ALL are gated
+// to WebGL at the call site (GameScene.buildBackground) — the Canvas reference
+// tier keeps only the single mid strip, byte-identical to today. Textures are
+// pre-baked (BootScene W1/W2, GameScene.ensureW3/W4Textures W3/W4); these helpers
+// only add cached tileSprites/images (zero per-frame allocation, R3).
+
+// FAR band: the darkest hulking mega-silhouettes, farthest back. scrollFactor
+// ~0.18 (moves least), depth just above the gradient and BELOW the parallax
+// grids — the most distant plane. Full world height (864) so it never repeats
+// vertically; width covers the parallaxed viewport.
+export function addFarStrip(scene, world) {
+  const key = scene.textures.exists(`propfar${world}`) ? `propfar${world}` : "propfar1";
+  if (!scene.textures.exists(key)) return null;
+  const W = scene.scale.width;
+  return scene.add
+    .tileSprite(-W, 0, scene.worldW + 2 * W, 864, key)
+    .setOrigin(0, 0)
+    .setScrollFactor(0.18)
+    .setAlpha(0.55)
+    .setDepth(DEPTH.bg - 9.5); // above gradient (bg-10), below the far grid (bg-9)
+}
+
+// NEAR band: larger, sparser structures with accent-lit windows. scrollFactor
+// ~0.6 (moves most of the three bands), depth ABOVE the mid strip (bg-5) and
+// BELOW the fog band (bg-4) / terrain.
+export function addNearStrip(scene, world) {
+  const key = scene.textures.exists(`propnear${world}`) ? `propnear${world}` : "propnear1";
+  if (!scene.textures.exists(key)) return null;
+  const W = scene.scale.width;
+  return scene.add
+    .tileSprite(-W, 0, scene.worldW + 2 * W, 864, key)
+    .setOrigin(0, 0)
+    .setScrollFactor(0.6)
+    .setAlpha(0.42)
+    .setDepth(DEPTH.bg - 4.5);
+}
+
+// Drifting atmosphere: ONE per-world tinted wisp band (256×140 texture) at
+// scrollFactor ~0.25, alpha ≤0.10, with a very slow tilePositionX tween (60-90s
+// full loop, repeat -1) created ONCE at build — the only new animation this
+// sprint, no update-loop work (R3). Additive only where it reads better per
+// world (W4 void stays NORMAL blend so the near-black datacenter doesn't glow).
+export function addAtmo(scene, world) {
+  const key = scene.textures.exists(`atmo${world}`) ? `atmo${world}` : "atmo1";
+  if (!scene.textures.exists(key)) return null;
+  const cfg = {
+    1: { alpha: 0.09, additive: true, loopMs: 78000 },  // warm haze
+    2: { alpha: 0.07, additive: true, loopMs: 82000 },  // steam
+    3: { alpha: 0.09, additive: true, loopMs: 72000 },  // spore mist
+    4: { alpha: 0.10, additive: false, loopMs: 88000 }, // void wisps (normal blend, dark world)
+  }[world] || { alpha: 0.09, additive: true, loopMs: 78000 };
+  const W = scene.scale.width;
+  const H = scene.scale.height;
+  const bandH = Math.round(H * 0.62); // upper band; behind terrain, so only shows in backdrop gaps
+  const TW = 256; // atmo texture width == the seamless drift period
+  const ts = scene.add
+    .tileSprite(-W, 0, scene.worldW + 2 * W, bandH, key)
+    .setOrigin(0, 0)
+    .setTileScale(1, bandH / 140) // stretch vertically to the band (no vertical repeat); X period stays 256
+    .setScrollFactor(0.25)
+    .setAlpha(cfg.alpha)
+    .setDepth(DEPTH.bg - 6.5); // behind the mid strip + near band, in front of the glow blobs
+  if (cfg.additive) ts.setBlendMode(Phaser.BlendModes.ADD);
+  scene.tweens.add({
+    targets: ts,
+    tilePositionX: TW, // one texture width → seamless wrap; linear, no yoyo
+    duration: cfg.loopMs,
+    ease: "linear",
+    repeat: -1,
+  });
+  return ts;
+}
+
 // GFX3 G4: sparse near-camera FOREGROUND occlusion silhouettes (BOTH tiers —
 // cached dark images, no per-frame work). At DEPTH.foreground (above players)
 // so they pass IN FRONT of the buddies for a depth read.

@@ -231,3 +231,48 @@ Goal: every level recognizable at a glance ("the room with the...").
   7/8 green, the single FAIL being the DOCUMENTED 2-2 fan-step container flake
   (T-down-in-the-yard) — 2-2 re-run alone came back 2/2 green, confirming the
   flake, not a new failure mode. Zero page errors across all runs.
+- S3-D1: the single silhouette prop strip is split into THREE parallax bands, all
+  WebGL-only. FAR = new baked `propfar<w>` 512×864 (darkest, hulking towers/silos/
+  ducts — accent desat 0.55 then scale 0.15) at scrollFactor 0.18, depth bg-9.5
+  (above the gradient, below the parallax grids), alpha 0.55. MID = today's
+  existing `propStrip<w>` UNCHANGED (scrollFactor 0.55, depth bg-5, alpha 0.35) —
+  it becomes the mid band, kept byte-exact per the sprint directive. NEAR = new
+  baked `propnear<w>` 512×864 (larger, SPARSER structures with accent-lit window/
+  indicator dots — desat fills, dots use theme.accent at a≈0.14 halo + 0.5 core)
+  at scrollFactor 0.6, depth bg-4.5 (above mid, below fog/terrain), alpha 0.42.
+  The three recipes are single-sourced as pure-draw helpers in paint.js
+  (`farStrip`/`nearStrip`/`atmoBand`) so BOTH bake sites (W1/W2 in BootScene, W3/W4
+  in ensureW3/W4Textures) stay identical; every bake AND every placement is gated
+  by isWebGL (matching the G3 lightCone gated-bake precedent), so the Canvas
+  reference tier never creates the textures nor the objects. Seam discipline held:
+  all discrete shapes kept clear of the x=0/512 wrap edges, full-width elements
+  constant along x — the strips tile horizontally seamlessly like propStrip<w>.
+  NOTE: mid(0.55)→near(0.60) is only a 0.05 separation because mid was pinned to
+  today's strip (the plan's intended mid 0.38 was overridden by "strip stays as-
+  is"); FAR (0.18) supplies the dramatic depth step. Measured on W2 over a 400px
+  camera pan (zoom 1): far 72px, mid 220px, near 240px on-screen — three distinct
+  rates, far near-stationary while terrain sweeps the full 400px.
+- S3-D2: drifting atmosphere — ONE `atmo<w>` band per world (baked 256×140 soft
+  wisps, fully transparent at the left/right edges so the tileSprite drifts
+  seamlessly), scrollFactor 0.25, depth bg-6.5 (behind mid+near, in front of the
+  glow blobs), vertical band = 0.62·viewport via tileScaleY (no vertical repeat).
+  Per-world tint: warm haze W1 (warmth), steam W2 (0xcfeee4), spore mist W3
+  (accent2), void wisps W4 (accent). ONE slow tilePositionX tween per level,
+  created at build (linear, repeat -1, no yoyo, one texture-width loop): W1 78s /
+  W2 82s / W3 72s / W4 88s — the only new animation this sprint, no update-loop
+  work (R3). Blend: ADD for W1/W2/W3; NORMAL for W4 (the near-black datacenter
+  reads better as un-glowing haze than as additive light). Alpha ≤0.10 shipped:
+  W1 0.09, W2 0.07, W3 0.09, W4 0.10.
+- S3-D3: composition check — with G3 cones + G4 weather + the new far/near bands +
+  atmo all on (WebGL), eyeballed all four per-world shots (tools/shots/gfx5s3):
+  NO additive stacking hot-spots. W2 atmo was PRE-EMPTIVELY set lowest (0.07,
+  vs 0.09 elsewhere) because W2 already stacks the most additive layers (fog band
+  + drips + wider W2 light pools); with that cut the combined read stays clean, so
+  no further alpha tuning was needed and the D2 values ship as-is.
+- S3-D4: Canvas invariance by construction — because every bake and every
+  placement is isWebGL-gated, the Canvas backdrop keeps ONLY today's layer set.
+  Verified: on ?canvas=1 the far/near/atmo objects are absent (propFar/propNear/
+  atmo all falsy) AND their textures were never created (propfar<w>/propnear<w>/
+  atmo<w> exist=false), while the mid strip is present — s3-w2-canvas.png matches
+  the pre-S3 look. Suites: playtest 42/42 green (Canvas — proves the gate); beat
+  3-2 A+B 2/2 green. Zero page errors on both tiers.

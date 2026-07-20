@@ -1,13 +1,13 @@
 import Phaser from "phaser";
 import { TILE, COLORS, PHYS, DEPTH, SKILL_INFO, WORLD_THEMES, FADE_NAVY, FONT, FONT_DISPLAY, FS, TEXT, PARTICLES } from "../constants.js";
-import { ringGlow, glowShape, iconChip, iconGlow, softBody, sheen, glassPanel, GLASS_HI, desat, isWebGL } from "../ui/paint.js";
+import { ringGlow, glowShape, iconChip, iconGlow, softBody, sheen, glassPanel, GLASS_HI, desat, isWebGL, farStrip, nearStrip, atmoBand } from "../ui/paint.js";
 import { LEVELS } from "../levels/registry.js";
 import { makeGrid } from "../levels/builder.js";
 import devW3 from "../levels/dev_w3.js";
 import devW4 from "../levels/dev_w4.js";
 import { completeLevel, loadSave } from "../save.js";
 import { initAudio, sfx, installMute, playTrack, setMusicLayer, playJingle, trackForLevel, setListener, clearListener, proximity, setLoop, stopLoops, pauseDuck, setSadMusic } from "../audio.js";
-import { addGradient, addMotes, addPropStrip, addFogBand, addDrips, addDustShafts, addVignette, addForegroundStrip, addWeather } from "../backdrop.js";
+import { addGradient, addMotes, addPropStrip, addFarStrip, addNearStrip, addAtmo, addFogBand, addDrips, addDustShafts, addVignette, addForegroundStrip, addWeather } from "../backdrop.js";
 import Player from "../objects/Player.js";
 import { uxHints, uxShakeScale, uxFlashScale, saveRecord, fmtTime, markTutorialDone } from "../ux.js";
 import { pads, showPadToast } from "../pad.js";
@@ -993,7 +993,18 @@ export default class GameScene extends Phaser.Scene {
       // additive fog band and the dust-shaft beams are WebGL-only. Pure graphics-
       // quality scaling — no gameplay/meaning-bearing state is renderer-gated.
       const webgl = this.game.renderer.type === Phaser.WEBGL;
-      this.propStrip = addPropStrip(this, world); // cached silhouette strip — both tiers
+      this.propStrip = addPropStrip(this, world); // cached silhouette strip = MID band — both tiers
+      // GFX5 S3: three-band parallax depth — the FAR + NEAR silhouette bands and
+      // the drifting atmosphere layer, ALL WebGL-only (R1; Canvas keeps only the
+      // single mid strip above, byte-identical to today). Their textures are
+      // WebGL-gated bakes (BootScene W1/W2, ensureW3/W4Textures W3/W4), so they
+      // exist only on this tier. Depths are explicit (far bg-9.5 < grids < mid
+      // bg-5 < near bg-4.5 < fog), so creation order here doesn't matter.
+      if (webgl) {
+        this.propFar = addFarStrip(this, world);   // FAR: darkest mega-shapes, scrollFactor 0.18
+        this.propNear = addNearStrip(this, world); // NEAR: sparse lit structures, scrollFactor 0.6
+        this.atmo = addAtmo(this, world);          // drifting haze, scrollFactor 0.25, one slow tween
+      }
       if (webgl) addDustShafts(this, world); // additive beams — WebGL tier only
       if (world === 2) {
         if (webgl) this.fogStrips = addFogBand(this); // additive fog — WebGL tier only
@@ -7745,6 +7756,14 @@ export default class GameScene extends Phaser.Scene {
       g.fillStyle(edge, 1);
       for (let x = 145; x < 360; x += 30) g.fillRect(x, beamY + 14, 6, 12 + Math.floor(rnd() * 12));
     });
+    // GFX5 S3: W3 FAR + NEAR parallax bands + drifting-atmo wisp band. WebGL-gated
+    // bake (R1, lightCone precedent) — Canvas never creates them. Recipes single-
+    // sourced in paint.js so W3 stays identical to the W1/W2 Boot bakes.
+    if (isWebGL(this)) {
+      make("propfar3", 512, 864, (g) => farStrip(g, 3));
+      make("propnear3", 512, 864, (g) => nearStrip(g, 3));
+      make("atmo3", 256, 140, (g) => atmoBand(g, 3));
+    }
   }
 
   // W3W4 L33: the SCRAP STORM texture set (3-3 only), baked lazily with its own
@@ -8156,6 +8175,13 @@ export default class GameScene extends Phaser.Scene {
         g.fillRect(150 + Math.floor(rnd() * 210), 480 + Math.floor(rnd() * 130), 2, 2);
       }
     });
+    // GFX5 S3: W4 FAR + NEAR parallax bands + drifting void-wisp atmo band.
+    // WebGL-gated bake (R1, lightCone precedent) — Canvas never creates them.
+    if (isWebGL(this)) {
+      make("propfar4", 512, 864, (g) => farStrip(g, 4));
+      make("propnear4", 512, 864, (g) => nearStrip(g, 4));
+      make("atmo4", 256, 140, (g) => atmoBand(g, 4));
+    }
   }
 
   // W3W4 L43: the KOBI-heart finale texture set (4-3 only), baked lazily with
