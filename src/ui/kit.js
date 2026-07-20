@@ -145,7 +145,9 @@ export function chipRow(scene, cx, y, items, colNum, colStr) {
   for (const p of parts) {
     const mid = x + p.w / 2;
     if (p.t) {
-      scene.add.text(mid, y, p.t, { fontFamily: FONT, fontSize: FS.mini, color: TEXT.dim }).setOrigin(0.5);
+      // GFX4 F4c: pixel-snap the caption x (mid is fractional for odd part widths)
+      // so the FS.mini menu-footer label renders crisp, not straddling a pixel.
+      scene.add.text(Math.round(mid), y, p.t, { fontFamily: FONT, fontSize: FS.mini, color: TEXT.dim }).setOrigin(0.5);
     } else {
       keyCap(scene, mid, y, p.k, colNum, colStr);
     }
@@ -190,15 +192,17 @@ export function springFocus(scene, go, opts = {}) {
 }
 
 // --- maskless iris wipe -------------------------------------------------------
-// A KOBI iris transition drawn WITHOUT a mask: a single very-thick black ring
-// whose inner radius is `r`. With a thickness larger than the screen diagonal the
-// stroke fills everything OUTSIDE radius `r`, so shrinking `r` closes the iris to
-// black and growing it opens back to the scene. Identical on Canvas + WebGL, one
-// strokeCircle per frame (cheap), zero allocations after the Graphics is made.
-export function drawIris(g, cx, cy, r) {
+// A KOBI iris transition drawn WITHOUT a mask: a single very-thick ring whose
+// inner radius is `r`. With a thickness larger than the screen diagonal the stroke
+// fills everything OUTSIDE radius `r`, so shrinking `r` closes the iris and growing
+// it opens back to the scene. Identical on Canvas + WebGL, one strokeCircle per
+// frame (cheap), zero allocations after the Graphics is made. `fill` defaults to
+// the near-black navy; GFX4 F4b passes a world-fade tint for level-entry wipes so
+// the close colour matches the Game scene's world-tinted fade-in.
+export function drawIris(g, cx, cy, r, fill = 0x040614) {
   const D = 1700; // > the 1280x720 diagonal (~1468): the stroke reaches every corner
   g.clear();
-  g.lineStyle(D, 0x040614, 1);
+  g.lineStyle(D, fill, 1);
   g.strokeCircle(cx, cy, Math.max(0, r) + D / 2);
 }
 
@@ -207,4 +211,37 @@ export function irisMaxR(scene, cx, cy) {
   const W = scene.scale.width, H = scene.scale.height;
   const dx = Math.max(cx, W - cx), dy = Math.max(cy, H - cy);
   return Math.hypot(dx, dy) + 24;
+}
+
+// GFX4 F4b: run ONE iris wipe (open or close) with correct per-transition
+// lifecycle. Creates a fresh overlay Graphics, tweens the radius `from`->`to`, and
+// redraws the ring each frame (the accepted transient cost — matches the original
+// hub iris). The overlay is created PER TRANSITION and DESTROYED on its own
+// completion; a scene-`shutdown` hook also destroys it and kills the tween, so a
+// mid-wipe death / scene swap can never strand a black overlay. `onComplete` (the
+// scene.start hand-off for a close) runs AFTER cleanup, same frame — no flash.
+export function runIris(scene, opts = {}) {
+  const {
+    cx, cy, from, to, duration = 250, ease = "sine.inOut",
+    fill = 0x040614, depth = 999, onComplete,
+  } = opts;
+  const g = scene.add.graphics().setDepth(depth).setScrollFactor(0);
+  const st = { r: from };
+  drawIris(g, cx, cy, from, fill);
+  let done = false;
+  const cleanup = () => {
+    if (done) return;
+    done = true;
+    scene.tweens.killTweensOf(st);
+    if (g && g.scene) g.destroy();
+    scene.sys.events.off("shutdown", cleanup);
+    scene.sys.events.off("destroy", cleanup);
+  };
+  scene.sys.events.once("shutdown", cleanup);
+  scene.sys.events.once("destroy", cleanup);
+  scene.tweens.add({
+    targets: st, r: to, duration, ease,
+    onUpdate: () => { if (!done && g.scene) drawIris(g, cx, cy, st.r, fill); },
+    onComplete: () => { cleanup(); if (onComplete) onComplete(); },
+  });
 }

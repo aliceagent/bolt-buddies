@@ -4,7 +4,7 @@ import { LEVELS } from "../levels/registry.js";
 import { sfx, installMute, duckMusic, playForText, stopVO } from "../audio.js";
 import { uxTextSpeed } from "../ux.js";
 import { pads } from "../pad.js";
-import { drawIris, irisMaxR } from "../ui/kit.js";
+import { irisMaxR, runIris } from "../ui/kit.js";
 import { MOTION } from "../anim/motion.js";
 import { ringGlow, glassPanel, sheen, GLASS_HI } from "../ui/paint.js";
 
@@ -78,9 +78,12 @@ export default class UIScene extends Phaser.Scene {
     // intro banner); real levels keep the "<id> · <NAME>" plate.
     const plateStr = lvl.tutorial ? lvl.name.toUpperCase() : `${lvl.id} · ${lvl.name.toUpperCase()}`;
     const plateBg = this.add.graphics();
+    // GFX4 F4c: crispen the top-center level pill. Position is already pixel-snapped
+    // (W/2, 13 are integers); setResolution(2) renders the glyph texture at 2x for
+    // a sharper small pill (measured <2fps Canvas cost — F4-D3).
     this.plateText = this.add.text(W / 2, 13, plateStr, {
       fontFamily: FONT, fontSize: FS.body, fontStyle: "bold", color: "#cdd8f5",
-    }).setOrigin(0.5, 0);
+    }).setOrigin(0.5, 0).setResolution(2);
     const tw = this.plateText.width;
     // GFX2 "Lumen Lab" glass plates: translucent fill + sheen + top-edge lip.
     glassPanel(plateBg, { x: W / 2 - tw / 2 - 16, y: 9, w: tw + 32, h: 26, r: 9, accent: theme.accent, fillA: 0.72, borderW: 1, borderA: 0.42, glow: false });
@@ -421,12 +424,12 @@ export default class UIScene extends Phaser.Scene {
       else this.scene.start("Hub", { sel: next, unlock, iris: true });
       this.scene.stop();
     };
-    // P10: KOBI iris-wipe for the normal game->hub clear — a black iris closing on
-    // the exit door (Hub opens it on the destination node). WebGL only; the
-    // suites run Canvas and take the byte-identical 250ms fade below, so the
-    // transition timing / scene-key sequence they observe is unchanged. Tutorial
-    // (->Title/Hub) also keeps the plain fade.
-    if (this._webgl && !tut) {
+    // GFX4 F4b: KOBI iris-wipe for the normal game->hub clear — a black iris
+    // closing on the exit door (Hub opens it on the destination node). Now runs on
+    // BOTH tiers (Canvas iris measured to hold >=40fps); 250ms == the fade it
+    // replaces, so the transition timing / scene-key sequence a kit observes is
+    // unchanged. Tutorial (->Title/Hub) keeps the plain fade.
+    if (!tut) {
       this.irisCloseToDoor(swap);
     } else {
       // the UI camera fade paints fullscreen black over both scenes (UI renders
@@ -502,8 +505,11 @@ export default class UIScene extends Phaser.Scene {
     this.confetti.emitParticleAt(W / 2, H / 2 - 150, this._webgl ? 54 : 32);
   }
 
-  // P10: iris close on the exit-door screen position (game->hub clear, WebGL).
-  // Maskless single thick ring (see ui-kit drawIris) — cheap, ≤300ms.
+  // GFX4 F4b: iris close on the exit-door screen position (game->hub clear, BOTH
+  // tiers). Drawn in UIScene (renders ABOVE Game) so the wipe covers the HUD too.
+  // 250ms == the fade it replaces (timing-neutral). runIris owns the overlay's
+  // per-transition create/destroy + scene-shutdown cleanup so a mid-wipe shutdown
+  // can never strand it; `done` (the scene.stop/start hand-off) fires on complete.
   irisCloseToDoor(done) {
     const W = this.scale.width, H = this.scale.height;
     let cx = W / 2, cy = H / 2;
@@ -513,14 +519,7 @@ export default class UIScene extends Phaser.Scene {
       cx = Phaser.Math.Clamp((G.exitDoor.zone.centerX - cam.worldView.x) * cam.zoom, 0, W);
       cy = Phaser.Math.Clamp((G.exitDoor.baseY - cam.worldView.y) * cam.zoom, 0, H);
     }
-    const g = this.add.graphics().setDepth(999).setScrollFactor(0);
-    const st = { r: irisMaxR(this, cx, cy) };
-    drawIris(g, cx, cy, st.r);
-    this.tweens.add({
-      targets: st, r: 0, duration: 300, ease: "sine.in",
-      onUpdate: () => drawIris(g, cx, cy, st.r),
-      onComplete: done,
-    });
+    runIris(this, { cx, cy, from: irisMaxR(this, cx, cy), to: 0, duration: 250, ease: "sine.in", onComplete: done });
   }
 
   // One translucent player panel: skill-icon chip + name + skill line + key-cap.
@@ -842,8 +841,10 @@ export default class UIScene extends Phaser.Scene {
     let x = 16;
     segs.forEach((s) => {
       this.drawKeycap(g, x, y, s.kw, 20, 0x5a6a99, 0.7);
-      this.add.text(x + s.kw / 2, y + 10, s.key, { fontFamily: FONT, fontSize: FS.mini, fontStyle: "bold", color: "#9fb0da" }).setOrigin(0.5);
-      const lbl = this.add.text(x + s.kw + 6, y + 10, s.label, { fontFamily: FONT, fontSize: FS.mini, color: "#5a6688" }).setOrigin(0, 0.5);
+      // GFX4 F4c: pixel-snap the FS.mini hint text (x accumulates fractional label
+      // widths across the row) so each chip's glyphs stay crisp.
+      this.add.text(Math.round(x + s.kw / 2), y + 10, s.key, { fontFamily: FONT, fontSize: FS.mini, fontStyle: "bold", color: "#9fb0da" }).setOrigin(0.5);
+      const lbl = this.add.text(Math.round(x + s.kw + 6), y + 10, s.label, { fontFamily: FONT, fontSize: FS.mini, color: "#5a6688" }).setOrigin(0, 0.5);
       x += s.kw + 8 + lbl.width + 14;
     });
   }

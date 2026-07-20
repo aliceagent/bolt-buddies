@@ -7,7 +7,7 @@ import { addGradient, addMotes } from "../backdrop.js";
 import { initAudio, sfx, installMute, playTrack, playJingle } from "../audio.js";
 import { pads, showPadToast } from "../pad.js";
 import { drawWorldIcon } from "../worldIcons.js";
-import { drawIris, irisMaxR } from "../ui/kit.js";
+import { irisMaxR, runIris } from "../ui/kit.js";
 import { MOTION } from "../anim/motion.js";
 import { ringGlow, glassPanel, fakeRadial, specular } from "../ui/paint.js";
 
@@ -39,12 +39,10 @@ export default class HubScene extends Phaser.Scene {
     addGradient(this, 1);
     this.add.tileSprite(0, 0, W, H, "bggrid").setOrigin(0).setAlpha(0.22).setDepth(-8);
     addMotes(this, WORLD_THEMES[1].accent2);
-    // P10: a KOBI iris OPENS on the destination node when we arrive from a level
-    // clear (WebGL only; the suites run Canvas and take the plain fade-in so their
-    // transition timing is unchanged). The iris-open is triggered at the end of
-    // create() once node positions exist.
-    this._webglIris = this.fromClear && this.game.renderer.type === Phaser.WEBGL;
-    if (!this._webglIris) this.cameras.main.fadeIn(250, 4, 6, 20); // 250ms fade-in on entry
+    // GFX4 F4b: a KOBI iris OPENS on the destination node on EVERY hub arrival
+    // (both tiers — the Canvas iris cost was measured to hold >=40fps). Replaces
+    // the plain fade-in; the iris is triggered at the end of create() once node
+    // positions exist (it covers the screen from the first render, so no flash).
     this.add.text(W / 2, 46, "DYNACORE LABS — SECTOR MAP", {
       fontFamily: FONT_DISPLAY, fontSize: FS.h3, fontStyle: "bold", color: TEXT.neon,
     }).setOrigin(0.5);
@@ -67,12 +65,28 @@ export default class HubScene extends Phaser.Scene {
       // a wing reads "online" once any of its chambers is unlocked; otherwise it
       // gets the deliberate static / no-signal treatment.
       const worldUnlocked = (wi * 3) < this.save.unlocked;
+      // GFX4 F4a: world PREVIEW poster behind the panel, UNDER the glass so the
+      // frosted glass treatment reads over it. Lit variant (≈0.35) for online
+      // wings; the baked DIM variant for sealed wings (darker+muted baked in — no
+      // runtime tint, Canvas-safe). Inset by the panel radius (12) so the strip's
+      // square corners stay under the rounded glass fill (no corner poke-out).
+      const pvIn = 12;
+      const pvKey = worldUnlocked ? `worldPreview${wi + 1}` : `worldPreviewDim${wi + 1}`;
+      if (this.textures.exists(pvKey)) {
+        this.add.image(px + pvIn, py + pvIn, pvKey)
+          .setOrigin(0, 0)
+          .setDisplaySize(panelW - pvIn * 2, panelH - pvIn * 2)
+          .setAlpha(worldUnlocked ? 0.42 : 0.42);
+      }
       const g = this.add.graphics();
       if (worldUnlocked) {
         // GFX2 "Lumen Lab" (V7): online wing = frosted glass panel (fill+sheen+
         // top-lip+accent glow ring), then an accent header bar + faint body wash.
+        // GFX4 F4a: fill dialled 0.85->0.66 so the world PREVIEW poster behind it
+        // reads THROUGH the (now genuinely frosted) glass; the glass treatment
+        // (sheen/lip/border/glow/header) still reads over the poster.
         glassPanel(g, {
-          x: px, y: py, w: panelW, h: panelH, r: 12, fill: COLORS.panel, fillA: 0.85,
+          x: px, y: py, w: panelW, h: panelH, r: 12, fill: COLORS.panel, fillA: 0.66,
           accent, borderW: 2, borderA: 0.9, glow: true, glowA: 0.14,
         });
         g.fillStyle(accent, 0.9).fillRoundedRect(px, py, panelW, 34, { tl: 12, tr: 12, bl: 0, br: 0 });
@@ -183,7 +197,7 @@ export default class HubScene extends Phaser.Scene {
 
     installMute(this);
 
-    if (this._webglIris) this.irisOpenFromNode();
+    this.irisOpenFromNode();
 
     // map-room music (crossfades from a level track); if we arrived here having
     // just unlocked a new chamber, ring the unlock fanfare over the hub track.
@@ -310,17 +324,12 @@ export default class HubScene extends Phaser.Scene {
     });
   }
 
-  // P10: a KOBI iris opens on the destination node (mirrors the game-side close).
+  // GFX4 F4b: a KOBI iris opens on the destination node (mirrors the game-side
+  // close). 250ms — matched to the fade-in it replaces so hub arrival timing is
+  // unchanged. runIris owns the per-transition create/destroy + shutdown cleanup.
   irisOpenFromNode() {
     const n = this.nodes[this.sel] || { x: this.scale.width / 2, y: this.scale.height / 2 };
-    const g = this.add.graphics().setDepth(999).setScrollFactor(0);
-    const st = { r: 0 };
-    drawIris(g, n.x, n.y, 0);
-    this.tweens.add({
-      targets: st, r: irisMaxR(this, n.x, n.y), duration: 300, ease: "sine.out",
-      onUpdate: () => drawIris(g, n.x, n.y, st.r),
-      onComplete: () => g.destroy(),
-    });
+    runIris(this, { cx: n.x, cy: n.y, from: 0, to: irisMaxR(this, n.x, n.y), duration: 250, ease: "sine.out" });
   }
 
   // Freshly unlocked node: a padlock fades up-and-out while two accent rings
@@ -360,7 +369,10 @@ export default class HubScene extends Phaser.Scene {
   drawClockChip(cx, cy, timeStr, accent) {
     this._u8ChipCount = (this._u8ChipCount || 0) + 1; // probe introspection only
     const accentHex = "#" + accent.toString(16).padStart(6, "0");
-    const t = this.add.text(0, 0, timeStr, { fontFamily: FONT, fontSize: FS.mini, fontStyle: "bold", color: accentHex }).setOrigin(0, 0.5).setVisible(false);
+    // GFX4 F4c: hub records row (best-time chips) — setResolution(2) for a crisp
+    // small record time; its x is pixel-snapped below (measured negligible cost,
+    // hub-only text — F4-D3).
+    const t = this.add.text(0, 0, timeStr, { fontFamily: FONT, fontSize: FS.mini, fontStyle: "bold", color: accentHex }).setOrigin(0, 0.5).setResolution(2).setVisible(false);
     const cw = 26 + t.width; // clock glyph zone + label
     const x0 = cx - cw / 2;
     const g = this.add.graphics();
@@ -371,7 +383,7 @@ export default class HubScene extends Phaser.Scene {
     g.lineStyle(1.5, accent, 0.95).strokeCircle(gx, cy, 5.5);
     g.lineBetween(gx, cy, gx, cy - 3.5);   // minute hand (up)
     g.lineBetween(gx, cy, gx + 3, cy + 1); // hour hand
-    t.setPosition(x0 + 22, cy).setVisible(true).setDepth(1);
+    t.setPosition(Math.round(x0 + 22), cy).setVisible(true).setDepth(1);
   }
 
   drawNode(g, lvl, unlocked, selected, completed) {
@@ -425,7 +437,9 @@ export default class HubScene extends Phaser.Scene {
   // flicker tween are added by the caller.
   drawLockedPanel(g, px, py, panelW, panelH, accent) {
     g.fillStyle(0x1a2340, 0.95).fillRoundedRect(px, py, panelW, 34, { tl: 12, tr: 12, bl: 0, br: 0 });
-    g.fillStyle(0x0c1226, 0.5).fillRect(px, py + 34, panelW, panelH - 34);
+    // GFX4 F4a: body dark dialled 0.5->0.34 so the baked DIM world preview reads
+    // faintly behind the blueprint grid + padlock (sealed wings stay clearly dim).
+    g.fillStyle(0x0c1226, 0.34).fillRect(px, py + 34, panelW, panelH - 34);
     // blueprint grid
     g.lineStyle(1, 0x22305a, 0.5);
     for (let gx = px + 24; gx < px + panelW - 4; gx += 32) g.lineBetween(gx, py + 36, gx, py + panelH - 4);
@@ -649,13 +663,18 @@ export default class HubScene extends Phaser.Scene {
     }
     this.entering = true;
     sfx.levelEnter();
-    // quick fade transition, then hand off to the level. GFX3 G1: tinted to the
-    // TARGET world's fade (duration unchanged, R6).
+    // GFX4 F4b: hand off to the level through a KOBI iris CLOSE on the selected
+    // node (both tiers). SAME 250ms + SAME scene.start hand-off as the old fade.
+    // GFX3 G1 world-tint is PRESERVED on level entry: the iris closes to the
+    // TARGET world's `fade` colour (drawIris fill), and the Game scene's own
+    // world-tinted fade-in (GameScene create) then opens from that same tint — so
+    // the entry stays world-coloured ("iris-in-tinted", F4b judgment). Unknown
+    // world falls back to the navy iris. Duration unchanged (R6).
     const tf = WORLD_THEMES[n.lvl.world] && WORLD_THEMES[n.lvl.world].fade;
-    const [fr, fg, fb] = tf != null ? [(tf >> 16) & 0xff, (tf >> 8) & 0xff, tf & 0xff] : [4, 6, 20];
-    this.cameras.main.fadeOut(250, fr, fg, fb);
-    this.cameras.main.once("camerafadeoutcomplete", () => {
-      this.scene.start("Game", { levelIndex: n.idx });
+    runIris(this, {
+      cx: n.x, cy: n.y, from: irisMaxR(this, n.x, n.y), to: 0, duration: 250, ease: "sine.in",
+      fill: tf != null ? tf : 0x040614,
+      onComplete: () => this.scene.start("Game", { levelIndex: n.idx }),
     });
   }
 }

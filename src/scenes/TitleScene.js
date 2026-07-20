@@ -6,7 +6,7 @@ import { loadSave, storeSave, totalCores, campaignComplete } from "../save.js";
 import { initAudio, sfx, playTrack, installMute } from "../audio.js";
 import { pads, showPadToast } from "../pad.js";
 import { tutorialDone, uxFlashScale } from "../ux.js";
-import { keyCap as kitKeyCap, chipRow as kitChipRow, neonPanel, addSkyline, springFocus } from "../ui/kit.js";
+import { keyCap as kitKeyCap, chipRow as kitChipRow, neonPanel, addSkyline, springFocus, runIris, irisMaxR } from "../ui/kit.js";
 import { MOTION } from "../anim/motion.js";
 import { ringGlow, specular, glassPanel } from "../ui/paint.js";
 
@@ -597,12 +597,18 @@ export default class TitleScene extends Phaser.Scene {
     }
   }
 
-  // Guarded fade-out to the Hub (250ms), matching every other scene transition.
+  // Guarded transition to the Hub. GFX4 F4b: routed through the KOBI iris (both
+  // tiers — measured to hold >=40fps on Canvas) instead of the plain fade. SAME
+  // 250ms duration and the SAME scene.start hand-off (fired on the iris close's
+  // completion) so any timing observer sees an identical transition.
   gotoHub() {
     if (this.leaving) return;
     this.leaving = true;
-    this.cameras.main.fadeOut(250, 4, 6, 20);
-    this.cameras.main.once("camerafadeoutcomplete", () => this.scene.start("Hub"));
+    const cx = this.scale.width / 2, cy = this.scale.height / 2;
+    runIris(this, {
+      cx, cy, from: irisMaxR(this, cx, cy), to: 0, duration: 250, ease: "sine.in",
+      onComplete: () => this.scene.start("Hub"),
+    });
   }
 
   activate() {

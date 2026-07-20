@@ -355,3 +355,74 @@ R9 (NEW, this round): TEXT-FIT discipline. Any call site switched to the
   favicon 404 console line, per F2-D6). Shots at tools/shots/gfx4/f3-kobi-<mood>{,-settled}.png
   and f3-sign-{far,near}-{canvas,webgl}.png. New QA script tools/snap_gfx4_f3.mjs
   (tools/ originals untouched — R6).
+- F4-D1: hub world-panel PREVIEW art (4a) shipped. BootScene bakes 8 textures ONCE
+  (R3/R4) in the backdrop drawing language at ~1/4 scale: worldPreview1..4 (LIT) +
+  worldPreviewDim1..4 (DIM) — each 280x110 (== panel-interior aspect). Recipe per
+  world: a stepped vertical world gradient (theme.bgTop->bgBottom, de-banded with
+  the shared ditherRect speckle) + a deterministic seeded silhouette skyline along
+  the bottom (accent-darkened) + 3 soft accent/accent2 glow dots (window/antenna
+  lights, baked via layered alpha). The DIM variant is baked DARK+MUTED (each colour
+  pulled 60% toward its own luminance then ×0.5) — NOT a runtime tint (Canvas can't
+  tint; R1). PLACEMENT (HubScene panel loop): the strip Image is added BEFORE the
+  panel Graphics `g` (so the glass renders OVER it), inset by the panel radius (12px)
+  so its square corners stay under the rounded glass fill (no corner poke-out),
+  displaySize (panelW-24 x panelH-24 = 536x211), alpha 0.42; LIT variant for online
+  wings, baked DIM variant for sealed wings. To make the poster READ THROUGH the
+  glass, the online-panel glass fill was dialled 0.85->0.66 (now genuinely frosted)
+  and the sealed-panel body dark 0.5->0.34; the glass treatment (sheen/lip/border/
+  glow/header bar) still reads over the poster. Panel geometry, node layout, and
+  selection behaviour are unchanged. Verified both tiers: strips visible, locked
+  wings dim (tools/shots/gfx4/f4-hub-panels-{canvas,webgl}.png).
+- F4-D2: iris cost MEASURED on Canvas (tools/qa_f4_iris.mjs — a SUSTAINED 2.5s
+  oscillating drawIris redraw = worst case, far heavier than a real 250ms wipe).
+  Numbers (avg fps, ?canvas=1): Hub baseline 58.9 -> iris 59.6 (min 59.3); 2-2
+  (heaviest W2 level) baseline 43.9 -> iris 41.9 (min 41.0). Both hold >=40fps
+  average AND minimum — the gate is MET. DECISION: widen the iris to BOTH tiers for
+  all three transitions.
+- F4-D3: iris ROUTING (4b) — every transition below is VISUAL-only: SAME 250ms
+  duration and the SAME scene.start hand-off as the fade it replaces (fired on the
+  iris close's onComplete), so beat/campaign kits (which poll scene.isActive / read
+  the `complete` flag — neither depends on camerafadeoutcomplete) observe identical
+  timing. * title->hub (TitleScene.gotoHub): iris CLOSE on screen centre -> Hub.
+  * hub->level (HubScene.enter): iris CLOSE on the selected node, drawn with
+  fill = the TARGET world's `fade` tint (drawIris gained an optional `fill`), so the
+  GFX3 G1 world-tint is PRESERVED on level entry — the iris closes to the world tint
+  and the Game scene's own world-tinted fadeIn opens from that same colour
+  ("iris-in-tinted", the logged judgment). * level->hub CLEAR (UIScene.
+  continueFromClear -> irisCloseToDoor): the WebGL-only gate REMOVED so the
+  close-on-exit-door iris now runs BOTH tiers (drawn in UIScene, which renders above
+  Game, so it covers the HUD). * Hub ARRIVAL: irisOpenFromNode now runs on EVERY hub
+  entry (both tiers), replacing the plain fadeIn. All iris durations are 250ms (==
+  the fades) so Canvas-observable timing is UNCHANGED from pre-F4; the only durations
+  that changed are the pre-existing WebGL iris close/open (300->250ms, visual-only,
+  no kit observes it). SECONDARY level->hub ABORT paths (GameScene.doExit ESC×2,
+  PauseScene.exitToMap) keep their existing OUT behaviour (doExit 250ms navy fade,
+  exitToMap instant) and now land on the iris-opening hub — logged rather than
+  converting those user-abort paths. CLEANUP MECHANISM: new kit.js `runIris(scene,
+  {cx,cy,from,to,duration,ease,fill,onComplete})` creates the overlay Graphics PER
+  TRANSITION, redraws the ring each frame (accepted transient cost, matches the old
+  hub iris — R3), and DESTROYS it on the tween's onComplete (before the scene.start
+  hand-off, same frame — no flash); it ALSO registers scene `shutdown`+`destroy`
+  hooks that kill the tween and destroy the overlay, so a mid-wipe death / scene
+  swap can never strand a black overlay. Mid-wipe capture: f4-iris-mid.png.
+- F4-D4: small-text crispness audit (4c). (1) PIXEL-SNAP (Math.round on fractional
+  creation x): kit.js chipRow FS.mini menu-footer caption (mid); UIScene.buildHints
+  FS.mini ESC/R/P hint row (both key + label x, which accumulate fractional label
+  widths); HubScene.drawClockChip records-row time x (x0+22). (2) STROKE reduction:
+  audited every strokeThickness/setStroke site — the ONLY stroked text is the Title
+  wordmark (84px hero), Walkthrough header (h2) and Settings header (h1); NO FS.mini/
+  FS.tiny (<=11px) site carries a stroke, so there is nothing to thin — NO-OP,
+  logged. (3) setResolution(2) TRIAL on the top-center level pill (UIScene.plateText,
+  its position already integer) + the hub records row (HubScene clock-chip text).
+  MEASURED Canvas fps cost of the pill's setResolution via an interleaved on-page A/B
+  on 2-2 (tools/qa_f4_setres.mjs): res=2 avg 38.42 vs res=1 avg 37.40 -> cost
+  -1.02fps (within noise, well under the 2fps gate) — KEPT. Shipped pill width = 235
+  (== the res-2 metrics the glass bg is sized against; no overflow, R9 fit preserved).
+  The hub records row is hub-only text (zero level-fps impact) — kept. Per the spec,
+  text inside the blip bar, stuck prompts, and item cards was NOT touched. Crops:
+  f4-crisp-{before,after}.png.
+- F4-D5 (build verify): playtest 42/42, playtest_w2 30/30 (hub transitions
+  exercised), tut_sanity 21/21, beat 1-1 matrix 2/2 GREEN (both assignments; SL2/SL3
+  peak 0) — transition timing unchanged for the driver. Zero page errors across all
+  F4 captures. New QA scripts tools/qa_f4_{iris,setres,shots}.mjs (tools/ originals
+  untouched — R6).

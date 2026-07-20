@@ -327,6 +327,71 @@ export default class BootScene extends Phaser.Scene {
       make(`glowBlob${w}`, 256, 256, blob(t.glow));
     }
 
+    // GFX4 F4a: per-world hub-panel PREVIEW strips — a low-res "poster" of the
+    // world baked ONCE in the backdrop drawing language at ~1/4 scale (vertical
+    // world gradient + a silhouette skyline + 2-3 accent glow dots). HubScene
+    // places one behind each world panel, UNDER the glass. A DIM variant per world
+    // (darker + muted, baked IN — the Canvas renderer can't tint at runtime)
+    // dresses LOCKED wings. 280x110 == the panel interior's aspect ratio.
+    {
+      const PW = 280, PH = 110;
+      const DC = Phaser.Display.Color;
+      const previewStrip = (theme, dim) => (g) => {
+        // bake-time colour adjust: lit = as-is (× optional darken); dim = pull 60%
+        // toward the colour's OWN luminance (mute) then darken to ~0.5 — a static
+        // baked treatment, never a runtime tint (R1: Canvas-safe).
+        const adj = (hex, dark = 1) => {
+          const c = DC.IntegerToColor(hex);
+          if (!dim) return DC.GetColor(Math.round(c.red * dark), Math.round(c.green * dark), Math.round(c.blue * dark));
+          const lum = 0.3 * c.red + 0.59 * c.green + 0.11 * c.blue;
+          const mix = (v) => Math.round((v * 0.4 + lum * 0.6) * 0.5 * dark);
+          return DC.GetColor(mix(c.red), mix(c.green), mix(c.blue));
+        };
+        // vertical world gradient (stepped; deband with the shared mono speckle)
+        const a = DC.IntegerToColor(adj(theme.bgTop));
+        const b = DC.IntegerToColor(adj(theme.bgBottom));
+        const steps = 44;
+        for (let i = 0; i < steps; i++) {
+          const c = DC.Interpolate.ColorWithColor(a, b, steps - 1, i);
+          g.fillStyle(DC.GetColor(c.r, c.g, c.b));
+          g.fillRect(0, Math.floor((i * PH) / steps), PW, Math.ceil(PH / steps) + 1);
+        }
+        // silhouette skyline along the bottom (deterministic seeded, ~1/4 scale)
+        const baseY = PH - 8;
+        const backTone = adj(theme.accent, 0.16);
+        const frontTone = adj(theme.accent, 0.24);
+        let seed = 2024;
+        const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+        let x = -4;
+        while (x < PW) {
+          const bw = 14 + Math.floor(rnd() * 26);
+          const bh = 12 + Math.floor(rnd() * 40);
+          g.fillStyle(rnd() > 0.5 ? frontTone : backTone, 1).fillRect(x, baseY - bh, bw, bh + 8);
+          x += bw + 3 + Math.floor(rnd() * 6);
+        }
+        // 2-3 accent glow dots (window / antenna lights) — soft, baked via layered
+        // alpha (no runtime additive blend needed).
+        const dots = [
+          { dx: 0.22, dy: 0.60, col: theme.accent },
+          { dx: 0.55, dy: 0.48, col: theme.accent2 },
+          { dx: 0.80, dy: 0.66, col: theme.accent },
+        ];
+        dots.forEach((d) => {
+          const cx = d.dx * PW, cy = d.dy * PH;
+          const col = adj(d.col, dim ? 0.7 : 1);
+          g.fillStyle(col, 0.18).fillCircle(cx, cy, 7);
+          g.fillStyle(col, 0.40).fillCircle(cx, cy, 3.4);
+          g.fillStyle(dim ? adj(d.col, 0.85) : 0xffffff, dim ? 0.5 : 0.7).fillCircle(cx, cy, 1.4);
+        });
+        ditherRect(g, PW, PH);
+      };
+      for (const w of Object.keys(WORLD_THEMES)) {
+        const t = WORLD_THEMES[w];
+        make(`worldPreview${w}`, PW, PH, previewStrip(t, false));
+        make(`worldPreviewDim${w}`, PW, PH, previewStrip(t, true));
+      }
+    }
+
     // P8: light-pool — a soft radial with a quadratic falloff, baked white so the
     // per-device tint (WebGL) colours it and the Canvas tier still shows a faint
     // neutral pool. Denser core than glowBlob so the ≤0.3-alpha tint still reads.
