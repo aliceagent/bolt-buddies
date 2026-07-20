@@ -336,3 +336,9 @@ Goal: every level recognizable at a glance ("the room with the...").
   of the x=0/512 wrap edges (the strip still tiles seamlessly). Before/after pair
   (Canvas tier, isolates the mid strip): tools/shots/gfx5s4/s4-variance-before.png
   vs s4-variance-after.png (byte-different; the four identical hook rigs now vary).
+- S4-D5 (QA sign-off): the "black slab" flagged in the 4-2 landmark review is
+  the level's INTENDED dark-zone rect (level4_2.js `t:"dark"`, pre-GFX5) — 
+  confirmed by a landmarks-off probe + the level def. Landmarks themselves
+  read correctly subtle at play framing. S4 accepted as landed.
+- S5-D0: walkthrough-video regeneration DEFERRED to GFX6 L4 (one regen covers
+  GFX5+GFX6; see docs/GFX6_PLAN.md L0-D1). S5 promotes without it.
