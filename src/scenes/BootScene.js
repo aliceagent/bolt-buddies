@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { COLORS, WORLD_THEMES, PARTICLES } from "../constants.js";
 import { softBody, specular, sheen, haloCircle, ringGlow, fakeRadial, glowShape, iconChip, iconGlow, ditherRect, isWebGL } from "../ui/paint.js";
+import { CURSOR_URI, CURSOR_HOTSPOT } from "../ui/cursor.js";
 
 // Every texture in the game is generated here with Graphics — zero asset files.
 export default class BootScene extends Phaser.Scene {
@@ -1711,6 +1712,16 @@ export default class BootScene extends Phaser.Scene {
       g.fillStyle(PARTICLES.steam.body, 0.5).fillRect(0, 0, 3, 20);
       g.fillStyle(PARTICLES.steam.core, 0.9).fillRect(1, 0, 1, 20);
     });
+
+    // GFX4 F2 (2b): themed mouse cursor — the baked teal-pointer data-URI applied
+    // once at boot as the game-wide default cursor (DOM/CSS only; no renderer
+    // coupling, no per-frame work). HOVER DECISION (logged): Phaser hard-codes the
+    // hand-cursor for `useHandCursor` widgets to the CSS keyword 'pointer' and
+    // exposes no global override for the pointer/hover state (only setDefaultCursor
+    // for the idle state). Rather than hack every widget's cursor field per-site
+    // (explicitly disallowed), interactive widgets keep the OS hand on hover; the
+    // themed arrow is the resting cursor everywhere else. See F2-D2.
+    this.input.setDefaultCursor("url(" + CURSOR_URI + ") " + CURSOR_HOTSPOT + ", auto");
 
     this.scene.start("Title");
   }

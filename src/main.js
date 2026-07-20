@@ -24,6 +24,32 @@ import { initAudio } from "./audio.js";
 // browser without the Font Loading API, we boot anyway and the mono fallback
 // stack renders instead (font-display:swap swaps it in later if it arrives).
 // This whole block is best-effort — it can neither throw nor hang the boot.
+// GFX4 F2 (2a): loading-splash lifecycle. The #bb-splash (index.html, CSS-only)
+// covers the dark pre-boot frame and warms the Fredoka font. removeSplash() is
+// idempotent and reached UNCONDITIONALLY: on the Title CREATE event (the success
+// path), from boot()'s catch (a boot throw), from window error/rejection
+// listeners, and from a hard backstop timeout — a stranded splash over a black
+// game is the worst outcome, so every failure mode still clears it. Fade is
+// 250ms after a 300ms MINIMUM display so a fast load never flashes. The game
+// boot NEVER waits on the splash (removal only ever runs AFTER Title renders).
+const SPLASH_T0 = performance.now();
+function removeSplash() {
+  const el = typeof document !== "undefined" && document.getElementById("bb-splash");
+  if (!el || el.dataset.bbGoing) return;
+  el.dataset.bbGoing = "1";
+  const wait = Math.max(0, 300 - (performance.now() - SPLASH_T0));
+  setTimeout(() => {
+    el.classList.add("bb-hide");
+    setTimeout(() => el.remove(), 260); // after the 250ms opacity fade completes
+  }, wait);
+}
+if (typeof window !== "undefined") {
+  // Safety nets so a boot failure never strands the splash over a black screen.
+  window.addEventListener("error", removeSplash);
+  window.addEventListener("unhandledrejection", removeSplash);
+  setTimeout(removeSplash, 6000); // last-resort backstop (Title should long precede this)
+}
+
 async function warmDisplayFont() {
   try {
     if (!document.fonts || !document.fonts.load) return;
@@ -66,6 +92,20 @@ const game = new Phaser.Game({
   // finale path; the reward exits to Title). Every other sequence is unchanged.
   scene: [BootScene, TitleScene, HubScene, GameScene, UIScene, PauseScene, SettingsScene, OnboardScene, WalkthroughScene, EpilogueScene, RewardScene, MuteScene],
 });
+
+// GFX4 F2 (2a): remove the loading splash the instant the Title scene renders
+// (its CREATE event). If Title is already active (hot reload / very fast boot)
+// remove immediately; otherwise wait for the scene instance and hook its create.
+{
+  const attachTitleSplashHook = () => {
+    const t = game.scene.getScene("Title");
+    if (!t) return false;
+    if (game.scene.isActive("Title")) removeSplash();
+    else t.sys.events.once("create", removeSplash);
+    return true;
+  };
+  if (!attachTitleSplashHook()) game.events.once("ready", attachTitleSplashHook);
+}
 
 // Global mute dropdown: launch the always-on-top overlay once the game is booted
 // and keep it above every scene. MuteScene draws only its own glyph/dropdown and
@@ -122,4 +162,15 @@ window.__BB.audio.vo = { play: playVO, playForText, idForText: voIdForText, stat
 // Warm the display font (bounded), then boot regardless of the outcome. Using
 // .finally guarantees boot() runs whether the font resolves, rejects, or the
 // timeout wins — the game is never gated on the font.
-warmDisplayFont().finally(boot);
+warmDisplayFont().finally(() => {
+  // Explicit belt-and-suspenders around boot() (Phaser.Game construction is the
+  // throw-prone step): clear the splash on a synchronous boot failure so it can
+  // never sit stranded over a black screen, then rethrow so the error still
+  // surfaces. The window error/rejection listeners + backstop cover async paths.
+  try {
+    boot();
+  } catch (e) {
+    removeSplash();
+    throw e;
+  }
+});

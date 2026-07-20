@@ -70,7 +70,12 @@ export default class UIScene extends Phaser.Scene {
     const tw = this.plateText.width;
     // GFX2 "Lumen Lab" glass plates: translucent fill + sheen + top-edge lip.
     glassPanel(plateBg, { x: W / 2 - tw / 2 - 16, y: 9, w: tw + 32, h: 26, r: 9, accent: theme.accent, fillA: 0.72, borderW: 1, borderA: 0.42, glow: false });
-    this.add.rectangle(W / 2, 38, tw + 10, 3, theme.accent, 0.9);
+    const plateUnderline = this.add.rectangle(W / 2, 38, tw + 10, 3, theme.accent, 0.9);
+    // GFX4 F2 (2d): the top-center level pill collides with the GameScene intro
+    // banner (which slides in over the same top-center strip). Group the pill's
+    // pieces so the banner's lifecycle can fade them out while it's on screen and
+    // back in when it finishes/skips (see the `introbanner` handler below).
+    this.levelPillParts = [plateBg, this.plateText, plateUnderline];
 
     // --- core pip tray + key chip ---------------------------------------------
     const trayW = 92;
@@ -326,8 +331,23 @@ export default class UIScene extends Phaser.Scene {
         }
         this.tweens.add({ targets: this.winPrompt, alpha: 0.3, duration: 500, yoyo: true, repeat: -1 });
       },
+      // GFX4 F2 (2d): fade the top-center level pill out while the GameScene intro
+      // banner is on screen, and back in when it finishes OR is skipped (both run
+      // through the banner's guarded finish()). Visual-only; no timers of our own.
+      introbanner: (on) => {
+        if (!this.levelPillParts) return;
+        this.tweens.add({ targets: this.levelPillParts, alpha: on ? 0 : 1, duration: 200, ease: "sine.out" });
+      },
     };
     Object.entries(this.h).forEach(([k, fn]) => E.on(`bb:${k}`, fn));
+    // The banner is created during GameScene.create — BEFORE this UI scene's
+    // create runs — so its "banner up" emit is missed. Seed the initial state
+    // here: if the banner is still on screen, start the pill hidden (it fades
+    // back when the banner's finish() emits `bb:introbanner` false).
+    {
+      const G = this.scene.get("Game");
+      if (G && G.introBanner && !G._introDone) this.levelPillParts.forEach((o) => o.setAlpha(0));
+    }
     this.events.once("shutdown", () => {
       Object.entries(this.h).forEach(([k, fn]) => E.off(`bb:${k}`, fn));
       stopVO(); // never let a spoken line bleed across a scene swap

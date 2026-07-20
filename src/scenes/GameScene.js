@@ -527,7 +527,7 @@ export default class GameScene extends Phaser.Scene {
         fontFamily: FONT, fontSize: FS.body, fontStyle: "bold",
         color: p.idx === 0 ? "#4dc9ff" : "#ffa14d",
       }).setOrigin(0.5);
-      const cont = this.add.container(p.x, p.y - 64 - p.idx * 34, [g, t]).setDepth(DEPTH.fx);
+      const cont = this.add.container(p.x, p.y - this._actionHintYoff(p.idx), [g, t]).setDepth(DEPTH.fx);
       // T2 (D4): give the spawn hint a 9s lifetime. If the action key wasn't
       // pressed by then (handleAction destroys it on first press), fade out over
       // 300ms and destroy — then it stops tracking the robot forever. The coach
@@ -855,6 +855,10 @@ export default class GameScene extends Phaser.Scene {
     this.introBanner = c;
     this._introDone = false;
     this._introHold = null;
+    // GFX4 F2 (2d): tell the HUD to fade its top-center level pill out while this
+    // banner occupies the same strip. UIScene also self-seeds this on create (its
+    // create runs after ours, so this emit can be missed) — belt AND suspenders.
+    this.game.events.emit("bb:introbanner", true);
 
     // Single completion path: destroy the banner, drop the keydown listener, and
     // fire KOBI's start blip EXACTLY once — guarded by _introDone so the normal
@@ -867,6 +871,9 @@ export default class GameScene extends Phaser.Scene {
         this._introSkipHandler = null;
       }
       if (this.introBanner) { this.introBanner.destroy(); this.introBanner = null; }
+      // GFX4 F2 (2d): banner gone (normal slide-out OR any-key skip both land
+      // here) — restore the top-center level pill.
+      this.game.events.emit("bb:introbanner", false);
       if (def.blips && def.blips.start) this.game.events.emit("bb:blip", def.blips.start);
     };
     this._finishIntroBanner = finish;
@@ -887,6 +894,13 @@ export default class GameScene extends Phaser.Scene {
       },
     });
   }
+
+  // GFX4 F2 (2d): vertical offset of a robot's floating "X = ACTION" hint chip
+  // above its head. Lowered from the old base 64 so the (staggered) P2 chip drops
+  // clear of the lowest gadget card at spawn — the cards form the top of the
+  // stack, the chips sit below with a gap. The 34px per-index stagger is kept so
+  // the two chips never overlap each other when a robot carries its buddy.
+  _actionHintYoff(idx) { return 54 + idx * 34; }
 
   // T3 (D10): fast-out the intro banner on any key/pad press (120ms slide), then run
   // the same completion path (which fires the start blip exactly once).
@@ -1453,11 +1467,12 @@ export default class GameScene extends Phaser.Scene {
         const icon = this.add.container(px, py - 34, [iconImg, orbit]).setDepth(DEPTH.entity);
         this.tweens.add({ targets: icon, y: py - 40, duration: 800, yoyo: true, repeat: -1, ease: "sine.inOut" });
         this.tweens.add({ targets: orbit, angle: 360, duration: 1800, repeat: -1 });
-        // P9: lift the card base (was -118) so its lower edge clears the raised
-        // P2 action-hint bubble at spawn, and stagger heights so neighbouring
-        // pedestals' cards never overlap each other. Verified clear of the intro
-        // banner + top HUD band by the spawn overlap-audit sweep.
-        const cardY = py - 150 - this.pedestals.length * 96;
+        // P9 / GFX4 F2 (2d): lift the card base so its lower edge clears the
+        // (now-lowered) action-hint chips at spawn with a consistent gap — cards
+        // form the top of the stack, chips sit below. Neighbouring pedestals'
+        // cards stagger up by 96px so they never overlap each other; the topmost
+        // still tucks just under the intro banner's rest position.
+        const cardY = py - 162 - this.pedestals.length * 96;
         // A9: `orbit` is exposed so the device-personality overlay can speed up the
         // skill-icon orbit toward an approaching unskilled robot (cosmetic; the equip
         // reads ped.x/ped.y, never the icon/orbit transform).
@@ -4297,7 +4312,7 @@ export default class GameScene extends Phaser.Scene {
       if (!r.visible) continue;
       if (time > co.reshowUntil[i] || co.actEdge[i]) { r.setVisible(false); continue; }
       const p = this.players[i];
-      r.setPosition(p.x, p.y - 64 - i * 34 + Math.sin(time / 300) * 4);
+      r.setPosition(p.x, p.y - this._actionHintYoff(i) + Math.sin(time / 300) * 4);
     }
 
     // Heavy trigger evaluation throttled to ~4Hz on a shared timer. Gated off in
@@ -4351,7 +4366,7 @@ export default class GameScene extends Phaser.Scene {
         // (first press), when idle-adjacent to something actionable for >20s.
         if (!co.reshow[i].visible && this.actionHints[i] == null &&
           (time - p._lastActPress) > 20000 && this.coachAdjacentActionable(p)) {
-          co.reshow[i].setVisible(true).setAlpha(0.3).setPosition(p.x, p.y - 64 - i * 34);
+          co.reshow[i].setVisible(true).setAlpha(0.3).setPosition(p.x, p.y - this._actionHintYoff(i));
           co.reshowUntil[i] = time + 4000;
           p._lastActPress = time; // re-arm the 20s window
         }
@@ -5233,7 +5248,7 @@ export default class GameScene extends Phaser.Scene {
 
       // action-key hint follows its robot
       const hint = this.actionHints[p.idx];
-      if (hint) hint.setPosition(p.x, p.y - 64 - p.idx * 34 + Math.sin(time / 300) * 4);
+      if (hint) hint.setPosition(p.x, p.y - this._actionHintYoff(p.idx) + Math.sin(time / 300) * 4);
 
       // ghost shimmer while inside a phase-wall
       const wasInWall = p.inPhaseWall;

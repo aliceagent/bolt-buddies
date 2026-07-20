@@ -232,3 +232,74 @@ R9 (NEW, this round): TEXT-FIT discipline. Any call site switched to the
   tier lights 0-dark on schedule. Hardened anyway (QA follow-up commit): flicker
   tweens settle on complete AND stop, plus absolute relight backstops — the
   wordmark now self-heals from any skipped tween callback.
+- F2-D1: loading splash (2a) shipped — a CSS-only `#bb-splash` in index.html
+  (dark #070b14 bg, "BOLT BUDDIES" wordmark in Fredoka doubling as the font
+  warm-up, "a 2-player rescue mission" mono sub, and a pulsing KOBI eye built
+  from nested radial-gradients + a `bb-eye-pulse` keyframe on scale/glow; NO JS
+  anim, NO images, `prefers-reduced-motion` respected — R2). REMOVAL MECHANISM
+  (main.js:36 removeSplash, :100 attachTitleSplashHook): faded out over 250ms and
+  removed on the TITLE SCENE'S CREATE event (`title.sys.events.once("create",…)`,
+  with an isActive("Title") short-circuit for hot reloads), after a 300ms MINIMUM
+  display so a fast load never flashes. removeSplash() is idempotent and reached
+  UNCONDITIONALLY on every failure mode: window `error` + `unhandledrejection`
+  listeners, an explicit try/catch around the boot() call in the warmDisplayFont
+  `.finally`, and a 6000ms hard backstop timeout — a stranded splash over a black
+  game is the worst outcome, so it always clears. The game boot never waits on
+  the splash (removal only runs after Title renders). Verified: splash present in
+  Fredoka during load, absent (DOM-gone) after Title, both tiers, zero page
+  errors.
+- F2-D2: themed cursor (2b) shipped — a hand-baked 22x22 teal-arrow PNG (dark
+  rounded outline, Lumen palette) stored as a data-URI constant in
+  src/ui/cursor.js (CURSOR_URI, 1398 chars; CURSOR_HOTSPOT "4 2"). It was baked
+  ONCE at build time by the throwaway tools/_gen_cursor.mjs (Playwright draws the
+  arrow to a <canvas>, dumps toDataURL) and hard-coded — ZERO runtime texture
+  work. Applied once at boot via
+  `this.input.setDefaultCursor("url("+CURSOR_URI+") 4 2, auto")`
+  (BootScene.js:1724). HOVER-STATE DECISION: Phaser hard-codes the `useHandCursor`
+  hover cursor to the CSS keyword 'pointer' and exposes NO global override for the
+  pointer/hover state (only setDefaultCursor for the idle state). Per the plan's
+  fallback ("else leave hand cursor as-is and log the decision — do not hack
+  per-widget"), interactive widgets keep the OS hand on hover; the themed arrow is
+  the resting cursor everywhere else. Verified: the live canvas `style.cursor`
+  contains the data-URI + "4 2" hotspot; the URI decodes to the art at
+  tools/shots/gfx4/f2-cursor.png.
+- F2-D3: HUD gadget icons (2c) — the P1/P2 panels ALREADY show the equipped
+  gadget's baked skill-icon chip (icon_grapple/heavy/phase/tiny) beside the name:
+  buildPlayerPanel bakes a 30px recessed chip with a "?" placeholder, and the
+  `bb:skill` handler (UIScene.js:203 — the exact event that updates the name text,
+  emitted by GameScene.js:2578) already does
+  `info.icon.setTexture(tex).setVisible(true); info.qmark.setVisible(false)`. This
+  predates GFX4 (UI Sprint 6 + GFX2 V5/V6 icons); the plan's "TEXT only" verified
+  fact was stale. Confirmed working both tiers via a live equip (icon shows on
+  equip; "no gadget yet" state unchanged) — so 2c needed NO code change, only
+  verification. Logged rather than duplicating the chip.
+- F2-D4: collision 1 — intro banner vs top-center level pill (2d). The UIScene
+  pill (glass bg + text + accent underline) is grouped into `this.levelPillParts`
+  (UIScene.js:78) and faded via a 200ms tween on a new `introbanner` handler
+  (UIScene.js:337) bound to `bb:introbanner`. GameScene emits it TRUE when the
+  banner is built (GameScene.js:861) and FALSE from the banner's single guarded
+  finish() (GameScene.js:876) — so BOTH the normal slide-out AND the any-key skip
+  restore the pill through the SAME existing lifecycle (no new timers; T3 banner-
+  skip contract untouched). Because UIScene.create runs AFTER GameScene.create
+  (the TRUE emit is missed), UIScene ALSO self-seeds: if the banner is still up at
+  create it starts the pill hidden (UIScene.js:349) — belt AND suspenders.
+  Verified: pill alpha→0 while banner up, →1 after finish/skip, both tiers.
+- F2-D5: collision 2 — spawn stack (2d). Root cause: the P2 action-hint chip,
+  raised 34px by the `- idx*34` stagger, rode up into the lowest gadget card at
+  spawn (1-2 reference shot). Fix: (a) a shared `_actionHintYoff(idx)=54+idx*34`
+  helper (GameScene.js:903) replacing the four inline `p.y - 64 - idx*34` chip-
+  placement sites (create + 3 per-frame/coach followers) — lowers the whole hint
+  by 10px while KEEPING the 34px stagger so the two chips never overlap each other
+  during a carry; (b) card base lifted `-150`→`-162` (GameScene.js:1475). Result
+  is a clean top-down column at 1280x720 — HEAVYWEIGHT card → GRAPPLING HOOK card
+  → L=ACTION chip → SPACE=ACTION chip, no overlap — with the topmost card still
+  tucked under the banner rest position. T2 card minimize/expand + card contents
+  unchanged (only the base Y moved). Verified on 1-1 and 1-2, canvas tier.
+- F2-D6 (QA): full-round verification — playtest 42/42, playtest_textbox 13/13,
+  both green; zero page errors across splash/cursor/HUD/collision runs. The one
+  non-fatal console line ("Failed to load resource: 404") is the pre-existing
+  favicon.ico request (no <link rel=icon> in index.html; present on main, not an
+  F2 regression, and not a pageerror). Splash/cursor are DOM/CSS only (no renderer
+  coupling); UIScene/GameScene changes are visual-only (blip-bar/stuck/banner-skip
+  contracts untouched, no per-frame allocation — the hint helper is a scalar
+  return). Shots at tools/shots/gfx4/f2-*.png.
