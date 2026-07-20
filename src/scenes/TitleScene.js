@@ -184,14 +184,21 @@ export default class TitleScene extends Phaser.Scene {
 
       // flicker-on: a couple of quick blinks, then settle lit.
       // U11 FLASH soft: same power-on beat count, less contrast, slower ramp.
+      // GFX4 F1-QA: the yoyo tween ENDS at its dark `from` value and relied solely
+      // on onComplete to relight — under a slow first-seconds renderer that
+      // callback can be skipped, stranding letters dark. Settle on complete AND
+      // stop, plus an absolute per-letter backstop so the wordmark can never
+      // stay dark regardless of frame pacing.
+      const settleLit = () => cont.active && cont.setAlpha(1);
       this.time.delayedCall(Math.random() * 700, () => {
         if (!cont.active) return;
         const fs = uxFlashScale();
         this.tweens.add({
           targets: cont, alpha: { from: fs < 1 ? 0.55 : 0, to: 1 }, duration: 90 / fs, repeat: 2, yoyo: true,
-          onComplete: () => cont.active && cont.setAlpha(1),
+          onComplete: settleLit, onStop: settleLit,
         });
       });
+      this.time.delayedCall(1600, settleLit); // hard backstop: lit by 1.6s, always
     }
 
     // slow two-tone colour cycle across the whole wordmark (bucketed so text
@@ -228,11 +235,15 @@ export default class TitleScene extends Phaser.Scene {
     if (lit.length) {
       const L = Phaser.Utils.Array.GetRandom(lit);
       // U11 FLASH soft: the ambient neon flicker burst dims less and ramps slower.
+      // GFX4 F1-QA: same settle guarantee as the flicker-on — a skipped
+      // onComplete must never strand a letter dim (see buildLogo).
       const fs = uxFlashScale();
+      const relight = () => L.cont.active && L.cont.setAlpha(1);
       this.tweens.add({
         targets: L.cont, alpha: { from: 1, to: fs < 1 ? 0.6 : 0.25 }, duration: 65 / fs, yoyo: true, repeat: 1,
-        onComplete: () => L.cont.active && L.cont.setAlpha(1),
+        onComplete: relight, onStop: relight,
       });
+      this.time.delayedCall(600, relight); // backstop: a flicker burst is <=260ms
     }
     this.flickerTimer = this.time.delayedCall(1800 + Math.random() * 3200, () => this.scheduleFlicker());
   }

@@ -225,3 +225,10 @@ R9 (NEW, this round): TEXT-FIT discipline. Any call site switched to the
   (intro banner `bw`) grow to the wider head as designed; no test-probed
   geometry was resized. QA: playtest 42/42, playtest_audio 29/29, tut_sanity
   21/21; both-tier shots at tools/shots/gfx4/f1-*.png; zero page errors.
+- F1-D6 (QA): "missing wordmark letters" in QA shots investigated to root cause —
+  NOT an F1 regression (pre-F1 baseline reproduces identically). The container's
+  SwiftShader WebGL runs the Title in slow motion (fps decays ~36→7), stretching
+  the flicker-on timers; letters converge lit by ~8s wall time, and the Canvas
+  tier lights 0-dark on schedule. Hardened anyway (QA follow-up commit): flicker
+  tweens settle on complete AND stop, plus absolute relight backstops — the
+  wordmark now self-heals from any skipped tween callback.
