@@ -340,5 +340,149 @@ export function atmoBand(g, world) {
   }
 }
 
+// --- GFX5 S4: per-world landmark set-pieces ----------------------------------
+// Big (200-400px) procedural silhouette furniture — two per world — so every
+// level is recognisable at a glance ("the room with the fan ring"). Single-
+// sourced here as pure-draw helpers (paint into a `g` you own) so the SAME
+// recipe bakes identically at BOTH bake sites — W1/W2 in BootScene, W3/W4 lazily
+// in GameScene.ensureW3/W4Textures. Baked BOTH tiers (they're just textures,
+// zero runtime cost — R1); the per-level PLACEMENT decides the ship tier.
+//
+// R9 discipline: fills sit at the very bottom of the S1 value+saturation
+// hierarchy (accent desaturated 0.42 then deeply darkened) so a landmark reads
+// as distant silhouette furniture, never as a gameplay object. A FEW small
+// accent-lit dots only (quiet indicator lights) — no hot accent masses, no glow
+// halos wide enough to bloom. The art is drawn base-at-bottom (y=h) so the
+// placer's (0.5, 1) origin stands it on the level's ground line.
+//
+// LANDMARK_SIZES[world] = [[wA,hA],[wB,hB]] — the two texture dims per world.
+// Keys `lm<world>a` / `lm<world>b`. Kept in sync with the draw switch below.
+export const LANDMARK_SIZES = {
+  1: [[300, 300], [260, 400]], // a assembly arm + gantry, b gantry-crane silo
+  2: [[200, 400], [320, 320]], // a boiler stack, b giant fan ring (static blades)
+  3: [[220, 400], [260, 360]], // a magnet coil tower, b crane claw idol
+  4: [[200, 390], [320, 320]], // a server monolith, b KOBI eye mural
+};
+
+// Draw landmark `v` (0='a', 1='b') for `world` into `g`, sized to (w,h) with the
+// form rooted at the bottom edge. Tones follow the far/near-band recipe (scale +
+// desat) so the whole S4 family is value-coherent with the S1..S3 backdrop.
+export function landmark(g, world, v, w, h) {
+  const theme = WORLD_THEMES[world] || WORLD_THEMES[1];
+  const body = scale(desat(theme.accent, 0.42), 0.20);  // near-silhouette dark mass
+  const edge = scale(desat(theme.accent, 0.42), 0.40);  // a hair-lighter structural rim
+  const deep = scale(desat(theme.accent, 0.42), 0.13);  // deepest under-shade / recesses
+  const lit = theme.accent;   // quiet indicator dots (few, small)
+  const warm = theme.warmth;
+  const cx = w / 2;
+  // a tiny quiet accent light: soft halo + brighter core (R9 — kept small)
+  const dot = (x, y, col = lit, r = 3) => {
+    g.fillStyle(col, 0.14).fillCircle(x, y, r + 3);
+    g.fillStyle(col, 0.62).fillCircle(x, y, r);
+  };
+
+  if (world === 1 && v === 0) {
+    // ASSEMBLY ARM: plinth base, pivot column, a two-segment elbowed arm + gripper
+    g.fillStyle(body, 1).fillRect(cx - 52, h - 46, 104, 46);       // plinth
+    g.fillStyle(edge, 1).fillRect(cx - 52, h - 46, 104, 4);
+    g.fillStyle(body, 1).fillRect(cx - 18, h - 210, 36, 168);      // pivot column
+    g.fillStyle(edge, 1).fillCircle(cx, h - 210, 22);              // shoulder pivot
+    g.fillStyle(deep, 1).fillCircle(cx, h - 210, 10);
+    g.lineStyle(30, body, 1).beginPath();                          // upper arm (elbowed)
+    g.moveTo(cx, h - 210); g.lineTo(cx + 72, h - 262); g.lineTo(cx + 150, h - 214); g.strokePath();
+    g.fillStyle(edge, 1).fillCircle(cx + 72, h - 262, 14);         // elbow joint
+    g.fillStyle(body, 1).fillRect(cx + 138, h - 236, 30, 42);      // gripper block
+    g.fillStyle(deep, 1).fillRect(cx + 150, h - 224, 6, 22);
+    dot(cx, h - 210, lit, 3);                                      // pivot status light
+    dot(cx + 153, h - 214, warm, 2.6);                            // gripper tip light
+  } else if (world === 1 && v === 1) {
+    // GANTRY-CRANE SILO: fat domed silo + an overhead gantry beam with a hook
+    g.fillStyle(body, 1).fillRoundedRect(cx - 74, h - 336, 148, 336, { tl: 40, tr: 40, bl: 0, br: 0 });
+    g.fillStyle(edge, 1).fillRoundedRect(cx - 74, h - 336, 148, 8, { tl: 40, tr: 40, bl: 0, br: 0 });
+    for (let by = h - 300; by < h - 30; by += 74) g.fillStyle(edge, 0.5), g.fillRect(cx - 74, by, 148, 3); // banding
+    // gantry beam across the top on two legs
+    g.fillStyle(body, 1).fillRect(10, 44, w - 20, 20);
+    g.fillStyle(edge, 1).fillRect(10, 44, w - 20, 3);
+    g.fillStyle(body, 1).fillRect(24, 60, 14, h - 60).fillRect(w - 38, 60, 14, h - 60);
+    g.fillStyle(body, 1).fillRect(cx - 20, 62, 40, 18);           // trolley
+    g.fillStyle(body, 1).fillRect(cx - 2, 80, 4, 74);             // hook line
+    g.lineStyle(6, body, 1).beginPath(); g.arc(cx, 158, 10, Math.PI * 0.1, Math.PI * 0.95, false); g.strokePath(); // hook
+    dot(cx, h - 320, warm, 3);                                    // silo top beacon
+    dot(cx - 40, h - 190, lit, 2.4); dot(cx + 30, h - 130, lit, 2.4); // lit windows
+  } else if (world === 2 && v === 0) {
+    // BOILER STACK: squat drum + a tall banded chimney with a cap
+    g.fillStyle(body, 1).fillRoundedRect(cx - 74, h - 150, 148, 150, 14); // boiler drum
+    g.fillStyle(edge, 1).fillRect(cx - 74, h - 148, 148, 4);
+    g.fillStyle(deep, 1).fillRect(cx - 60, h - 120, 120, 6);
+    g.fillStyle(body, 1).fillRect(cx - 30, 40, 60, h - 150 - 40);  // chimney
+    g.fillStyle(edge, 1).fillRect(cx - 38, 40, 76, 16);           // cap flare
+    for (let by = 84; by < h - 160; by += 60) g.fillStyle(edge, 0.55), g.fillRect(cx - 30, by, 60, 4); // rings
+    dot(cx, h - 96, warm, 3.2);                                   // pilot flame glow
+    dot(cx - 42, h - 40, lit, 2.4);                              // gauge light
+  } else if (world === 2 && v === 1) {
+    // GIANT FAN RING (static blades): housing ring, 6 fixed blades, hub, a stand
+    const fy = h - 174, R = 148;
+    g.lineStyle(20, body, 1).strokeCircle(cx, fy, R);            // housing ring
+    g.lineStyle(6, edge, 0.7).strokeCircle(cx, fy, R - 12);
+    for (let i = 0; i < 6; i++) {                                 // static blades
+      const a = (i / 6) * Math.PI * 2;
+      const ex = cx + Math.cos(a) * (R - 20), ey = fy + Math.sin(a) * (R - 20);
+      g.lineStyle(24, body, 1).beginPath(); g.moveTo(cx, fy); g.lineTo(ex, ey); g.strokePath();
+      g.lineStyle(4, edge, 0.45).beginPath(); g.moveTo(cx, fy); g.lineTo(ex, ey); g.strokePath();
+    }
+    g.fillStyle(edge, 1).fillCircle(cx, fy, 30);                 // hub
+    g.fillStyle(deep, 1).fillCircle(cx, fy, 16);
+    g.fillStyle(body, 1).fillRect(cx - 26, fy + R - 8, 52, h - (fy + R - 8)); // stand
+    dot(cx, fy, lit, 3);                                         // hub indicator
+  } else if (world === 3 && v === 0) {
+    // MAGNET COIL TOWER: banded coil column + a top electrode sphere
+    g.fillStyle(body, 1).fillRect(cx - 56, h - 356, 112, 356);
+    g.fillStyle(edge, 1).fillRect(cx - 56, h - 356, 112, 5);
+    for (let cy = h - 340; cy < h - 16; cy += 22) g.fillStyle(edge, 0.6), g.fillRect(cx - 62, cy, 124, 7); // coil windings
+    g.fillStyle(body, 1).fillRect(cx - 6, h - 396, 12, 44);      // core stub
+    g.fillStyle(edge, 1).fillCircle(cx, h - 402, 22);            // electrode sphere
+    g.fillStyle(deep, 1).fillCircle(cx, h - 402, 11);
+    dot(cx, h - 402, theme.accent2, 3.2);                        // electrode arc glow (quiet)
+    dot(cx - 40, h - 210, theme.accent2, 2.4); dot(cx + 40, h - 130, theme.accent2, 2.4);
+  } else if (world === 3 && v === 1) {
+    // CRANE-CLAW IDOL: totem base, a hoist shaft, a splayed 3-prong claw
+    g.fillStyle(body, 1).fillRect(cx - 44, h - 40, 88, 40);      // totem base
+    g.fillStyle(edge, 1).fillRect(cx - 44, h - 40, 88, 4);
+    g.fillStyle(body, 1).fillRect(cx - 12, 24, 24, 150);         // hoist shaft
+    g.fillStyle(edge, 1).fillRect(cx - 12, 24, 24, 4);
+    g.fillStyle(body, 1).fillRect(cx - 34, 168, 68, 30);         // claw housing
+    g.fillStyle(edge, 1).fillRect(cx - 34, 168, 68, 4);
+    const cyc = 198;                                             // claw pivot y
+    [[-1, cx - 30], [0, cx], [1, cx + 30]].forEach(([d, px]) => { // 3 prongs
+      g.lineStyle(11, body, 1).beginPath();
+      g.moveTo(cx + d * 8, cyc); g.lineTo(px + d * 26, cyc + 70); g.lineTo(px + d * 12, cyc + 132); g.strokePath();
+    });
+    dot(cx, 188, theme.accent2, 3);                             // idol gem
+  } else if (world === 4 && v === 0) {
+    // SERVER MONOLITH: tall rack slab, slot rows, a quiet column of LED dots
+    g.fillStyle(body, 1).fillRect(cx - 70, h - 360, 140, 360);
+    g.fillStyle(edge, 1).fillRect(cx - 70, h - 360, 140, 8);     // cap
+    g.fillStyle(deep, 1).fillRect(cx - 70, h - 352, 140, 3);
+    for (let sy = h - 336; sy < h - 12; sy += 24) g.fillStyle(deep, 1), g.fillRect(cx - 62, sy, 124, 8); // slot rows
+    for (let sy = h - 330; sy < h - 20; sy += 48) if ((sy | 0) % 96 < 48) dot(cx - 50, sy, theme.accent2, 2); // LED column (sparse, quiet)
+    dot(cx + 48, h - 300, lit, 2.4);
+  } else if (world === 4 && v === 1) {
+    // KOBI EYE MURAL: a great ringed eye — outer frame, iris, vertical pupil slit
+    const ey = h - 176, R = 146;
+    g.fillStyle(body, 1).fillRect(cx - 30, ey + R - 20, 60, h - (ey + R - 20)); // plinth
+    g.lineStyle(18, body, 1).strokeCircle(cx, ey, R);           // mural frame
+    g.fillStyle(deep, 1).fillCircle(cx, ey, R - 20);            // eye white (dark)
+    g.fillStyle(body, 1).fillCircle(cx, ey, 78);               // iris
+    g.lineStyle(4, edge, 0.6).strokeCircle(cx, ey, 78);
+    g.fillStyle(deep, 1).fillEllipse(cx, ey, 34, 96);          // vertical pupil slit
+    g.fillStyle(lit, 0.12).fillCircle(cx, ey, 84);            // quiet iris glow (R9)
+    dot(cx, ey - 46, lit, 3);                                  // catchlight
+  } else {
+    // fallback: a plain dark plinth (unknown world/variant)
+    g.fillStyle(body, 1).fillRect(cx - 60, h - 200, 120, 200);
+    g.fillStyle(edge, 1).fillRect(cx - 60, h - 200, 120, 5);
+  }
+}
+
 // Re-export the near-white glass highlight tone so kit/paint consumers share it.
 export const GLASS_HI = COLORS.glassHi != null ? COLORS.glassHi : 0xffffff;

@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { COLORS, WORLD_THEMES, PARTICLES } from "../constants.js";
-import { softBody, specular, sheen, haloCircle, ringGlow, fakeRadial, glowShape, iconChip, iconGlow, ditherRect, desat, isWebGL, farStrip, nearStrip, atmoBand } from "../ui/paint.js";
+import { softBody, specular, sheen, haloCircle, ringGlow, fakeRadial, glowShape, iconChip, iconGlow, ditherRect, desat, isWebGL, farStrip, nearStrip, atmoBand, landmark, LANDMARK_SIZES } from "../ui/paint.js";
 import { CURSOR_URI, CURSOR_HOTSPOT } from "../ui/cursor.js";
 
 // Every texture in the game is generated here with Graphics — zero asset files.
@@ -621,14 +621,22 @@ export default class BootScene extends Phaser.Scene {
       const railY = 150;
       g.fillStyle(tone, 1).fillRect(0, railY, STRIP_W, 14);
       g.fillStyle(edge, 1).fillRect(0, railY, STRIP_W, 3);
-      // ceiling: hanging hook rigs dropping from the rail into the mid-air
-      [70, 200, 330, 452].forEach((x, i) => {
+      // ceiling: hanging hook rigs dropping from the rail into the mid-air.
+      // GFX5 S4: per-rig bake-time variance (seeded scale 0.9-1.15 + x-jitter ±9 +
+      // mirrored hook curl) kills the photocopied read of the four identical rigs.
+      // Jitter kept small so every stamp stays clear of the x=0/512 wrap edges.
+      [70, 200, 330, 452].forEach((x) => {
+        const sc = 0.9 + rnd() * 0.25;
+        const fl = rnd() < 0.5;
+        const hx = x + (rnd() - 0.5) * 18;
         const len = railY + 120 + Math.floor(rnd() * 120);
-        g.fillStyle(tone, 1).fillRect(x - 3, railY, 6, len - railY); // drop rod
-        g.fillStyle(edge, 1).fillCircle(x, railY, 8); // trolley on the rail
-        g.fillStyle(edge, 1).fillCircle(x, len, 9); // pulley
-        g.lineStyle(6, tone, 1).beginPath(); // hook curl
-        g.arc(x, len + 17, 11, Math.PI * 0.15, Math.PI * 0.95, false).strokePath();
+        g.fillStyle(tone, 1).fillRect(hx - 3 * sc, railY, 6 * sc, len - railY); // drop rod
+        g.fillStyle(edge, 1).fillCircle(hx, railY, 8 * sc); // trolley on the rail
+        g.fillStyle(edge, 1).fillCircle(hx, len, 9 * sc); // pulley
+        g.lineStyle(6 * sc, tone, 1).beginPath(); // hook curl (mirrored per-rig)
+        if (fl) g.arc(hx, len + 17, 11 * sc, Math.PI * 0.05, Math.PI * 0.85, true);
+        else g.arc(hx, len + 17, 11 * sc, Math.PI * 0.15, Math.PI * 0.95, false);
+        g.strokePath();
       });
       // jointed assembly arm reaching in from the top-left, elbowed
       g.lineStyle(12, tone, 1).beginPath();
@@ -650,7 +658,9 @@ export default class BootScene extends Phaser.Scene {
       g.fillStyle(tone, 1).fillRect(180, beamY, 12, STRIP_H - beamY);
       g.fillStyle(tone, 1).fillRect(448, beamY, 12, STRIP_H - beamY);
       g.fillStyle(edge, 1);
-      for (let x = 190; x < 460; x += 34) g.fillRect(x, beamY + 16, 8, 18 + Math.floor(rnd() * 14)); // tines
+      // GFX5 S4: per-tine width + x-jitter so the hanging tines don't read as a
+      // photocopied comb (deterministic — same seeded rnd).
+      for (let x = 190; x < 460; x += 34) g.fillRect(x + (rnd() - 0.5) * 7, beamY + 16, 6 + rnd() * 5, 16 + Math.floor(rnd() * 18)); // tines
       // GFX2: subtle WARM status lights + lit vat windows (glow accents). Kept away
       // from the x=0/512 edges so the strip still tiles horizontally.
       const warmW1 = WORLD_THEMES[1].warmth;
@@ -679,15 +689,19 @@ export default class BootScene extends Phaser.Scene {
       pipe(258, 16);
       pipe(470, 18);
       // flange bands along the pipes
+      // GFX5 S4: per-band x-jitter + width variance so the flange comb isn't a
+      // photocopied repeat (seeded; kept inside the pipe run, clear of the edges).
       g.fillStyle(edge, 1);
-      for (let x = 40; x < STRIP_W; x += 96) { g.fillRect(x, 148, 7, 20); g.fillRect(x + 20, 468, 7, 22); }
-      // valve wheels at joints
+      for (let x = 40; x < STRIP_W - 12; x += 96) { const j = (rnd() - 0.5) * 10; g.fillRect(x + j, 148, 6 + rnd() * 3, 18 + rnd() * 6); g.fillRect(x + 20 + j, 468, 6 + rnd() * 3, 20 + rnd() * 6); }
+      // valve wheels at joints — GFX5 S4: per-wheel scale + spoke phase (each reads
+      // as a differently-turned wheel, not a copy).
       [120, 380].forEach((x) => {
-        g.lineStyle(6, tone, 1).strokeCircle(x, 158, 20);
-        g.lineStyle(5, edge, 1).beginPath();
-        for (let a = 0; a < 6; a++) { g.moveTo(x, 158); g.lineTo(x + Math.cos((a / 6) * Math.PI * 2) * 20, 158 + Math.sin((a / 6) * Math.PI * 2) * 20); }
+        const sc = 0.85 + rnd() * 0.35, ph = rnd() * Math.PI; // scale 0.85-1.2 + spoke rotation
+        g.lineStyle(6 * sc, tone, 1).strokeCircle(x, 158, 20 * sc);
+        g.lineStyle(5 * sc, edge, 1).beginPath();
+        for (let a = 0; a < 6; a++) { const ang = (a / 6) * Math.PI * 2 + ph; g.moveTo(x, 158); g.lineTo(x + Math.cos(ang) * 20 * sc, 158 + Math.sin(ang) * 20 * sc); }
         g.strokePath();
-        g.fillStyle(edge, 1).fillCircle(x, 158, 5);
+        g.fillStyle(edge, 1).fillCircle(x, 158, 5 * sc);
       });
       // sagging cables from the ceiling
       g.lineStyle(3, tone, 1);
@@ -725,6 +739,17 @@ export default class BootScene extends Phaser.Scene {
         make(`propnear${w}`, STRIP_W, STRIP_H, (g) => nearStrip(g, w));
         make(`atmo${w}`, 256, 140, (g) => atmoBand(g, w));
       }
+    }
+
+    // GFX5 S4: per-world landmark set-pieces (two per world) — big procedural
+    // silhouette furniture for the "which room am I in" read. Baked BOTH tiers
+    // (just textures, zero runtime cost — R1); the per-level PLACEMENT (GameScene
+    // .placeLandmarks) decides the ship tier. W1/W2 here; W3/W4 bake lazily in
+    // GameScene.ensureW3/W4Textures. Single-sourced recipe in paint.js.
+    for (const w of [1, 2]) {
+      LANDMARK_SIZES[w].forEach(([lw, lh], i) => {
+        make(`lm${w}${i ? "b" : "a"}`, lw, lh, (g) => landmark(g, w, i, lw, lh));
+      });
     }
 
     // GFX3 G4: foreground occlusion silhouettes — ONE neutral near-black family
