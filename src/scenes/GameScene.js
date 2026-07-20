@@ -336,6 +336,10 @@ export default class GameScene extends Phaser.Scene {
       this.checkpoints.forEach((c) => ko.push([c.x - KEEP, c.x + KEEP]));
       this.doors.forEach((d) => ko.push([d.wireX - KEEP, d.wireX + KEEP]));
       this.foregroundProps = addForegroundStrip(this, WORLD_THEMES[def.world] ? def.world : 1, ko);
+      // GFX5 S2: sparse background-family decals on WALL FACES, reusing the SAME
+      // G4 keep-out band list (spawns/pedestals/checkpoints/doors) — skipped in the
+      // tutorial + 4-3 arena by this guard, exactly like the foreground strip.
+      this.scatterWallDecals(ko);
     }
 
     // Sprint 10: static key-glyph clusters declared in the level def (tutorial).
@@ -1050,15 +1054,48 @@ export default class GameScene extends Phaser.Scene {
       };
       const flush = (endX) => {
         if (runStart < 0) return;
-        const w = (endX - runStart) * TILE;
+        const wt = endX - runStart; // run width in tiles
+        const w = wt * TILE;
         const cx = runStart * TILE + w / 2;
-        const ts = this.add.tileSprite(cx, y * TILE + 24, w, TILE, tileKey).setDepth(DEPTH.terrain);
+        // GFX5 S2: floor runs (>=2 tiles) use the 192x48 4-variant STRIP so the
+        // tileSprite cycles variants across the run; a lone 1-wide cell that is part
+        // of a vertical wall uses the 48x192 WALL strip (cycles DOWN the column);
+        // an isolated 1-wide platform tile stays on the base texture (variant 0).
+        // Each run/cell is de-repeated by a coord-seeded phase (R4, no Math.random):
+        // ((tx*7 + ty*13) % 4) * 48 -> adjacent runs never start on the same
+        // variant. Static one-time offset only (no per-frame writes, R3).
+        const phase = ((runStart * 7 + y * 13) % 4) * 48;
+        let texKey = tileKey, vertical = false;
+        const isFloor = wt >= 2;
+        if (isFloor) {
+          texKey = `tilestrip${world}`;
+        } else {
+          const solidAbove = y > 0 && g[y - 1][runStart] === "#";
+          const solidBelow = y + 1 < this.def.rows && g[y + 1][runStart] === "#";
+          if (solidAbove || solidBelow) { texKey = `tilewall${world}`; vertical = true; }
+          // else: isolated single tile -> stays on base tileKey (variant 0)
+        }
+        const ts = this.add.tileSprite(cx, y * TILE + 24, w, TILE, texKey).setDepth(DEPTH.terrain);
+        if (vertical) ts.tilePositionY = phase; else ts.tilePositionX = phase;
         this.physics.add.existing(ts, true);
         this.solidObjs.push(ts);
         // walkable-edge highlight: thin accent strip along the run's top edge,
         // dark drop-shadow strip just below its bottom edge.
         this.add.rectangle(cx, y * TILE + 1.5, w, 3, accent, 0.5).setDepth(DEPTH.terrain + 1);
         this.add.rectangle(cx, (y + 1) * TILE + 2, w, 4, COLORS.dark, 0.45).setDepth(DEPTH.terrain);
+        // GFX5 S2 floor-top cap: a lit top SURFACE (tilecap<world>, h=6) along the
+        // TOP edge of a walkable wide run (>=2 tiles AND open air above). Depth
+        // terrain+0.5 — above the plates, BELOW light pools (7) / shadow (8) /
+        // entities (10) so nothing overrides the light-pool stacking. Visual only:
+        // no body, no collision, zero physics impact.
+        if (isFloor) {
+          let openAbove = y === 0;
+          if (!openAbove) for (let x = runStart; x < endX; x++) { if (g[y - 1][x] !== "#") { openAbove = true; break; } }
+          if (openAbove) {
+            const cap = this.add.tileSprite(cx, y * TILE + 3, w, 6, `tilecap${world}`).setDepth(DEPTH.terrain + 0.5);
+            cap.tilePositionX = phase;
+          }
+        }
         // P4 underside ambient-occlusion: where OPEN space sits directly below the
         // run it reads as a ceiling/platform underside — darken its bottom face
         // (4px) as an orientation cue distinct from a floor top. W2 undersides
@@ -1245,6 +1282,59 @@ export default class GameScene extends Phaser.Scene {
         .setDepth(DEPTH.terrain + 0.5)
         .setAlpha(0.28 + rnd() * 0.2) // <= 0.5
         .setAngle((rnd() - 0.5) * 9);
+    }
+  }
+
+  // GFX5 S2: stamp the sparse background-family decals (vent / hazard plate /
+  // stain / sign) on exposed VERTICAL WALL FACES only. Coord/level-seeded (R4),
+  // density <=1 per ~500px of wall-face run length, spaced apart, never on a
+  // walkable floor top (candidate's cell has a solid cell directly above), never
+  // adjacent to an interactive/hazard tile, and never inside a G4 keep-out band.
+  // Static Images, depth terrain+0.5 (behind gameplay). `ko` is the SAME band
+  // list G4 builds in create() (already skipped in the tutorial + 4-3 arena).
+  scatterWallDecals(ko) {
+    const g = this.grid;
+    const rows = this.def.rows, cols = this.def.cols;
+    const world = WORLD_THEMES[this.def.world] ? this.def.world : 1;
+    const rnd = mulberry32(hashStr((this.def.id || "lvl") + ":s2decals"));
+    const inKO = (wx) => ko.some(([a, b]) => wx >= a && wx <= b);
+    const cand = [];
+    let wallLen = 0;
+    for (let y = 1; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        if (g[y][x] !== "#") continue;
+        if (g[y - 1][x] !== "#") continue; // never a walkable floor top
+        const openL = x > 0 && g[y][x - 1] !== "#";
+        const openR = x < cols - 1 && g[y][x + 1] !== "#";
+        if (!openL && !openR) continue; // must be an exposed vertical face
+        let special = false;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = x + dx, ny = y + dy;
+          const cc = (ny < 0 || ny >= rows || nx < 0 || nx >= cols) ? "#" : g[ny][nx];
+          if ("^~d<>%=".includes(cc)) { special = true; break; }
+        }
+        if (special) continue;
+        wallLen += TILE;
+        cand.push({ x, y, face: openR ? 1 : -1 });
+      }
+    }
+    const want = Math.min(cand.length, Math.floor(wallLen / 500)); // <=1 per ~500px
+    if (!want) return;
+    for (let i = cand.length - 1; i > 0; i--) { // deterministic Fisher-Yates
+      const j = Math.floor(rnd() * (i + 1));
+      const t = cand[i]; cand[i] = cand[j]; cand[j] = t;
+    }
+    const keys = [`s2vent${world}`, `s2haz${world}`, `s2stain${world}`, `s2sign${world}`];
+    const chosen = [];
+    for (const c of cand) {
+      if (chosen.length >= want) break;
+      const wx = c.x * TILE + 24;
+      if (inKO(wx)) continue;
+      if (chosen.some((o) => Math.abs(o.x - c.x) + Math.abs(o.y - c.y) < 4)) continue; // spacing
+      this.add.image(wx + c.face * 8, c.y * TILE + 24, keys[Math.floor(rnd() * keys.length)])
+        .setDepth(DEPTH.terrain + 0.5)
+        .setAlpha(0.42 + rnd() * 0.12);
+      chosen.push(c);
     }
   }
 

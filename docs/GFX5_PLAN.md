@@ -178,3 +178,56 @@ Goal: every level recognizable at a glance ("the room with the...").
   authored transition tones still harmonize with the new palette, so NO fade
   values were changed. G3 accent/accent2 tints are unchanged constants and still
   read against the lower-saturation backdrops (they now pop MORE, per R9).
+- S2-D1: ONE parameterized `plate(g,world,variant,ox,oy,wall)` recipe in BootScene
+  is the single source of truth for `tile<w>` (variant 0, drawn by the same code
+  path so it is S1-EXACT), the `tilestrip<w>` 192×48 4-variant strip, and the
+  `tilewall<w>` 48×192 4-variant vertical strip. The silhouette (softBody +
+  specular + S1 top rim-light) is identical across variants; only interior detail
+  differs — v1 moved diamond fastener layout + a shifted seam, v2 hairline crack +
+  scuffed corner (a vertical drip streak on WALL cells), v3 the world motif (W1
+  amber caution chevron / W2 pipe stub / W3 gold fleck cluster / W4 faint cyan
+  circuit trace). Every difference is kept ≥6px inside the plate and the whole
+  strip is mortar-filled first, so every 48-cell's edge pixels stay pure mortar on
+  all four sides — the seam contract holds cell-to-cell exactly as for `tile<w>`.
+  Verified at 2× zoom (s2-seams/s2-wall/s2-variety-w<N>.png): variants read as
+  clearly DIFFERENT but family-coherent, no discontinuity at the 4-tile (192px)
+  wrap boundary.
+- S2-D2: terrain wiring in GameScene.flush() — floor runs ≥2 tiles use
+  `tilestrip<world>` (the tileSprite cycles the 4 variants across the run); a lone
+  1-wide cell that is part of a vertical wall (solid directly above OR below) uses
+  `tilewall<world>` (cycles DOWN the column); an ISOLATED 1-wide platform tile
+  stays on the base `tile<world>` (variant 0). W3 `railtile` runs are LEFT on their
+  own base I-beam texture — a distinct magnet-rail surface outside the plate
+  variant family (out of S2 scope). De-repetition phase = ((tx*7 + ty*13) % 4)*48,
+  set once as tilePositionX (floors) / tilePositionY (walls) so adjacent runs never
+  start on the same variant — deterministic (R4, no Math.random), static one-time
+  offset (no per-frame write, R3). `this.tileKey` still exposes `tile<world>` for
+  the P4 probe. Zero new objects (the strip is a texture swap on the existing
+  tileSprite).
+- S2-D3: floor-top caps `tilecap<world>` 48×6 (S1 edge-light strengthened into a
+  lit top SURFACE + tiny wear nicks, world-tinted) laid as ONE h=6 tileSprite along
+  the TOP edge of each walkable run (≥2 tiles AND open air above); runs < 2 tiles
+  skipped. Depth DEPTH.terrain+0.5 — above the plates but BELOW light pools (7) /
+  shadow (8) / entities (10), so nothing overrides the light-pool stacking. Visual
+  strip only: no physics body, zero collision impact. Horizontal fades span full
+  width (seamless wrap); nicks kept in [6,45] so the 48px wrap edges match.
+- S2-D4: sparse background-family decals baked per world (`s2vent`/`s2haz`/
+  `s2stain`/`s2sign<world>`, ~24-34px, DESATURATED via paint.desat — quiet, NOT
+  accent-hot, so gameplay objects still pop MORE per R9). Placed by
+  GameScene.scatterWallDecals(ko) in create(), on exposed VERTICAL WALL FACES only
+  (never a walkable floor top, never adjacent to an interactive/hazard tile),
+  coord/level-seeded (R4), density ≤1 per ~500px of wall-face length, spaced apart.
+  It REUSES the exact G4 keep-out band list (spawns/pedestals/checkpoints/doors)
+  and sits inside the same `!tutorial && !finale` guard, so decals are skipped in
+  the tutorial + 4-3 arena exactly like the foreground strip. Observed per-level
+  counts: 1-2=3, 2-2=3, 3-2=4, 4-2=0 (open laser-garden arena — sparse by design).
+  Static Images at depth terrain+0.5, alpha ≈0.42-0.54.
+- S2-D5: fps A/B on 2-2 Canvas (snap_w4_l43 sampleFps pattern, 2×5s) — BEFORE
+  (stash) avg 38.8/32.6, AFTER 38.8/31.8; combined delta ≈ -0.4 fps, inside the
+  container's ~6 fps pass-to-pass noise floor (object count is unchanged for the
+  strip/cap swap; caps add 1 tileSprite per qualifying run, decals a handful of
+  Images). Well under the 2 fps budget, so caps + decals ship BOTH tiers with NO
+  isWebGL gate. Suites: playtest 42/42 green; beat matrix 1-2/2-2/3-2/4-2 A+B =
+  7/8 green, the single FAIL being the DOCUMENTED 2-2 fan-step container flake
+  (T-down-in-the-yard) — 2-2 re-run alone came back 2/2 green, confirming the
+  flake, not a new failure mode. Zero page errors across all runs.

@@ -50,51 +50,203 @@ export default class BootScene extends Phaser.Scene {
       g.fillStyle(color, 1).fillCircle(x, y, r);
       g.fillStyle(0xffffff, 0.85).fillCircle(x - 0.5, y - 0.5, r * 0.45);
     };
-    const tileTex = (world) => (g) => {
+    // GFX5 S2: ONE parameterized plate recipe drives the base tile, the 4-variant
+    // horizontal STRIP (tilestrip) and the 4-variant vertical WALL (tilewall).
+    // variant 0 == the S1 base plate EXACTLY (same field + corner fasteners), and
+    // the silhouette (softBody + specular + top rim-light) is IDENTICAL across all
+    // variants so runs tile seamlessly. Every 48-cell's EDGE pixels stay pure
+    // mortar on all four sides (the binding seam contract) — every interior
+    // difference is kept >=6px inside the plate. Variants 1-3 differ only in
+    // interior detail: v1 moved fastener layout + a shifted seam; v2 a hairline
+    // crack + a scuffed corner (a vertical drip streak on WALL cells); v3 the
+    // world's motif (W1 caution chevron / W2 pipe stub / W3 gold fleck / W4 faint
+    // circuit trace).
+    // ONE fastener glyph per world (steel/brass rivet or energised glow-dot).
+    const fastener = (g, world, x, y) => {
+      if (world === 1) rivet(g, x, y, 0x6b6a7c, 0x2a2935);
+      else if (world === 2) rivet(g, x, y, COLORS.brass, 0x123029);
+      else if (world === 3) glowDot(g, x, y, 0xffd24d, 1.8);
+      else glowDot(g, x, y, WORLD_THEMES[4].accent2, 1.7);
+    };
+    // per-world "field" detail — common to EVERY variant (keeps the family read).
+    // Matches the S1 base plate's per-world pass exactly (offset by ox/oy).
+    const plateField = (g, world, ox, oy) => {
       const c = TILE[world];
-      const theme = WORLD_THEMES[world];
-      // GFX5 S1: uniform HUED-dark mortar on every edge -> seamless tiling in any
-      // direction. theme.mortar is a world-tinted dark (warm umber / sea-green /
-      // wine / void-blue) — the gap still reads as a groove, but a coloured one.
-      g.fillStyle(theme.mortar, 1).fillRect(0, 0, 48, 48);
-      // rounded plate with baked 4-tone soft shading (inset 1.5px all round)
-      softBody(g, { x: 1.5, y: 1.5, w: 45, h: 45, r: 7, base: c.base });
-      // a small glassy top-left sheen dab — the Lumen "lit plate" read
-      specular(g, { x: 15, y: 13, w: 12, h: 5, a: 0.16 });
-      // GFX5 S1: baked 1px accent-tinted rim-light along the plate's TOP edge ONLY
-      // (a≈0.18) so floors catch the world's light. Kept x∈[5,43], y=2.5 (well
-      // inside the 1.5px inset) — every edge pixel (x=0/47, y=0/47) stays pure
-      // mortar tone on all four sides, so the seam contract is preserved exactly.
-      g.fillStyle(theme.edgeLight, 0.18).fillRect(5, 2.5, 38, 1);
       if (world === 1) {
-        // warm steel: warm top glaze + four steel rivets
-        g.fillStyle(c.warm, 0.08).fillRoundedRect(3, 3, 42, 12, { tl: 6, tr: 6, bl: 0, br: 0 });
-        const cap = 0x6b6a7c, seat = 0x2a2935;
-        [11, 37].forEach((x) => [11, 37].forEach((y) => rivet(g, x, y, cap, seat)));
+        g.fillStyle(c.warm, 0.08).fillRoundedRect(ox + 3, oy + 3, 42, 12, { tl: 6, tr: 6, bl: 0, br: 0 });
       } else if (world === 2) {
-        // teal maintenance plate: two faint vertical pipe-seams + brass corner bolts
-        g.lineStyle(1, 0x173d38, 0.6).lineBetween(18, 8, 18, 40);
-        g.lineStyle(1, 0x3c7a70, 0.4).lineBetween(19, 8, 19, 40);
-        g.lineStyle(1, 0x173d38, 0.6).lineBetween(30, 8, 30, 40);
-        g.lineStyle(1, 0x3c7a70, 0.4).lineBetween(31, 8, 31, 40);
-        const brass = COLORS.brass, seat = 0x123029;
-        [11, 37].forEach((x) => [11, 37].forEach((y) => rivet(g, x, y, brass, seat)));
+        g.lineStyle(1, 0x173d38, 0.6).lineBetween(ox + 18, oy + 8, ox + 18, oy + 40);
+        g.lineStyle(1, 0x3c7a70, 0.4).lineBetween(ox + 19, oy + 8, ox + 19, oy + 40);
+        g.lineStyle(1, 0x173d38, 0.6).lineBetween(ox + 30, oy + 8, ox + 30, oy + 40);
+        g.lineStyle(1, 0x3c7a70, 0.4).lineBetween(ox + 31, oy + 8, ox + 31, oy + 40);
       } else if (world === 3) {
-        // plum plate: gold hazard hatch band across the middle + glowing gold dots
         const gold = 0xffd24d;
         g.lineStyle(2, gold, 0.5);
-        for (let i = 10; i < 40; i += 7) g.lineBetween(i, 30, i + 6, 22);
+        for (let i = 10; i < 40; i += 7) g.lineBetween(ox + i, oy + 30, ox + i + 6, oy + 22);
         g.lineStyle(1, 0x2a1a33, 0.5);
-        for (let i = 10; i < 40; i += 7) g.lineBetween(i + 3, 31, i + 9, 23);
-        [11, 37].forEach((x) => [11, 37].forEach((y) => glowDot(g, x, y, gold, 1.8)));
+        for (let i = 10; i < 40; i += 7) g.lineBetween(ox + i + 3, oy + 31, ox + i + 9, oy + 23);
       } else {
-        // W4 indigo night: thin inset cyan seam + glowing cyan corner dots
-        g.lineStyle(1, WORLD_THEMES[4].accent2, 0.32).strokeRoundedRect(8, 8, 32, 32, 5);
-        [11, 37].forEach((x) => [11, 37].forEach((y) => glowDot(g, x, y, WORLD_THEMES[4].accent2, 1.7)));
+        g.lineStyle(1, WORLD_THEMES[4].accent2, 0.32).strokeRoundedRect(ox + 8, oy + 8, 32, 32, 5);
       }
+    };
+    // corner-fastener layouts (all inside [11,37] -> well clear of the seam)
+    const LAY0 = [[11, 11], [37, 11], [11, 37], [37, 37]]; // base (== S1 corners)
+    const LAY1 = [[24, 11], [11, 24], [37, 24], [24, 37]]; // moved (diamond)
+    // hairline crack polyline (kept inside [12,36]; faint world-tinted glow behind)
+    const hairCrack = (g, world, ox, oy) => {
+      const glow = world === 3 ? 0xffd24d : (world === 4 ? WORLD_THEMES[4].accent2 : 0x000000);
+      g.lineStyle(1.6, glow, 0.12);
+      g.beginPath(); g.moveTo(ox + 14, oy + 12); g.lineTo(ox + 22, oy + 22); g.lineTo(ox + 18, oy + 34); g.strokePath();
+      g.lineStyle(1, 0x000000, 0.5);
+      g.beginPath(); g.moveTo(ox + 14, oy + 12); g.lineTo(ox + 22, oy + 22); g.lineTo(ox + 18, oy + 34); g.strokePath();
+    };
+    // worn/scuffed corner (floor cells) OR a vertical drip streak (wall cells)
+    const wearMark = (g, world, ox, oy, wall) => {
+      if (wall) {
+        g.fillStyle(0x000000, 0.16).fillRoundedRect(ox + 20, oy + 10, 3, 22, 1.5);
+        g.fillStyle(0x000000, 0.12).fillRect(ox + 20.6, oy + 12, 1.4, 16);
+        g.fillStyle(0x000000, 0.2).fillCircle(ox + 21.5, oy + 33, 1.6);
+      } else {
+        g.lineStyle(1.4, 0x000000, 0.22);
+        g.beginPath(); g.moveTo(ox + 10, oy + 34); g.lineTo(ox + 18, oy + 30); g.lineTo(ox + 24, oy + 32); g.strokePath();
+        g.beginPath(); g.moveTo(ox + 11, oy + 38); g.lineTo(ox + 20, oy + 34); g.strokePath();
+        g.lineStyle(1, 0xffffff, 0.05);
+        g.beginPath(); g.moveTo(ox + 10, oy + 33); g.lineTo(ox + 18, oy + 29); g.strokePath();
+      }
+    };
+    // the world's decal MOTIF (kept quiet — background family, R9)
+    const plateMotif = (g, world, ox, oy) => {
+      if (world === 1) {
+        for (let k = 0; k < 3; k++) {
+          const x = ox + 26 + k * 4;
+          g.fillStyle(COLORS.amber, 0.5);
+          g.fillPoints([{ x, y: oy + 20 }, { x: x + 6, y: oy + 10 }, { x: x + 8.5, y: oy + 10 }, { x: x + 2.5, y: oy + 20 }], true);
+        }
+      } else if (world === 2) {
+        g.fillStyle(0x24443d, 1).fillRoundedRect(ox + 28, oy + 26, 10, 5, 2);
+        g.fillStyle(0x24443d, 1).fillRoundedRect(ox + 33, oy + 18, 5, 10, 2);
+        g.fillStyle(COLORS.brass, 0.7).fillRect(ox + 27, oy + 25, 12, 1.6);
+        g.fillStyle(0x8fe8d0, 0.18).fillRect(ox + 29, oy + 27, 8, 1);
+      } else if (world === 3) {
+        [[16, 18], [22, 26], [30, 20], [26, 32]].forEach(([x, y], i) => {
+          g.fillStyle(0xffd24d, 0.7).fillCircle(ox + x, oy + y, 1.4 - (i % 2) * 0.4);
+          g.fillStyle(0xffffff, 0.4).fillCircle(ox + x - 0.4, oy + y - 0.4, 0.5);
+        });
+      } else {
+        g.lineStyle(1, WORLD_THEMES[4].accent2, 0.22);
+        g.beginPath(); g.moveTo(ox + 14, oy + 30); g.lineTo(ox + 22, oy + 30); g.lineTo(ox + 22, oy + 18); g.lineTo(ox + 32, oy + 18); g.strokePath();
+        g.fillStyle(WORLD_THEMES[4].accent2, 0.5).fillCircle(ox + 32, oy + 18, 1.4);
+        g.fillStyle(WORLD_THEMES[4].accent2, 0.5).fillCircle(ox + 14, oy + 30, 1.4);
+      }
+    };
+    // draw ONE 48x48 plate variant at (ox,oy). variant 0 == the S1 base tile.
+    const plate = (g, world, variant, ox, oy, wall) => {
+      const c = TILE[world];
+      const theme = WORLD_THEMES[world];
+      // silhouette + shading — IDENTICAL across variants (seam-safe, inset 1.5px)
+      softBody(g, { x: ox + 1.5, y: oy + 1.5, w: 45, h: 45, r: 7, base: c.base });
+      specular(g, { x: ox + 15, y: oy + 13, w: 12, h: 5, a: 0.16 });
+      // GFX5 S1 baked 1px accent rim-light along the plate's TOP edge only (a≈0.18)
+      g.fillStyle(theme.edgeLight, 0.18).fillRect(ox + 5, oy + 2.5, 38, 1);
+      plateField(g, world, ox, oy);
+      if (variant === 1) {
+        LAY1.forEach(([x, y]) => fastener(g, world, ox + x, oy + y));
+        g.lineStyle(1, theme.edgeLight, 0.1).lineBetween(ox + 10, oy + 24, ox + 38, oy + 24);
+      } else {
+        LAY0.forEach(([x, y]) => fastener(g, world, ox + x, oy + y));
+        if (variant === 2) { hairCrack(g, world, ox, oy); wearMark(g, world, ox, oy, wall); }
+        else if (variant === 3) plateMotif(g, world, ox, oy);
+      }
+    };
+    // base per-world tile == variant 0 (single source of truth, S1-exact)
+    const tileTex = (world) => (g) => {
+      g.fillStyle(WORLD_THEMES[world].mortar, 1).fillRect(0, 0, 48, 48);
+      plate(g, world, 0, 0, 0, false);
     };
     for (let w = 1; w <= 4; w++) make(`tile${w}`, 48, 48, tileTex(w));
     make("tile", 48, 48, tileTex(1)); // back-compat alias (== W1)
+    // GFX5 S2 variant strips: 192x48 horizontal (the tileSprite cycles the 4
+    // variants across a floor run) + 48x192 vertical wall (cycles down a wall).
+    // Mortar fills the whole strip first so every inter-cell boundary is a clean
+    // mortar groove — the seam contract holds cell-to-cell exactly as for tile<w>.
+    for (let w = 1; w <= 4; w++) {
+      make(`tilestrip${w}`, 192, 48, (g) => {
+        g.fillStyle(WORLD_THEMES[w].mortar, 1).fillRect(0, 0, 192, 48);
+        for (let v = 0; v < 4; v++) plate(g, w, v, v * 48, 0, false);
+      });
+      make(`tilewall${w}`, 48, 192, (g) => {
+        g.fillStyle(WORLD_THEMES[w].mortar, 1).fillRect(0, 0, 48, 192);
+        for (let v = 0; v < 4; v++) plate(g, w, v, 0, v * 48, true);
+      });
+      // floor-top cap (S1 edge-light strengthened into a lit top SURFACE + tiny
+      // wear nicks, world-tinted). 48x6, laid as one h=6 tileSprite along the top
+      // of walkable runs. Horizontal fades span full width (seamless wrap); nicks
+      // stay in [6,45] so the left/right edges match at the 48px wrap.
+      make(`tilecap${w}`, 48, 6, (g) => {
+        const theme = WORLD_THEMES[w];
+        g.fillStyle(theme.edgeLight, 0.5).fillRect(0, 0, 48, 1.5);
+        g.fillStyle(theme.edgeLight, 0.28).fillRect(0, 1.5, 48, 1.5);
+        g.fillStyle(theme.edgeLight, 0.12).fillRect(0, 3, 48, 1.5);
+        [6, 19, 33, 44].forEach((x, i) => {
+          g.fillStyle(0x000000, 0.18 + (i % 2) * 0.06).fillRect(x, 0, 1.4, 2 + (i % 2));
+        });
+      });
+    }
+    // GFX5 S2 sparse WALL-FACE decals (3-4 per world, quiet S1 background family —
+    // desaturated, NOT accent-hot, so gameplay objects still pop, R9). Stamped as
+    // static Images by GameScene.scatterWallDecals (coord-seeded, G4 keep-out
+    // respected, none on walkable floor tops). Vent / hazard plate / stain / sign.
+    for (let w = 1; w <= 4; w++) {
+      const c = TILE[w];
+      const th = WORLD_THEMES[w];
+      const frame = desat(c.base, 0.32); // desaturated plate steel
+      const lip = desat(0x8fa3d9, 0.2);
+      const muted = desat(th.accent, 0.5); // quiet world accent
+      const dark = th.mortar;
+      // vent grille
+      make(`s2vent${w}`, 30, 30, (g) => {
+        softBody(g, { x: 2, y: 2, w: 26, h: 26, r: 5, base: frame });
+        g.fillStyle(dark, 0.92);
+        for (let ly = 7; ly < 25; ly += 5) g.fillRoundedRect(6, ly, 18, 2.6, 1);
+        g.fillStyle(lip, 0.55);
+        for (let ly = 7; ly < 25; ly += 5) g.fillRect(6, ly - 1, 18, 1);
+        g.fillStyle(desat(c.base, 0.1), 1);
+        [6, 24].forEach((sx) => [6, 24].forEach((sy) => g.fillCircle(sx, sy, 1.5)));
+      });
+      // hazard warning plate (muted diagonal stripes)
+      make(`s2haz${w}`, 34, 22, (g) => {
+        softBody(g, { x: 1, y: 1, w: 32, h: 20, r: 4, base: frame });
+        g.fillStyle(muted, 0.4);
+        for (let i = -6; i < 34; i += 8) g.fillPoints([{ x: i, y: 20 }, { x: i + 5, y: 20 }, { x: i + 13, y: 2 }, { x: i + 8, y: 2 }], true);
+        g.lineStyle(1, dark, 0.7).strokeRoundedRect(1, 1, 32, 20, 4);
+      });
+      // grime stain (organic dark blotch)
+      make(`s2stain${w}`, 32, 28, (g) => {
+        g.fillStyle(dark, 0.5).fillEllipse(16, 15, 28, 20);
+        g.fillStyle(dark, 0.35).fillEllipse(9, 10, 12, 9).fillEllipse(24, 19, 11, 8);
+        g.fillStyle(desat(c.base, 0.2), 0.18).fillEllipse(17, 13, 10, 5);
+      });
+      // taped sign / placard carrying a quiet world motif
+      make(`s2sign${w}`, 24, 30, (g) => {
+        g.fillStyle(desat(0xcfc9b8, 0.15), 0.9).fillRoundedRect(2, 2, 20, 26, 2);
+        g.lineStyle(1, dark, 0.8).strokeRoundedRect(2, 2, 20, 26, 2);
+        g.fillStyle(muted, 0.7).fillRoundedRect(2, 2, 20, 6, { tl: 2, tr: 2, bl: 0, br: 0 });
+        if (w === 1) { // caution triangle
+          g.fillStyle(muted, 0.75).fillTriangle(12, 12, 5, 24, 19, 24);
+          g.fillStyle(dark, 0.85).fillRect(11.2, 16, 1.6, 4).fillRect(11.2, 21, 1.6, 1.6);
+        } else if (w === 2) { // valve tag
+          g.lineStyle(2, muted, 0.7).strokeCircle(12, 18, 5);
+          g.fillStyle(muted, 0.6).fillRect(11, 11, 2, 14).fillRect(5, 17, 14, 2);
+        } else if (w === 3) { // hazard diamond
+          g.fillStyle(muted, 0.7).fillPoints([{ x: 12, y: 11 }, { x: 19, y: 18 }, { x: 12, y: 25 }, { x: 5, y: 18 }], true);
+          g.fillStyle(dark, 0.8).fillRect(11.2, 14, 1.6, 5).fillRect(11.2, 20, 1.6, 1.6);
+        } else { // KOBI eye
+          g.fillStyle(dark, 1).fillEllipse(12, 18, 13, 8);
+          g.fillStyle(muted, 0.85).fillCircle(12, 18, 3);
+          g.fillStyle(desat(0xffffff, 0.3), 0.5).fillCircle(11, 17, 1);
+        }
+      });
+    }
     // W2 underside drip-stain decal: a faint rust streak hanging from a ceiling
     // face (added deterministically under W2 platform undersides in GameScene).
     make("dripstain", 8, 18, (g) => {
