@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { TILE, COLORS, PHYS, DEPTH, SKILL_INFO, WORLD_THEMES, FADE_NAVY, FONT, FONT_DISPLAY, FS, TEXT, PARTICLES } from "../constants.js";
-import { ringGlow, glowShape, iconChip, iconGlow, softBody, sheen, GLASS_HI, isWebGL } from "../ui/paint.js";
+import { ringGlow, glowShape, iconChip, iconGlow, softBody, sheen, glassPanel, GLASS_HI, isWebGL } from "../ui/paint.js";
 import { LEVELS } from "../levels/registry.js";
 import { makeGrid } from "../levels/builder.js";
 import devW3 from "../levels/dev_w3.js";
@@ -1588,19 +1588,39 @@ export default class GameScene extends Phaser.Scene {
           const ph = 12, ply = top + h / 2, pad = 6;
           const label = String(e.id).slice(0, 4).toUpperCase();
           const prx = cx - halfW - 7; // plate right edge, clear of the side rail + leaf
-          // Own graphics + text at DEPTH.entity + 1: the plate sits in the gap
-          // BESIDE the leaf (not under it), so this reads as a riveted rail tag and
-          // is never clipped by the leaf/rail that used to swallow a 4-char id.
-          const plate = this.add.graphics().setDepth(DEPTH.entity + 1);
+          const accent = (WORLD_THEMES[this.def.world] || WORLD_THEMES[1]).accent;
+          // GFX4 F3 (3b): restyle the riveted rail tag as a small lab sign — a
+          // glassPanel pill base (mono label — R9: in-world text stays mono), a tiny
+          // world-accent icon dot, and a WebGL-only accent edge glow. The tag still
+          // sits in the gap BESIDE the leaf (right edge = prx, centre = ply), so it
+          // is never clipped. T3 (D11) proximity-recede is byte-identical: the whole
+          // sign is ONE container registered at (cx, ply); its alpha lerps 1.0<->0.35
+          // exactly as the old plate/text alphas did.
           const t = this.add.text(prx - pad, ply, label, {
             fontFamily: FONT, fontSize: FS.tiny, color: TEXT.dim,
-          }).setOrigin(1, 0.5).setDepth(DEPTH.entity + 2).setResolution(2);
-          const pw = t.width + pad * 2;
-          plate.fillStyle(0x0c1424, 0.95).fillRoundedRect(prx - pw, ply - ph / 2, pw, ph, 2);
-          plate.lineStyle(1, 0x44548c).strokeRoundedRect(prx - pw, ply - ph / 2, pw, ph, 2);
+          }).setOrigin(1, 0.5).setResolution(2);
+          const dotR = 3, dotGap = 6;
+          const dotCx = (prx - pad - t.width) - dotGap - dotR;
+          const pillLeft = dotCx - dotR - pad;
+          const pw = prx - pillLeft;
+          const plate = this.add.graphics();
+          glassPanel(plate, { x: pillLeft, y: ply - ph / 2, w: pw, h: ph, r: 3, accent, fillA: 0.9, borderA: 0.7, glow: false });
+          // tiny world-accent icon dot (soft halo + hot core + catchlight) — the sign "bulb".
+          plate.fillStyle(accent, 0.28).fillCircle(dotCx, ply, dotR + 1.5);
+          plate.fillStyle(accent, 1).fillCircle(dotCx, ply, dotR);
+          plate.fillStyle(0xffffff, 0.6).fillCircle(dotCx - 0.9, ply - 0.9, dotR * 0.4);
+          const sign = this.add.container(0, 0).setDepth(DEPTH.entity + 1);
+          // WebGL-only accent edge glow behind the pill (R1: base sign is fully
+          // readable on Canvas; nothing WebGL-only is even CREATED on Canvas).
+          if (isWebGL(this)) {
+            const glow = this.add.graphics();
+            glow.lineStyle(4, accent, 0.22).strokeRoundedRect(pillLeft - 2, ply - ph / 2 - 2, pw + 4, ph + 4, 5);
+            glow.setBlendMode(Phaser.BlendModes.ADD);
+            sign.add(glow);
+          }
+          sign.add([plate, t]);
           // T3 (D11): the door id plate (e.g. GATE) recedes when no robot is near.
-          this.addProxLabel(plate, cx, ply);
-          this.addProxLabel(t, cx, ply);
+          this.addProxLabel(sign, cx, ply);
         }
         if (door.isExit) {
           this.exitDoor = door;

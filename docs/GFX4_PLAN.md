@@ -303,3 +303,55 @@ R9 (NEW, this round): TEXT-FIT discipline. Any call site switched to the
   coupling); UIScene/GameScene changes are visual-only (blip-bar/stuck/banner-skip
   contracts untouched, no per-frame allocation — the hint helper is a scalar
   return). Shots at tools/shots/gfx4/f2-*.png.
+- F3-D1: KOBI portrait 2.0 (3a) shipped. BootScene bakes a 6-texture family ONCE
+  (R3/R4) in KOBI's pink/magenta language: kobi_face_neutral / _smug / _alarmed /
+  _defeated / _glee (each 48x48 — a round housing socket + magenta ring-glow, a
+  glassy sclera with mood-shaped lids, a magenta iris, a tiny baked rest-mouth) and
+  a SINGLE kobi_mouth (18x14) open-mouth overlay that composes over ANY expression
+  (fewer textures per spec). INTEGRATION (key decision): rather than rip out the
+  P9/A11 avatar machinery (avBase/avRing/avIris/avLid/avSquint/avFlare/avBlink +
+  kobiMood/irisPos + their tweens + snap_p2_p9/a11 probes), the baked portrait Image
+  (UIScene.buildBlipBar, `this.avPortrait` at the socket centre ax,ay) rides ON TOP
+  of that (now-occluded) stack inside `avatarGroup` — so the PORTRAIT is what the
+  player sees while every existing mood/geometry contract + probe stays byte-
+  identical (P9 4/4 + A11 all-pass reconfirmed). Portrait swap is a pure texture
+  swap in applyKobiMood (`this.avPortrait.setTexture(kobiFace(mood))`). The mouth
+  overlay `this.avMouth` sits at (ax, ay+11) over the baked rest-mouth. Both were
+  added to avatarGroup so the T1 slim-bar `avatarGroup.y` shift moves them too; bar
+  geometry/hold/queue/skip/slim contracts all untouched.
+- F3-D2: mood→expression map (UIScene KOBI_FACE) — catalogued from EVERY mood that
+  flows through the bb:blip queue (barks.js emits tagless→queue default "gloating";
+  GameScene emits + level4_3 + the queue default at UIScene.js `item.mood ||
+  "gloating"`): the full set is gloating, angry, scared, happy, defeated. Mapping:
+  gloating→smug, angry→alarmed, scared→alarmed, happy→glee, defeated→defeated; any
+  unknown/absent tag → neutral (`kobiFace()` fallback). The queue's existing
+  `|| "gloating"` default is UNCHANGED (contract), so tagless/bark lines show the
+  smug face. Verified through the real pipeline: all 6 mappings correct on screen.
+- F3-D3: mouth-flutter integration point = UIScene.js update()'s typewriter branch
+  (`if (b.shown < b.text.length)`, ~UIScene.js:907) — it piggybacks the SAME typing
+  step: `b._mouthAcc += delta; if (b._mouthAcc >= 120) { b._mouthAcc -= 120;
+  this.avMouth.setVisible(!visible); }`. No new timer/loop/alloc (R3): the counter
+  lives on the active-blip object and only advances while that branch runs (i.e.
+  while typing). The else (typing-done) branch settles `avMouth` hidden, and a fresh
+  blip hides it at start — so the mouth is closed the instant typing ends by ANY
+  path (natural finish, auto-hold, or ENTER skip-to-full). Verified: mouth open
+  mid-type, closed after typing end AND after ENTER-skip, for every mood.
+- F3-D4: in-world signage (3b) — the door id plate ("GATE"/"DOOR" etc.,
+  GameScene.js door-build) is restyled as a small lab sign: a glassPanel pill base
+  (world-accent border, glow:false), the mono label (R9 — in-world text stays mono,
+  FONT + setResolution(2) kept), a tiny world-accent icon dot (halo+core+catchlight),
+  and a WebGL-ONLY additive edge-glow graphics gated behind isWebGL(this) — so on
+  Canvas NOTHING WebGL-only is even created (probed: Canvas sign container has 2
+  children [pill,text]; WebGL has 3 [glow,pill,text]) and the base sign is fully
+  readable both tiers (R1). The plate+text (formerly TWO separate proxLabels) are
+  now ONE container registered via addProxLabel(sign, cx, ply); T3 (D11) recede is
+  byte-identical — container.alpha lerps on the SAME 150ms cadence toward the SAME
+  targets. Probed both tiers: robot NEAR → alpha 1.0000, robot FAR → 0.3500 (exact
+  T3 constants: 1.0 within 288px, 0.35 beyond 480px). Right edge (prx) + centre
+  (ply) unchanged so the tag still clears the leaf/rail.
+- F3-D5 (QA): full F3 verification — playtest 42/42, playtest_textbox 13/13 (the
+  critical T1 skip/queue/hold suite), snap_gfx4_f3 30/30, plus snap_p2_p9 + a11
+  reconfirmed no-regression; zero page errors everywhere (only the pre-existing
+  favicon 404 console line, per F2-D6). Shots at tools/shots/gfx4/f3-kobi-<mood>{,-settled}.png
+  and f3-sign-{far,near}-{canvas,webgl}.png. New QA script tools/snap_gfx4_f3.mjs
+  (tools/ originals untouched — R6).

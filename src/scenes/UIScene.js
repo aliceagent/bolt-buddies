@@ -19,6 +19,20 @@ const P_COL = [COLORS.beep, COLORS.boop];
 // smug), angry red (a plan backfired), defeated grey-blue (he deflates).
 const KOBI_RING = { gloating: 0xff4dd2, angry: 0xff3b30, defeated: 0x7d8fb8 };
 
+// GFX4 F3 (3a): KOBI portrait 2.0 — mood tag → baked expression texture. Covers
+// EXACTLY the mood strings that flow through the bb:blip queue (catalogued from
+// barks.js + every GameScene emit + level defs): gloating (the queue default for
+// tagless/bark lines) → smug; angry/scared → alarmed; happy → glee; defeated →
+// defeated. Any unknown/absent tag falls back to neutral.
+const KOBI_FACE = {
+  gloating: "kobi_face_smug",
+  angry: "kobi_face_alarmed",
+  scared: "kobi_face_alarmed",
+  happy: "kobi_face_glee",
+  defeated: "kobi_face_defeated",
+};
+const kobiFace = (mood) => KOBI_FACE[mood] || "kobi_face_neutral";
+
 // pointy-top hexagon outline, centred on (0,0) — precomputed once, reused for
 // every core pip so nothing is allocated per frame / per redraw.
 const HEX = [];
@@ -658,6 +672,14 @@ export default class UIScene extends Phaser.Scene {
     // (ay = y0 + h/2); layoutBlipBar() nudges the group for the slim variant.
     this.avatarGroup = this.add.container(0, 0);
     this.avatarGroup.add([avBase, this.avRing, this.avIris, this.avSquint, this.avFlare, this.avBlink, this.avLid]);
+    // GFX4 F3 (3a): the baked KOBI portrait rides ON TOP of the (untouched) avatar
+    // machinery — a texture-swap face at the exact socket centre, so all the P9/A11
+    // mood state (kobiMood, irisPos, avLid/avSquint/avFlare/avBlink) keeps working
+    // for the contracts/probes while the PORTRAIT is what the player sees. The mouth
+    // overlay sits over the baked mouth region; it flutters open/closed while typing.
+    this.avPortrait = this.add.image(ax, ay, "kobi_face_neutral");
+    this.avMouth = this.add.image(ax, ay + 11, "kobi_mouth").setVisible(false);
+    this.avatarGroup.add([this.avPortrait, this.avMouth]);
     this.blipBg = bg;                 // redrawn per line (slim vs full) — see layoutBlipBar
     this._barX = { x0, w };           // x-geometry is fixed; only y0/h change per line
 
@@ -744,6 +766,9 @@ export default class UIScene extends Phaser.Scene {
   // eyelid on defeat. Called on each new blip; cheap redraw, no allocation.
   applyKobiMood(mood) {
     this.kobiMood = mood;
+    // GFX4 F3 (3a): swap the portrait to the mood's baked expression (texture swap
+    // only — geometry/position untouched). Unknown/absent mood → neutral.
+    if (this.avPortrait) this.avPortrait.setTexture(kobiFace(mood));
     const ring = KOBI_RING[mood] || KOBI_RING.gloating;
     this.avRing.clear();
     this.avRing.lineStyle(3, ring, 0.95).strokeCircle(this._avx, this._avy, 22);
@@ -851,6 +876,7 @@ export default class UIScene extends Phaser.Scene {
       const hold = Math.max(1200, Math.min(2600, 28 * item.text.length / uxTextSpeed()));
       this.blipActive = { text: item.text, mood: item.mood || "gloating", shown: 0, hold };
       this.blipBar.setVisible(true);
+      this.avMouth.setVisible(false); // F3 (3a): start with the mouth settled closed
       this.blipText.setText("");
       this.layoutBlipBar(this.blipTextFits1Line(item.text)); // slim bar for 1-line captions
       this.applyKobiMood(this.blipActive.mood); // ring + border pulse + eyelid follow mood
@@ -882,7 +908,12 @@ export default class UIScene extends Phaser.Scene {
         const s = b.text.slice(0, Math.floor(b.shown));
         if (s.length !== this.blipText.text.length && s.length % 3 === 0) sfx.kobi(b.mood);
         this.blipText.setText(s);
+        // GFX4 F3 (3a): mouth flutter — piggybacks THIS typing step (no new timer/
+        // loop; only advances while typing). ~120ms open/closed cadence.
+        b._mouthAcc = (b._mouthAcc || 0) + delta;
+        if (b._mouthAcc >= 120) { b._mouthAcc -= 120; this.avMouth.setVisible(!this.avMouth.visible); }
       } else {
+        if (this.avMouth.visible) this.avMouth.setVisible(false); // typing ended → mouth closed
         b.hold -= delta;
         if (b.hold <= 0) this.dismissBlip(); // auto-clear (same path as ENTER dismiss)
       }

@@ -1713,6 +1713,75 @@ export default class BootScene extends Phaser.Scene {
       g.fillStyle(PARTICLES.steam.core, 0.9).fillRect(1, 0, 1, 20);
     });
 
+    // GFX4 F3 (3a): KOBI portrait 2.0 — a baked expression family for the blip-bar
+    // avatar, drawn ONCE here (R3/R4: procedural, no per-frame work). Each face is a
+    // 48x48 texture in KOBI's pink/magenta language: a round housing socket + magenta
+    // ring-glow, a glassy sclera with mood-shaped lids, a magenta iris, and a tiny
+    // baked mouth conveying the mood at rest. A SINGLE separate "kobi_mouth" overlay
+    // (open talking mouth) composes over ANY expression — UIScene flutters it on/off
+    // while the typewriter types, then settles it hidden so the baked closed mouth
+    // shows. Center = (24,24) so an Image placed at the old avatar centre lines up.
+    {
+      const mag = COLORS.magenta;
+      const housing = (g) => {
+        g.fillStyle(0x1a1020, 1).fillCircle(24, 24, 22); // socket
+        ringGlow(g, { x: 24, y: 24, r: 20, color: mag, width: 1.5 });
+      };
+      const sclera = (g, cx, cy, r) => {
+        g.fillStyle(0xf6f0ff, 1).fillCircle(cx, cy, r);
+        g.fillStyle(0xffffff, 0.5).fillEllipse(cx - 5, cy - 6, 10, 5); // top-left sheen
+      };
+      const iris = (g, ix, iy, r) => {
+        g.fillStyle(mag, 0.28).fillCircle(ix, iy, r + 3);
+        g.fillStyle(mag, 1).fillCircle(ix, iy, r);
+        g.fillStyle(0x2a0a1e, 1).fillCircle(ix, iy, r * 0.45);         // pupil
+        g.fillStyle(0xffffff, 0.9).fillCircle(ix - r * 0.4, iy - r * 0.4, r * 0.28); // catchlight
+      };
+      // neutral — open round eye, flat mouth
+      make("kobi_face_neutral", 48, 48, (g) => {
+        housing(g); sclera(g, 24, 20, 15); iris(g, 24, 20, 7);
+        g.fillStyle(mag, 0.85).fillRoundedRect(19, 34, 10, 2.6, 1.3);
+      });
+      // smug — heavy half-lid slit + a smirk rising to the right (mood: gloating)
+      make("kobi_face_smug", 48, 48, (g) => {
+        housing(g); sclera(g, 24, 20, 15); iris(g, 26, 22, 7);
+        g.fillStyle(0x1a1020, 1).fillRect(8, 6, 32, 12); // top lid slit
+        g.lineStyle(2.4, mag, 0.9);
+        g.beginPath(); g.moveTo(19, 36); g.lineTo(24, 35); g.lineTo(29, 32); g.strokePath();
+      });
+      // alarmed — wide eye, raised centre brows, open gasp (mood: angry / scared)
+      make("kobi_face_alarmed", 48, 48, (g) => {
+        housing(g); sclera(g, 24, 20, 16); iris(g, 24, 19, 5.5);
+        g.lineStyle(3, 0x1a1020, 1);
+        g.lineBetween(11, 9, 21, 6); g.lineBetween(37, 9, 27, 6); // raised /\ brows
+        g.fillStyle(0x2a0a1e, 1).fillEllipse(24, 35, 8, 7);
+        g.lineStyle(1.5, mag, 0.9).strokeEllipse(24, 35, 8, 7);
+      });
+      // defeated — drooping heavy lid, low iris, grey-blue frown (mood: defeated)
+      make("kobi_face_defeated", 48, 48, (g) => {
+        housing(g); sclera(g, 24, 21, 14); iris(g, 24, 25, 6);
+        g.fillStyle(0x180b13, 0.98).fillRect(8, 6, 32, 16); // heavy drooping lid
+        g.lineStyle(1.5, 0x2a1420, 1).lineBetween(9, 22, 39, 22);
+        g.lineStyle(2.4, 0x7d8fb8, 0.9);
+        g.beginPath(); g.moveTo(19, 34); g.lineTo(24, 37); g.lineTo(29, 34); g.strokePath();
+      });
+      // glee — bright eye, raised cheek squint, big open smile (mood: happy)
+      make("kobi_face_glee", 48, 48, (g) => {
+        housing(g); sclera(g, 24, 19, 15); iris(g, 24, 19, 8);
+        g.fillStyle(0x1a1020, 1).fillRect(8, 28, 32, 8); // raised bottom lid (cheek up)
+        g.lineStyle(3, mag, 0.95);
+        g.beginPath(); g.moveTo(17, 32); g.lineTo(20, 36); g.lineTo(24, 37);
+        g.lineTo(28, 36); g.lineTo(31, 32); g.strokePath();
+      });
+      // the ONE talking-mouth overlay — an open magenta-rimmed mouth composed over
+      // any expression while KOBI types (see UIScene mouth flutter).
+      make("kobi_mouth", 18, 14, (g) => {
+        g.fillStyle(0x2a0a1e, 1).fillEllipse(9, 7, 13, 10);
+        g.lineStyle(1.5, mag, 0.95).strokeEllipse(9, 7, 13, 10);
+        g.fillStyle(0xff8ae0, 0.55).fillEllipse(9, 5, 8, 3.2); // upper light rim
+      });
+    }
+
     // GFX4 F2 (2b): themed mouse cursor — the baked teal-pointer data-URI applied
     // once at boot as the game-wide default cursor (DOM/CSS only; no renderer
     // coupling, no per-frame work). HOVER DECISION (logged): Phaser hard-codes the
