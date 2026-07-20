@@ -426,3 +426,13 @@ R9 (NEW, this round): TEXT-FIT discipline. Any call site switched to the
   peak 0) — transition timing unchanged for the driver. Zero page errors across all
   F4 captures. New QA scripts tools/qa_f4_{iris,setres,shots}.mjs (tools/ originals
   untouched — R6).
+- F5 (full gate, 2026-07-20): suites all green (42/42, w2 30/30, audio 29/29,
+  vo 5/5, tut 21/21, textbox 13/13); beat matrix 22/24 with both fails the
+  documented ledger flakes (1-2 reel, 2-2 fan — 4/4 green on re-run); softlock
+  38/38 RECOVERABLE 0 HARD; campaign initially FAILED run 3 at the Title→Hub
+  handoff → root-caused to runIris hinging the scene handoff on a single tween
+  onComplete → hardened (guaranteed-once finish + duration+300ms backstop,
+  c457aae) → campaign 2/2 CLEAN, 0 flake-retries. Canvas fps A/B dev-vs-main
+  on 2-2 + 4-3: identical within noise. All 11 walkthrough videos regenerated
+  on the final look (10 death-free; 2-1 keeps its route-deterministic single
+  death). Promoted dev → main.
