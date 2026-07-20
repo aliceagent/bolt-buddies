@@ -276,3 +276,6 @@ Goal: every level recognizable at a glance ("the room with the...").
   atmo<w> exist=false), while the mid strip is present — s3-w2-canvas.png matches
   the pre-S3 look. Suites: playtest 42/42 green (Canvas — proves the gate); beat
   3-2 A+B 2/2 green. Zero page errors on both tiers.
+- S3-D5 (QA): near-band scrollFactor 0.6 → 0.72 — the builder's honest caveat
+  (mid pinned at 0.55 by Canvas invariance left mid/near in near-lockstep);
+  0.72 restores a distinct third rate. WebGL-only object, freely tuned.

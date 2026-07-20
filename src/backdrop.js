@@ -102,8 +102,10 @@ export function addFarStrip(scene, world) {
 }
 
 // NEAR band: larger, sparser structures with accent-lit windows. scrollFactor
-// ~0.6 (moves most of the three bands), depth ABOVE the mid strip (bg-5) and
-// BELOW the fog band (bg-4) / terrain.
+// ~0.72 (moves most of the three bands), depth ABOVE the mid strip (bg-5) and
+// BELOW the fog band (bg-4) / terrain. S3-QA: 0.6 sat only 0.05 above the mid
+// band (pinned at today's 0.55 by Canvas invariance), so near and mid moved in
+// near-lockstep; 0.72 gives the near band its own visible rate.
 export function addNearStrip(scene, world) {
   const key = scene.textures.exists(`propnear${world}`) ? `propnear${world}` : "propnear1";
   if (!scene.textures.exists(key)) return null;
@@ -111,7 +113,7 @@ export function addNearStrip(scene, world) {
   return scene.add
     .tileSprite(-W, 0, scene.worldW + 2 * W, 864, key)
     .setOrigin(0, 0)
-    .setScrollFactor(0.6)
+    .setScrollFactor(0.72)
     .setAlpha(0.42)
     .setDepth(DEPTH.bg - 4.5);
 }
