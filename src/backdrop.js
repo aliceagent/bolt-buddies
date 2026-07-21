@@ -318,6 +318,13 @@ export function addDustShafts(scene, world) {
     { fx: 0.28, angle: 16 },
     { fx: 0.68, angle: -13 },
   ];
+  // GFX6 L2 temperature audit: the dust-shaft beams + cones baked NEUTRAL white read
+  // slightly cold against every world's ambient temperature. Tint them to the world
+  // LIGHT TEMPERATURE (W1 warm amber, W2 aqua-green, W3 gold, W4 cold blue) so the
+  // raw light shafts cohere with the world. WebGL-only (addDustShafts is only called
+  // on the WebGL tier), so the Canvas reference tier is byte-identical (R1).
+  const LIGHT_TEMP = { 1: 0xffcf8f, 2: 0x8fe8d0, 3: 0xffe088, 4: 0xbcd0ff };
+  const temp = LIGHT_TEMP[world] || 0xffffff;
   for (const b of layout) {
     const img = scene.add
       .image(b.fx * scene.worldW, scene.worldH * 0.4, "dustShaft")
@@ -326,6 +333,7 @@ export function addDustShafts(scene, world) {
       .setBlendMode(Phaser.BlendModes.ADD)
       .setAlpha(world === 2 ? 0.06 : 0.09)
       .setDepth(DEPTH.bg - 2);
+    if (isWebGL(scene)) img.setTint(temp); // world light-temperature (WebGL only)
     scene.tweens.add({
       targets: img,
       x: img.x + 26,
@@ -347,6 +355,7 @@ export function addDustShafts(scene, world) {
         .setAngle(b.angle)
         .setBlendMode(Phaser.BlendModes.ADD)
         .setAlpha(0.09)
+        .setTint(temp) // GFX6 L2: world light-temperature (this branch is already WebGL-gated)
         .setDepth(DEPTH.bg - 2);
     }
   }

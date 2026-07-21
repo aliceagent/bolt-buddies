@@ -144,6 +144,7 @@ export default class GameScene extends Phaser.Scene {
     this.lightPools = [];
     this.deviceHalos = []; // GFX3 G3: machinery bloom halos (WebGL only, cap <=40)
     this._flickBuckets = [[], [], []];
+    this._flickCandidates = []; // GFX6 L2: steady ambient pools eligible for the slow flicker waver
     this.coreItems = [];
     this.keyItems = [];
     this.checkpoints = [];
@@ -314,6 +315,9 @@ export default class GameScene extends Phaser.Scene {
     def.entities.forEach((e) => this.spawnEntity(e));
     // P5: trace lever/plate → device wiring now that every entity exists.
     this.buildConduits();
+    // GFX6 L2: seed the flicker-personality waver now that every ambient light pool
+    // exists (deterministic, one tween per selected pool, WebGL-only — see method).
+    this.wireLampFlicker();
 
     // GFX3 G3: phase-wall bloom halos, added AFTER entities so the discrete
     // interactive devices (levers/checkpoints/turrets/magnets) claim the <=40
@@ -1045,6 +1049,14 @@ export default class GameScene extends Phaser.Scene {
     const gfx6Gate = typeof location !== "undefined" && /(?:\?|&)gfx6gate=1(?:&|$)/.test(location.search);
     this._aoTier = gfx6Gate ? this._webglTier : true;
     this._ledgeTier = gfx6Gate ? this._webglTier : true;
+    // GFX6 L2: lamp SPILL wall-wash — static baked per-world Images (both-tier by
+    // nature, R1). Same measured gate as L1; `?gfx6gate=1` forces the WebGL-only
+    // fallback for the A/B measurement.
+    this._spillTier = gfx6Gate ? this._webglTier : true;
+    // GFX6 L2: isolated spill A/B lever — `?nospill=1` suppresses ONLY the spill
+    // washes (AO/ledge/flicker unchanged) so the Canvas fps delta measures the
+    // spill alone.
+    this._noSpill = typeof location !== "undefined" && /(?:\?|&)nospill=1(?:&|$)/.test(location.search);
   }
 
   // --- terrain -------------------------------------------------------------
@@ -1585,7 +1597,7 @@ export default class GameScene extends Phaser.Scene {
   addLightPool(x, y, tint, opts = {}) {
     if (this._noLights) return null; // temporary fps-A/B flag (?nolights=1)
     if (this.lightPools.length >= 40) return null; // spec cap
-    const { alpha = 0.28, scale = 1, visible = true } = opts;
+    const { alpha = 0.28, scale = 1, visible = true, ambient = false } = opts;
     const img = this.add.image(x, y, "lightpool").setDepth(DEPTH.light).setVisible(visible);
     const a = Math.min(0.3, alpha) * this._poolDim;
     if (this._webglTier) {
@@ -1594,6 +1606,12 @@ export default class GameScene extends Phaser.Scene {
       img.setAlpha(a * 0.5).setScale(scale * 0.7); // cheap Canvas fallback
     }
     this.lightPools.push(img);
+    // GFX6 L2: `ambient` pools (steady, non-signal, non-hazard, non-dynamic washes)
+    // are the candidate set for the slow flicker-personality waver. Their baked base
+    // alpha (`_flickBase`) is stashed so the waver tween can swing symmetrically
+    // around it. WebGL only (the flicker pass is isWebGL-gated); on Canvas nothing
+    // is tweened, so this is just a harmless list append.
+    if (ambient) { img._flickBase = a; this._flickCandidates.push(img); }
     return img;
   }
 
@@ -1650,6 +1668,88 @@ export default class GameScene extends Phaser.Scene {
     return img;
   }
 
+  // GFX6 L2 (R10): a soft baked warm SPILL wash on the WALL behind a wall-mounted
+  // lamp/emitter light-pool. The texture is baked PER WORLD in the world's light
+  // TEMPERATURE (BootScene spill<world>), so the Canvas tier reads the correct
+  // colour with NO setTint (R1 both-tier). Additive, alpha ~0.12, depth just above
+  // the backdrop and BELOW terrain — the wall tile occludes its inner half, so it
+  // reads as light bleeding out from behind the fixture. Leans per theme.lightDir
+  // (R10: one light per world).
+  //   WALL-FACE RULE (derived from the same this.grid L1 walked): a spill is placed
+  //   ONLY when a solid "#" cell sits to a SIDE or directly ABOVE the source's tile
+  //   (a vertical mounting surface), OR the source tile is itself solid (flush).
+  //   A source with only the floor directly beneath it — free-standing, e.g. a
+  //   pedestal or an open-floor checkpoint — returns null and floats nothing.
+  castSpill(px, py, tileX, tileY, opts = {}) {
+    if (this._spillTier === false) return null; // measured WebGL gate (?gfx6gate=1)
+    if (this._noSpill || this._noLights) return null; // fps-A/B levers (?nospill=1 / ?nolights=1)
+    const g = this.grid;
+    const solid = (gx, gy) => !!(g[gy] && g[gy][gx] === "#");
+    const onWall = solid(tileX, tileY) || solid(tileX - 1, tileY) ||
+                   solid(tileX + 1, tileY) || solid(tileX, tileY - 1);
+    if (!onWall) return null; // free-standing — a wall spill would float in open air
+    const world = WORLD_THEMES[this.def.world] ? this.def.world : 1;
+    const key = `spill${world}`;
+    if (!this.textures.exists(key)) return null;
+    const { alpha = 0.12 } = opts;
+    const dir = (this.theme && this.theme.lightDir) || { x: 0, y: -1 };
+    // lean toward the world's light source (R10): nudge up along lightDir and tilt
+    // the wash slightly by its horizontal component.
+    return this.add.image(px + dir.x * 8, py - 10, key)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(DEPTH.terrain - 1)
+      .setAlpha(alpha)
+      .setAngle(dir.x * 10);
+  }
+
+  // GFX6 L2: FLICKER PERSONALITY (WebGL only, R1). A seeded 1-in-N subset of the
+  // steady ambient light pools gets a subtle slow alpha waver so labs feel powered,
+  // not painted. ONE tween per flickering pool, created ONCE at build (R3 — no new
+  // update loop). Determinism: selection + per-instance duration/phase come from a
+  // hash of (level id + candidate index), so every load flickers the identical set.
+  // Amplitude is +-0.04 * uxFlashScale() (R2: soft halves it; 0 skips entirely).
+  // Hazard/signal/status/dynamic pools are excluded upstream (only `ambient:true`
+  // pools are candidates), and NONE are ever recoloured — the alpha waver keeps
+  // every signal-COLOUR contract intact (R9).
+  wireLampFlicker() {
+    if (!isWebGL(this)) return;                 // WebGL ambience tier only (R1)
+    const fs = uxFlashScale();
+    if (fs <= 0) return;                         // comfort: flash off -> no flicker (R2)
+    const amp = 0.04 * fs;                       // soft (0.5) halves the swing
+    const N = 4;                                 // ~1-in-4 pools flicker
+    const id = (this.def && this.def.id) || "lvl";
+    let base = 0; for (let i = 0; i < id.length; i++) base = (Math.imul(base, 31) + id.charCodeAt(i)) | 0;
+    const hash = (i, salt) => {
+      let s = (base ^ Math.imul(i + 1, 0x9e3779b1) ^ Math.imul(salt, 0x85ebca77)) | 0;
+      s = Math.imul(s ^ (s >>> 15), 1 | s);
+      s = (s + Math.imul(s ^ (s >>> 7), 61 | s)) ^ s;
+      return (s ^ (s >>> 14)) >>> 0;
+    };
+    // seeded 1-in-N selection, with a DETERMINISTIC floor of 1: if the seed picks
+    // none but candidates exist, the highest-hash candidate flickers — so no powered
+    // level is entirely static, without breaking determinism.
+    const sel = this._flickCandidates.map((_, i) => hash(i, 1) % N === 0);
+    if (this._flickCandidates.length && !sel.some(Boolean)) {
+      let best = 0, bh = -1;
+      this._flickCandidates.forEach((_, i) => { const h = hash(i, 1); if (h > bh) { bh = h; best = i; } });
+      sel[best] = true;
+    }
+    this._flickCount = 0;
+    this._flickCandidates.forEach((pool, i) => {
+      if (!sel[i]) return;
+      const b = pool._flickBase != null ? pool._flickBase : pool.alpha;
+      const dur = 3000 + (hash(i, 2) % 3000);    // 3-6s, seeded per instance
+      const delay = hash(i, 3) % dur;            // phase-stagger so they never pulse in unison
+      this.tweens.add({
+        targets: pool,
+        alpha: { from: Math.max(0, b - amp), to: b + amp },
+        duration: dur, delay, yoyo: true, repeat: -1, ease: "sine.inOut",
+      });
+      pool._flickering = true; // QA handle (2-frame alpha diff)
+      this._flickCount++;
+    });
+  }
+
   // --- entities --------------------------------------------------------------
   spawnEntity(e) {
     const px = e.x * TILE + 24;
@@ -1688,7 +1788,9 @@ export default class GameScene extends Phaser.Scene {
         const img = this.add.image(px, py + 2, "pedestal").setDepth(DEPTH.entity);
         this.castShadow(px, e.x, e.y, 44); // GFX6 L1: grounding drop shadow
         // P8: ambient light pool washing the floor under the pedestal, skill-tinted.
-        this.addLightPool(px, py + 8, info ? info.color : COLORS.neon, { alpha: 0.26, scale: 1.15 });
+        // GFX6 L2: flicker candidate (steady ambient wash). NO spill — a pedestal is
+        // a free-standing floor pillar (the wall-face rule skips it anyway).
+        this.addLightPool(px, py + 8, info ? info.color : COLORS.neon, { alpha: 0.26, scale: 1.15, ambient: true });
         // floating skill icon orbited by 2 sparkle particles (icon = container so
         // handleAction's ped.icon.destroy() removes the sparkles too)
         const iconImg = this.add.image(0, 0, `icon_${e.skill}`).setScale(1.2);
@@ -1801,6 +1903,10 @@ export default class GameScene extends Phaser.Scene {
         const lamp = this.add.image(cx, top - 8, "lamp_red").setDepth(DEPTH.entity);
         // P8: small light pool under the status lamp (red closed -> green on open).
         const lampPool = this.addLightPool(cx, top - 8, COLORS.hazard, { alpha: 0.22, scale: 0.62 });
+        // GFX6 L2: warm spill on the wall behind the door's light-bar housing (the
+        // doorway's flanking walls satisfy the wall-face rule). NOT a flicker
+        // candidate — the lamp is a crisp red/green STATUS signal.
+        this.castSpill(cx, top - 8, e.x, e.y);
         const door = {
           id: e.id || "exit", img, frame, lamp, lampPool, needs: e.needs || {}, latch: !!e.latch || e.t === "exit",
           timer: e.timer || 0, closeAt: 0,
@@ -1859,7 +1965,10 @@ export default class GameScene extends Phaser.Scene {
         if (door.isExit) {
           this.exitDoor = door;
           // P8: broad green light pool washing the exit marquee frame + threshold.
-          this.addLightPool(cx, cy, 0x77ffb0, { alpha: 0.24, scale: 1.55 });
+          // GFX6 L2: flicker candidate (the exit already reads as a powered, pulsing
+          // beacon) + a warm spill on the wall behind the marquee (wall-face permitting).
+          this.addLightPool(cx, cy, 0x77ffb0, { alpha: 0.24, scale: 1.55, ambient: true });
+          this.castSpill(cx, top - 8, e.x, e.y);
           // EXIT light panel above the door with a soft glow pulse (Sprint 4 sign)
           const ly = top - 20;
           const glow = this.add.image(cx, ly, "glowBlob").setDepth(DEPTH.entity - 1)
@@ -1984,7 +2093,11 @@ export default class GameScene extends Phaser.Scene {
         this.tweens.add({ targets: cone, alpha: { from: 0.55, to: 1 }, duration: 900, yoyo: true, repeat: -1, ease: "sine.inOut" });
         // P8: green light pool at the base, revealed only while this checkpoint is
         // the active one (toggled with the lamp texture in the activation handler).
-        const pool = this.addLightPool(px, py + 6, COLORS.green, { alpha: 0.26, scale: 1.1, visible: false });
+        const pool = this.addLightPool(px, py + 6, COLORS.green, { alpha: 0.26, scale: 1.1, visible: false, ambient: true });
+        // GFX6 L2: warm spill behind a WALL-mounted checkpoint (the wall-face rule
+        // skips open-floor checkpoints). Flicker candidate — the checkpoint already
+        // pulses its cone, so a subtle pool waver reads as the same "powered" beacon.
+        this.castSpill(px, py - 9, e.x, e.y);
         // GFX3 G3: bloom halo behind the lamp, revealed only while this is the
         // ACTIVE checkpoint (toggled alongside cone/pool in the activation handler).
         const cpHalo = this.addDeviceHalo(px, py - 9, COLORS.green, { visible: false });
@@ -2162,6 +2275,9 @@ export default class GameScene extends Phaser.Scene {
         const lamp = this.add.image(px, py, "lamp_red").setDepth(DEPTH.entity);
         // P8: light pool under the vent lamp (red while live -> green once cleared).
         const pool = this.addLightPool(px, py + 4, COLORS.hazard, { alpha: 0.22, scale: 0.7 });
+        // GFX6 L2: warm spill behind the wall-mounted vent lamp (stem mounts to the
+        // wall). NOT a flicker candidate — crisp red/green all-clear STATUS signal.
+        this.castSpill(px, py, e.x, e.y);
         this.ventLamps.push({ lamp, pool, wiredTo: e.wiredTo, lit: false });
         break;
       }
@@ -2252,7 +2368,8 @@ export default class GameScene extends Phaser.Scene {
         // needs/latch/conduit plumbing drives its doors unchanged; the mag flag
         // excludes it from hand-pulls and grapple targeting.
         const img = this.add.image(px, py + 4, "magswitch").setDepth(DEPTH.entity);
-        this.addLightPool(px, py + 6, 0xff9e3d, { alpha: 0.22, scale: 0.8 });
+        this.addLightPool(px, py + 6, 0xff9e3d, { alpha: 0.22, scale: 0.8, ambient: true });
+        this.castSpill(px, py, e.x, e.y); // GFX6 L2: warm spill on the mounting wall
         // GFX3 G3: bloom halo, state-coupled to the coil (hidden until magnetised).
         const magHalo = this.addDeviceHalo(px, py, 0xff9e3d, { visible: false });
         this.levers.push({ id: e.id, x: px, y: py, on: false, img, handle: null, mag: true, halo: magHalo });
@@ -2314,7 +2431,8 @@ export default class GameScene extends Phaser.Scene {
         // jelly socket: a knocked jelly locks in here and POWERS a device via
         // the standard lever-latch plumbing (a hidden `mag` lever with its id).
         const img = this.add.image(px, py, "socket").setDepth(DEPTH.entity);
-        this.addLightPool(px, py + 6, 0x7ee0ff, { alpha: 0.2, scale: 0.8 });
+        this.addLightPool(px, py + 6, 0x7ee0ff, { alpha: 0.2, scale: 0.8, ambient: true });
+        this.castSpill(px, py, e.x, e.y); // GFX6 L2: warm spill on the mounting wall
         this.sockets.push({ id: e.id, x: px, y: py, img, filled: false });
         this.levers.push({ id: e.id, x: px, y: py, on: false, img: null, handle: null, mag: true });
         this._w3 = true;
@@ -2417,7 +2535,8 @@ export default class GameScene extends Phaser.Scene {
         // in, fills it and latches a hidden `mag` lever with its id (the same
         // lever-latch plumbing the jelly socket uses) — doors/lanes wire off it.
         const img = this.add.image(px, py + 2, "fusesock").setDepth(DEPTH.entity);
-        this.addLightPool(px, py + 6, 0xffd24d, { alpha: 0.2, scale: 0.8 });
+        this.addLightPool(px, py + 6, 0xffd24d, { alpha: 0.2, scale: 0.8, ambient: true });
+        this.castSpill(px, py, e.x, e.y); // GFX6 L2: warm spill on the mounting wall
         this.fuseSockets.push({ id: e.id, x: px, y: py, img, filled: false });
         this.levers.push({ id: e.id, x: px, y: py, on: false, img: null, handle: null, mag: true });
         this._w3 = true;
@@ -2511,7 +2630,8 @@ export default class GameScene extends Phaser.Scene {
         const img = this.add.tileSprite(px, cy, TILE - 6, h, "icetile").setDepth(DEPTH.entity);
         this.physics.add.existing(img, true);
         this.doorGroup.add(img); // reuses the door collider family (players/bugs/jellies/crates)
-        this.addLightPool(px, cy, 0x9fd8ff, { alpha: 0.18, scale: 1 });
+        this.addLightPool(px, cy, 0x9fd8ff, { alpha: 0.18, scale: 1, ambient: true });
+        this.castSpill(px, e.y * TILE + 8, e.x, e.y); // GFX6 L2: cold spill behind the ice door frame
         this.iceDoors.push({ id: e.id, img, x: px, topY: e.y * TILE, h, melt: 0, open: false, dripCd: 0 });
         this._w4 = true;
         break;

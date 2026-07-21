@@ -974,6 +974,25 @@ export default class BootScene extends Phaser.Scene {
       }
     });
 
+    // GFX6 L2 (R10): `spill<world>` — a soft warm SPILL wall-wash baked BEHIND a
+    // wall-mounted lamp/emitter light-pool. Baked PER WORLD in the world's LIGHT
+    // TEMPERATURE (W1 warm amber, W2 aqua-green, W3 gold, W4 cold blue) so the
+    // Canvas tier reads the correct colour WITHOUT setTint (setTint no-ops on
+    // Canvas — the both-tier contract; the alternative neutral-white+tint would go
+    // grey on Canvas). Additive + alpha ~0.12 at placement (castSpill). Soft tall
+    // wall-wash, brightest at the lower-centre (the fixture) and climbing up.
+    const SPILL_TEMP = { 1: 0xffcf8f, 2: 0x8fe8d0, 3: 0xffe088, 4: 0xbcd0ff };
+    for (const w of Object.keys(WORLD_THEMES)) {
+      const temp = SPILL_TEMP[w] || 0xffcf8f;
+      make(`spill${w}`, 88, 120, (g) => {
+        for (let r = 60; r > 0; r -= 2) {
+          const t = 1 - r / 60; // 0 at the rim -> 1 at the core
+          g.fillStyle(temp, 0.045 * t * t);
+          g.fillEllipse(44, 78, r * 1.25, r * 1.75); // taller than wide = a vertical wash
+        }
+      });
+    }
+
     // P6 phase edge-shimmer: a violet outline that hugs the robot silhouette while
     // it is inside a phase-wall. Baked violet (reads on Canvas); the additive GLOW
     // is gated to WebGL by setting ADD blend only on that renderer (see Player.js).

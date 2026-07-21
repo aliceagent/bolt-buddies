@@ -143,3 +143,69 @@ The flashy one; everything here behind isWebGL.
   world required a hue. Textures baked once in BootScene (both-tier by nature,
   R1 texture-swap = zero runtime): castshadow 64x20, underledge 48x24,
   aocorner 24x24.
+- L2-D1: lamp SPILL texture approach — PER-WORLD BAKED tinted variants
+  `spill1..spill4` (88x120 soft vertical wall-wash), NOT neutral-white+setTint.
+  Rationale: setTint no-ops under Canvas, so a neutral-white spill would render
+  grey on the Canvas tier; baking the world LIGHT TEMPERATURE into the texture
+  keeps Canvas correct WITHOUT tint (the both-tier contract). Baked once in
+  BootScene's per-world loop (all 4 available at boot). SPILL_TEMP = {W1 warm
+  amber 0xffcf8f, W2 aqua-green 0x8fe8d0, W3 gold 0xffe088, W4 cold blue
+  0xbcd0ff} — the world temperatures, NOT theme.warmth (whose W4 value is a warm
+  key-light, wrong for the cold datacenter). Placed additive, alpha 0.12,
+  DEPTH.terrain-1 (above backdrop, below terrain — the wall tile occludes the
+  inner half, so it reads as light bleeding from behind the fixture), nudged/
+  tilted along theme.lightDir (R10).
+- L2-D2: SPILL wall-face rule (castSpill, derived from the same this.grid L1
+  walked): a spill is placed ONLY when a solid "#" cell sits to a SIDE or
+  directly ABOVE the source tile (a vertical mounting surface), OR the source
+  tile is itself solid (flush) — a source with only the FLOOR directly beneath
+  it is free-standing and returns null (a wall spill would float). Wired at the
+  lamp/emitter/checkpoint light-pool sites: door status lamp, exit marquee,
+  checkpoint, ventlamp, magswitch, jelly socket, fuse socket, ice door. PEDESTAL
+  explicitly NOT wired (the free-standing floor-pillar case; the grid rule would
+  skip it regardless). HAZARD-class emitters SKIPPED (laser, turbine — R9, per
+  L1's hazard-skip) and DYNAMIC ones SKIPPED (roller alarm lamp — moving body,
+  a baked spill would detach, R3). Per-level spill counts (deterministic, no
+  flooding): 1-1:1, 1-2:3, 1-3:1, 2-1:1, 2-2:0, 2-3:3, 3-1:1, 3-2:3, 3-3:0,
+  4-1:0, 4-2:2, 4-3:0.
+- L2-D3: SPILL tier by measurement (static baked Images, L1 precedent) — BOTH
+  TIERS. Canvas fps A/B via `?nospill=1` (isolates the spill; AO/ledge/flicker
+  unchanged): 2-2 (0 spills there) A mean 35.3 / B 34.15, delta -1.15fps (pure
+  SwiftShader jitter, no spill objects created); 2-3 (3 spills) A 34.55 / B
+  34.1, delta -0.45fps. Both well within <=2fps → both tiers, no WebGL gate.
+  `_spillTier` + `?gfx6gate=1` retained as the shared L1/L2 A/B lever;
+  `?nospill=1` as the isolated spill lever.
+- L2-D4: FLICKER PERSONALITY (WebGL only, R1) — a seeded ~1-in-N (N=4) subset of
+  the ambient light-pool candidate set gets a slow sine alpha waver, ONE tween
+  each created at build (R3, no update loop). Candidate set = steady non-signal
+  ambient washes only (pedestal, exit, checkpoint, magswitch, socket, fusesocket,
+  icedoor via an `ambient:true` opt on addLightPool); EXCLUDED are hazard strips
+  (already flicker via P8's shared fast tween — a 2nd tween would fight), the
+  discrete red/green STATUS lamps (door/vent — their job is a crisp state read),
+  the roller alarm (dynamic), and all hazard pools (R9). Seed formula: base =
+  string-hash(level id); selected(i) = hash(base, i, salt=1) % 4 === 0, with a
+  deterministic FLOOR OF 1 (if the seed picks none but candidates exist, the
+  highest-hash candidate flickers) so no powered level is entirely static.
+  Per-instance duration 3000+hash%3000 ms (3-6s) and phase-stagger delay
+  hash%duration. Amplitude ±0.04 * uxFlashScale() (R2: soft halves it; a 0 scale
+  skips entirely). NEVER recolours the pool (R9 signal-colour contract intact —
+  alpha only). Per-level flicker counts (deterministic): 1-1:1, 1-2:1, 1-3:2,
+  2-1:1, 2-2:2, 2-3:1, 3-1:3, 3-2:1, 3-3:3, 4-1:3, 4-2:4, 4-3:1.
+- L2-D5: TEMPERATURE AUDIT — swept every named-family light site (pools, cones,
+  halos, dark-zone glows) per world. Result: every site is either on-temperature
+  by construction (theme-derived: bgGlow`${w}`, lever halo = theme.accent) or a
+  PROTECTED gameplay-signal / identity colour, so ONE targeted fix only. FIX:
+  the dust-shaft BEAMS + light CONES (backdrop.addDustShafts) were baked NEUTRAL
+  WHITE — off every world's ambient temperature; tinted to the world LIGHT
+  TEMPERATURE (same SPILL_TEMP map). WebGL-only (addDustShafts is only called on
+  the WebGL tier), so the Canvas reference tier is byte-identical (R1). KEPT (with
+  reasons): all signals UNTOUCHABLE — checkpoint green, hazard red (laser/turbine/
+  hazard-strip/door+vent status lamps), core cyan, exit green, buddy BEEP-blue/
+  BOOP-orange dark-glow (which-robot identity); and skill/device/mechanic IDENTITY
+  colours kept as gameplay affordances — skill-pedestal tints, magnet-glove orange
+  (0xff9e3d = magnet-interactable), bubble/jelly electric cyan (0x7ee0ff), phase
+  violet halos (mechanic = violet), KOBI-eye magenta (boss identity), Bolt's warm
+  amber rescue-cage beacon (deliberate warm "hope" pop in the cold W4 core, R9
+  focal read). Lever halo uses theme.accent (per-world device identity; W2/W4
+  accents are violet by design, the device's own accent, distinct from ambient
+  temperature) — intentionally kept.
