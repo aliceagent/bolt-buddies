@@ -209,3 +209,71 @@ The flashy one; everything here behind isWebGL.
   focal read). Lever halo uses theme.accent (per-world device identity; W2/W4
   accents are violet by design, the device's own accent, distinct from ambient
   temperature) — intentionally kept.
+- L3-D1: POLISHED-RUN SEEDING — every capped floor run (the S2 `openAbove` cap
+  site) is flagged polished when `world===4` (the datacenter is glossy by design —
+  ALL caps) OR `hashStr(levelId+":polish:"+capRunIdx) % 3 === 0` (~1-in-3, seeded
+  by level id + a build-order-independent per-run index). Captured at build in
+  `_polishedRuns` = [{x1,x2,surfaceY}] (surfaceY = run row * TILE, the feet line).
+  Zero objects created at capture — both tiers reach it, so it is byte-identical.
+  Per-level polished-run counts (deterministic, measured): 1-1:4, 1-2:3, 1-3:2,
+  2-1:1, 2-2:2, 2-3:2, 3-1:2, 3-2:4, 3-3:1 (the ~1-in-3 seeded subset), and W4 all
+  caps 4-1:3, 4-2:4, 4-3:3. buildTerrain @ GameScene ~1187.
+- L3-D2: GHOST TEXTURE + EDGE HANDLING — the reflection ghost reuses the robot's
+  BASE BODY texture (`p.baseKey` = robot_b/robot_o). The player rig is a SINGLE-
+  texture sprite (the P6 phase-ghosts already reuse baseKey the same way), so a
+  simplified single-part ghost IS the correct/complete floor reflection — no rig
+  parts to compose, no per-frame rebuild. flipY + additive, scaleY=|scaleY|*0.55.
+  EDGE HANDLING = alpha FADE near the run's x-ends (edgeFade = clamp(dist/22px)),
+  NO crop mask — cheaper (one fewer object/level) and keeps the ghost inside the
+  run. Depth = DEPTH.terrain+0.6 (just above the cap 0.5, below shadow 8 / entity
+  10 — never obscures play). Cap: 2 ghosts (one per buddy), pooled, built once.
+- L3-D3: PER-PLAYER INTEGRATION POINT — the reflection position/ease rides the
+  EXISTING main per-player update pass (`for (const p of this.players)` at
+  GameScene ~5737), called as `this.updateReflection(p)` at the TOP of the loop
+  (before the dead/carried `continue`s, so a dying/carried buddy still eases its
+  ghost out). NOT the dark-glow pass (that one is gated by `if (this.darkRT)` and
+  only runs on dark-zone levels; reflections must run everywhere). NO new loop.
+  Target alpha 0.13 * heightFade(0 by ~120px up) * edgeFade; eased 0.2/frame; 0
+  when airborne high / off a polished run / dead / carried. No-op on Canvas
+  (`_reflectGhosts` stays null). Verified airborne: alpha 0.11 grounded -> 0.012
+  at feet 150px up (vanishes).
+- L3-D4: EMISSIVE SMEAR PLACEMENT — a static baked `refsmear` (soft vertical
+  streak, neutral-white, tinted to the DEVICE's own emissive colour — a cyan core
+  reflects cyan) hangs down from the surface under emissive devices that sit ON a
+  polished run, via `castReflectSmear(px, tint)` (WebGL-only, alpha 0.10, depth
+  terrain+0.6). WIRED: skill PEDESTAL (~1905, info.color), CHECKPOINT (~2222,
+  COLORS.green, static per spec), LEVER (~1958, theme.accent). Floating CORES
+  SKIPPED — a core is a bobbing pickup DESTROYED on grab; a lingering floor smear
+  would orphan (the plan's "cores' pedestals" = the skill pedestals, which ARE
+  wired). LEVER-COUPLING TAKEN (trivial): the lever smear is created hidden and
+  toggled `setVisible` alongside the existing bloom-halo at BOTH lit-state sites
+  (pullLever ~3163, re-arm ~5960) — the smear only reads while the lever is lit.
+  Pedestal/checkpoint smears are static per the L3 spec.
+- L3-D5: TRAVELING GLINT — ONE pooled additive `capglint` band (baked 64x6 bright
+  streak) per level, created behind isWebGL. A tween->onComplete->delayedCall
+  CHAIN (R3, no update-loop work): every 9-14s (seeded PRNG) it tweens x from a
+  seeded polished run's start to end over 1200ms (linear), with a concurrent
+  alpha {0->peak} 600ms yoyo (ramp in/out); peak = min(0.15, 0.15*uxFlashScale()),
+  and the whole flash is SKIPPED (re-scheduled) when uxFlashScale()===0 (R2). Only
+  armed when `_polishedRuns.length` (so no-op on Canvas / runless levels).
+  GameScene ~532.
+- L3-D6: SPECULAR CONSISTENCY (R10 one-light, BOTH TIERS — the single deliberate
+  R1 measured exception this sprint, so the two tiers stay CONSISTENT rather than
+  diverging). The per-world tile plate spec dab (BootScene `plate()` @ ~152, which
+  feeds tile<w> / tilestrip<w> / tilewall<w> for all 4 worlds) now sits at
+  x = centre(24) + lightDir.x*15 instead of a fixed ox+15 — the hotspot faces the
+  world key light. W1 (lightDir.x=-0.6) -> 15 == the pre-L3 bake (W1 tiles BYTE-
+  IDENTICAL); W2/W4 (x=0) -> 24; W3 (x=0.5) -> 31.5. DEVICE speculars are shared
+  SINGLE textures (no world param at bake — a lever is one texture across worlds),
+  so a per-world lightDir sweep would need 4x device texture variants (dispropor-
+  tionate R-cost for sub-2px dabs); they keep their existing upper-left convention,
+  which already reads as a coherent "lit from above". Bakes touched: tile{1-4},
+  tilestrip{1-4}, tilewall{1-4} (+ the "tile" W1 alias) via the one plate() edit.
+- L3-D7: NEW OBJECTS ALL isWebGL-GATED (Canvas byte-identical for reflections):
+  `_reflectGhosts` + `_capGlint` behind `if (isWebGL(this) && _polishedRuns.length)`
+  (~518); `castReflectSmear` early-returns on Canvas (~1803); `updateReflection`
+  guarded by `if (this._reflectGhosts)` at the call site (~5737). Canvas audit on
+  4-1: reflectGhosts=null, capGlint=null, refsmears=0, capglints=0. The `refsmear`
+  /`capglint` TEXTURES are baked both-tier (BootScene ~1006/1017) but only ever
+  PLACED behind isWebGL (unused texture keys cost nothing on Canvas — the spill/
+  glint precedent). New QA tools: tools/qa_l3_shots.mjs, tools/qa_l3_airborne.mjs.

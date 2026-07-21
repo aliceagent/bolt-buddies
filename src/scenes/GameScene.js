@@ -508,6 +508,49 @@ export default class GameScene extends Phaser.Scene {
       }
     }
 
+    // GFX6 L3: polished-floor reflections + traveling sheen glint. WebGL tier
+    // ONLY (R1) — on Canvas `_reflectGhosts`/`_capGlint` stay null and the
+    // reflection pass / glint chain are no-ops (zero new objects, byte-identical).
+    // Only armed when the level actually has polished runs (buildTerrain populated
+    // `_polishedRuns` above, before entities spawned).
+    this._reflectGhosts = null;
+    this._capGlint = null;
+    if (isWebGL(this) && this._polishedRuns && this._polishedRuns.length) {
+      // ONE pooled flipped ghost per buddy (cap: 2). Reuses the robot's BASE BODY
+      // texture (p.baseKey = robot_b/robot_o) — a simplified single-part ghost is
+      // correct for a floor reflection (no rig parts, no per-frame rebuild). flipY
+      // + additive; squashed + eased in the per-player pass. Depth just above the
+      // cap (terrain+0.5) and below entities/shadow, so it never obscures play.
+      this._reflectGhosts = this.players.map((p) =>
+        this.add.image(p.x, p.y, p.baseKey)
+          .setFlipY(true).setBlendMode(Phaser.BlendModes.ADD)
+          .setAlpha(0).setDepth(DEPTH.terrain + 0.6));
+      // ONE pooled additive glint band, sweeping a seeded polished run every
+      // 9-14s via a tween->delayedCall chain (R3: no update-loop work). Skipped
+      // entirely at uxFlashScale()===0 (R2 comfort).
+      const gr = mulberry32(hashStr((this.def.id || "lvl") + ":glint"));
+      this._capGlint = this.add.image(0, 0, "capglint")
+        .setBlendMode(Phaser.BlendModes.ADD).setAlpha(0)
+        .setDepth(DEPTH.terrain + 0.6).setVisible(false);
+      const scheduleGlint = () => {
+        const wait = 9000 + gr() * 5000; // 9-14s, seeded
+        this.time.delayedCall(wait, () => {
+          if (this.complete) return;
+          const fs = uxFlashScale();
+          if (fs <= 0) { scheduleGlint(); return; } // comfort: skip the flash
+          const r = this._polishedRuns[(gr() * this._polishedRuns.length) | 0];
+          const peak = Math.min(0.15, 0.15 * fs);
+          const gl = this._capGlint.setPosition(r.x1, r.surfaceY + 3).setVisible(true).setAlpha(0);
+          this.tweens.add({
+            targets: gl, x: r.x2, duration: 1200, ease: "linear",
+            onComplete: () => { gl.setVisible(false).setAlpha(0); scheduleGlint(); },
+          });
+          this.tweens.add({ targets: gl, alpha: { from: 0, to: peak }, duration: 600, yoyo: true, ease: "sine.inOut" });
+        });
+      };
+      scheduleGlint();
+    }
+
     // camera
     const cam = this.cameras.main;
     cam.setBounds(0, 0, this.worldW, this.worldH);
@@ -1069,6 +1112,13 @@ export default class GameScene extends Phaser.Scene {
     // P4 drip-stain layout (W2 undersides) shares the level-seeded PRNG so the
     // rust streaks are deterministic and never realloc at runtime.
     const stainRnd = mulberry32(hashStr((this.def.id || "lvl") + ":stain"));
+    // GFX6 L3: capped floor runs flagged "polished" carry robot reflections + the
+    // sheen glint. Seeded ~1-in-3 by (level id + capped-run index); W4 = ALL runs
+    // (the datacenter is glossy by design). Captured at build (x-range + top
+    // surface y); consumed later by the WebGL reflection pass / smears / glint.
+    // Zero objects created here — both tiers reach this, so it is byte-identical.
+    this._polishedRuns = [];
+    let _capRunIdx = 0;
     for (let y = 0; y < this.def.rows; y++) {
       let runStart = -1;
       let hazStart = -1;
@@ -1129,6 +1179,13 @@ export default class GameScene extends Phaser.Scene {
           if (openAbove) {
             const cap = this.add.tileSprite(cx, y * TILE + 3, w, 6, `tilecap${world}`).setDepth(DEPTH.terrain + 0.5);
             cap.tilePositionX = phase;
+            // GFX6 L3: flag a seeded subset of capped runs as polished (W4 = all).
+            // Deterministic + call-order-independent (per-run string hash). Store
+            // the run's world x-range + top surface y for the reflection pass.
+            const polished = world === 4 ||
+              (hashStr((this.def.id || "lvl") + ":polish:" + _capRunIdx) % 3 === 0);
+            if (polished) this._polishedRuns.push({ x1: runStart * TILE, x2: endX * TILE, surfaceY: y * TILE });
+            _capRunIdx++;
           }
         }
         // P4 underside ambient-occlusion: where OPEN space sits directly below the
@@ -1702,6 +1759,58 @@ export default class GameScene extends Phaser.Scene {
       .setAngle(dir.x * 10);
   }
 
+  // GFX6 L3 (WebGL): position + ease ONE flipped ghost per buddy for polished-floor
+  // reflections. Called from the EXISTING per-player update pass (no new loop). The
+  // ghost mirrors the buddy below the run's surface line, squashed + additive; alpha
+  // eases in on a polished run near the floor and out when airborne / off a run / at
+  // the run's x-edges (edge FADE, no crop mask — cheaper, and keeps it inside). No-op
+  // on Canvas (`_reflectGhosts` is null there).
+  updateReflection(p) {
+    const gh = this._reflectGhosts[p.idx];
+    if (!gh) return;
+    let target = 0, surfaceY = 0, on = false;
+    if (!p.dead && p.visible && !p.carriedBy) {
+      const feet = p.body.bottom;
+      for (const r of this._polishedRuns) {
+        if (p.x < r.x1 || p.x > r.x2) continue;
+        const dy = feet - r.surfaceY;         // >0 below the surface, <0 above (airborne)
+        if (dy < -140 || dy > 24) continue;   // too high above, or fell below the run
+        surfaceY = r.surfaceY; on = true;
+        const lift = Math.max(0, r.surfaceY - feet);              // px off the floor
+        const heightFade = Phaser.Math.Clamp(1 - lift / 120, 0, 1); // 0 by ~120px up
+        const edge = Math.min(p.x - r.x1, r.x2 - p.x);            // dist to nearest x-edge
+        const edgeFade = Phaser.Math.Clamp(edge / 22, 0, 1);     // fade inside the run's ends
+        target = 0.13 * heightFade * edgeFade;
+        break;
+      }
+    }
+    gh.setAlpha(gh.alpha + (target - gh.alpha) * 0.2);
+    if (target === 0 && gh.alpha < 0.004) { gh.setAlpha(0); return; }
+    if (on) {
+      // mirror below the surface line: y = 2*surfaceY - playerY + small tuck offset
+      gh.setPosition(p.x, 2 * surfaceY - p.y + 3);
+      gh.setFlipX(p.flipX);
+      gh.setScale(Math.abs(p.scaleX), Math.abs(p.scaleY) * 0.55); // flipY set at build
+    }
+  }
+
+  // GFX6 L3 (WebGL): a STATIC baked reflection smear under an emissive device that
+  // sits ON a polished floor run — cheap, no per-frame work (unlike the buddy
+  // ghosts). Tinted to the device's OWN emissive colour (a cyan core reflects cyan).
+  // Hangs DOWN from the surface line (origin top). WebGL tier only (R1): returns
+  // null on Canvas, zero objects. Returns the Image so a caller may state-couple it.
+  castReflectSmear(px, tint, opts = {}) {
+    if (!isWebGL(this) || !this._polishedRuns) return null;
+    const run = this._polishedRuns.find((r) => px >= r.x1 && px <= r.x2);
+    if (!run) return null;
+    const { alpha = 0.1, scale = 1, visible = true } = opts;
+    return this.add.image(px, run.surfaceY + 2, "refsmear")
+      .setOrigin(0.5, 0).setTint(tint)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setAlpha(alpha).setScale(scale)
+      .setDepth(DEPTH.terrain + 0.6).setVisible(visible);
+  }
+
   // GFX6 L2: FLICKER PERSONALITY (WebGL only, R1). A seeded 1-in-N subset of the
   // steady ambient light pools gets a subtle slow alpha waver so labs feel powered,
   // not painted. ONE tween per flickering pool, created ONCE at build (R3 — no new
@@ -1791,6 +1900,9 @@ export default class GameScene extends Phaser.Scene {
         // GFX6 L2: flicker candidate (steady ambient wash). NO spill — a pedestal is
         // a free-standing floor pillar (the wall-face rule skips it anyway).
         this.addLightPool(px, py + 8, info ? info.color : COLORS.neon, { alpha: 0.26, scale: 1.15, ambient: true });
+        // GFX6 L3: static reflection smear if this emissive pillar stands on a
+        // polished run (WebGL only; tinted to the skill's own colour).
+        this.castReflectSmear(px, info ? info.color : COLORS.neon);
         // floating skill icon orbited by 2 sparkle particles (icon = container so
         // handleAction's ped.icon.destroy() removes the sparkles too)
         const iconImg = this.add.image(0, 0, `icon_${e.skill}`).setScale(1.2);
@@ -1840,7 +1952,11 @@ export default class GameScene extends Phaser.Scene {
           .setOrigin(0.5, 1).setDepth(DEPTH.entity + 1).setAngle(-6);
         // GFX3 G3: bloom halo, state-coupled to `on` (hidden until flipped lit).
         const leverHalo = this.addDeviceHalo(px, py, this.theme.accent, { visible: false });
-        this.levers.push({ id: e.id, x: px, y: py, on: false, img, handle, halo: leverHalo });
+        // GFX6 L3: reflection smear if the lever stands on a polished run (WebGL
+        // only; theme.accent). COUPLED to the lit state — hidden until flipped,
+        // toggled alongside the bloom halo at the existing setVisible sites.
+        const leverSmear = this.castReflectSmear(px, this.theme.accent, { visible: false });
+        this.levers.push({ id: e.id, x: px, y: py, on: false, img, handle, halo: leverHalo, smear: leverSmear });
         break;
       }
       case "plate": {
@@ -2101,6 +2217,9 @@ export default class GameScene extends Phaser.Scene {
         // GFX3 G3: bloom halo behind the lamp, revealed only while this is the
         // ACTIVE checkpoint (toggled alongside cone/pool in the activation handler).
         const cpHalo = this.addDeviceHalo(px, py - 9, COLORS.green, { visible: false });
+        // GFX6 L3: static green reflection smear if the checkpoint stands on a
+        // polished run (WebGL only; static per the L3 spec, no state coupling).
+        this.castReflectSmear(px, COLORS.green);
         this.checkpoints.push({ x: px, y: py, img, active: false, cone, pool, halo: cpHalo });
         break;
       }
@@ -3161,6 +3280,7 @@ export default class GameScene extends Phaser.Scene {
   pullLever(lev) {
     lev.on = true;
     if (lev.halo) lev.halo.setVisible(true); // GFX3 G3: light the bloom halo (lit state)
+    if (lev.smear) lev.smear.setVisible(true); // GFX6 L3: reveal the lit-state reflection smear
     if (lev.handle) {
       this.tweens.add({ targets: lev.handle, angle: 60, duration: 240, ease: "back.out" });
       this.sparks.explode(this.fxBudget(10), lev.handle.x, lev.y - 22); // spark burst at the knob
@@ -5611,6 +5731,10 @@ export default class GameScene extends Phaser.Scene {
     }
 
     for (const p of this.players) {
+      // GFX6 L3: polished-floor reflection ghost rides THIS existing per-player
+      // pass (no new loop). Called before the dead/carried `continue`s so a dying
+      // or carried buddy still eases its ghost out. No-op on Canvas (null pool).
+      if (this._reflectGhosts) this.updateReflection(p);
       if (p.dead) continue;
       const actEdge = J(p.keys.act) || (p.keys.actAlt && J(p.keys.actAlt)) || (p.pad && p.pad.actJust);
       if (actEdge) this.handleAction(p);
@@ -5834,6 +5958,7 @@ export default class GameScene extends Phaser.Scene {
           if (l && l.on) {
             l.on = false;
             if (l.halo) l.halo.setVisible(false); // GFX3 G3: extinguish bloom halo on re-arm
+            if (l.smear) l.smear.setVisible(false); // GFX6 L3: hide the lit-state reflection smear
             if (l.handle) this.tweens.add({ targets: l.handle, angle: -6, duration: 200 });
             // W3W4 L32: a re-armed TIMED magswitch pops visibly back out (its
             // coil lamp was flipped lit by pullLever; without this reset a

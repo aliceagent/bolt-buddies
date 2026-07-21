@@ -145,7 +145,12 @@ export default class BootScene extends Phaser.Scene {
       const theme = WORLD_THEMES[world];
       // silhouette + shading — IDENTICAL across variants (seam-safe, inset 1.5px)
       softBody(g, { x: ox + 1.5, y: oy + 1.5, w: 45, h: 45, r: 7, base: c.base });
-      specular(g, { x: ox + 15, y: oy + 13, w: 12, h: 5, a: 0.16 });
+      // GFX6 L3 (R10 one-light): the baked spec dab sits on the world's lightDir
+      // side of the 48px plate — hotspot faces the key light. specX = centre(24) +
+      // lightDir.x*15. W1's upper-left light (x=-0.6) -> 15 (== the pre-L3 bake,
+      // byte-identical); W3's upper-right (x=0.5) -> 31.5; W2/W4 straight-top -> 24.
+      const _sdx = ((theme.lightDir && theme.lightDir.x) || 0) * 15;
+      specular(g, { x: ox + 24 + _sdx, y: oy + 13, w: 12, h: 5, a: 0.16 });
       // GFX5 S1 baked 1px accent rim-light along the plate's TOP edge only (a≈0.18)
       g.fillStyle(theme.edgeLight, 0.18).fillRect(ox + 5, oy + 2.5, 38, 1);
       plateField(g, world, ox, oy);
@@ -992,6 +997,31 @@ export default class BootScene extends Phaser.Scene {
         }
       });
     }
+
+    // GFX6 L3 (WebGL tier): reflection/surface textures. Both are placed ONLY
+    // behind isWebGL in GameScene, so they are baked neutral-WHITE and setTint at
+    // placement (tint no-ops on Canvas, but neither object is ever created there).
+    // `refsmear` — a soft vertical streak read as a mirrored highlight hanging DOWN
+    // from an emissive device's floor (brightest at the top/surface, fading away).
+    make("refsmear", 28, 52, (g) => {
+      for (let i = 0; i < 26; i++) {
+        const t = i / 25;                 // 0 = top (surface), 1 = far below
+        const a = 0.5 * (1 - t) * (1 - t); // quadratic fade away from the surface
+        const halfW = 9 * (1 - 0.32 * t);  // gently narrows with distance
+        g.fillStyle(0xffffff, a * 0.5);
+        g.fillEllipse(14, 2 + i * 2, halfW * 2, 3.4);
+      }
+    });
+    // `capglint` — a short bright band swept across a polished cap run (~64x6),
+    // brightest at its centre, tapering to the ends (additive in GameScene).
+    make("capglint", 64, 6, (g) => {
+      for (let i = 0; i < 32; i++) {
+        const t = i / 31, dx = Math.abs(t - 0.5) * 2; // 0 centre -> 1 at the ends
+        g.fillStyle(0xffffff, 0.9 * (1 - dx));
+        g.fillRect(i * 2, 1.4, 2, 3.2);
+      }
+      g.fillStyle(0xffffff, 0.5).fillRect(8, 2.4, 48, 1.2); // hot core hairline
+    });
 
     // P6 phase edge-shimmer: a violet outline that hugs the robot silhouette while
     // it is inside a phase-wall. Baked violet (reads on Canvas); the additive GLOW
