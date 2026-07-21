@@ -1038,6 +1038,13 @@ export default class GameScene extends Phaser.Scene {
     this._poolDim = world === 2 ? 0.62 : 1;
     this._poolScale = this._webglTier && world === 2 ? 1.22 : 1;
     this._noLights = typeof location !== "undefined" && /(?:\?|&)nolights=1(?:&|$)/.test(location.search);
+    // GFX6 L1 tier gates: concave-corner AO + under-ledge shading are static baked
+    // Images/tileSprites (both-tier by nature, R1). Measured on 2-2 Canvas (fps
+    // A/B in L1 decisions): delta <=2fps → both tiers. `?gfx6gate=1` forces the
+    // WebGL-only fallback for the A/B measurement itself.
+    const gfx6Gate = typeof location !== "undefined" && /(?:\?|&)gfx6gate=1(?:&|$)/.test(location.search);
+    this._aoTier = gfx6Gate ? this._webglTier : true;
+    this._ledgeTier = gfx6Gate ? this._webglTier : true;
   }
 
   // --- terrain -------------------------------------------------------------
@@ -1122,6 +1129,14 @@ export default class GameScene extends Phaser.Scene {
         }
         if (openBelow) {
           this.add.rectangle(cx, (y + 1) * TILE - 2, w, 4, 0x000000, 0.5).setDepth(DEPTH.terrain + 1);
+          // GFX6 L1: under-ledge shading — one baked gradient strip (`underledge`)
+          // tiled along the run's underside, hanging into the open air below its
+          // lip. Grounds the architecture. Depth below terrain / above backdrop
+          // (R5); both tiers (baked texture = zero runtime, R1). NEUTRAL dark.
+          if (this._ledgeTier !== false) {
+            this.add.tileSprite(cx, (y + 1) * TILE + 12, w, 24, "underledge")
+              .setDepth(DEPTH.terrain - 1).setAlpha(0.18);
+          }
           if (world === 2) {
             const cols = endX - runStart;
             const n = Math.min(3, Math.max(1, Math.round(cols / 4)));
@@ -1209,6 +1224,30 @@ export default class GameScene extends Phaser.Scene {
       flush(this.def.cols);
       flushHaz(this.def.cols);
       flushRail(this.def.cols);
+    }
+
+    // GFX6 L1: concave-corner ambient occlusion. Walk the SAME grid `g` for inner
+    // corners where a floor tile meets a rising wall — an open ("." ) cell with a
+    // solid floor directly below AND a solid wall to one side. Stamp the baked
+    // quarter `aocorner` pocket (darkest AT the junction) into the crook, flipped
+    // per orientation. Deterministic (grid-derived, R4); static Images below
+    // terrain / above backdrop (R5); NEUTRAL dark, both tiers (baked texture, R1).
+    // `_aoTier`/`_ledgeTier` (set in buildBackground) allow a measured WebGL gate.
+    if (this._aoTier !== false) {
+      for (let y = 0; y + 1 < this.def.rows; y++) {
+        for (let x = 0; x < this.def.cols; x++) {
+          if (g[y][x] !== ".") continue;              // must be open air
+          if (g[y + 1][x] !== "#") continue;          // floor directly below
+          if (x > 0 && g[y][x - 1] === "#") {          // wall on the LEFT
+            this.add.image(x * TILE, (y + 1) * TILE, "aocorner")
+              .setOrigin(0, 1).setDepth(DEPTH.terrain - 1).setAlpha(0.2);
+          }
+          if (x + 1 < this.def.cols && g[y][x + 1] === "#") { // wall on the RIGHT
+            this.add.image((x + 1) * TILE, (y + 1) * TILE, "aocorner")
+              .setOrigin(1, 1).setFlipX(true).setDepth(DEPTH.terrain - 1).setAlpha(0.2);
+          }
+        }
+      }
     }
 
     // P4 pooled ambient emitters — WebGL tier ONLY (additive; the Canvas beat
@@ -1585,6 +1624,32 @@ export default class GameScene extends Phaser.Scene {
     return img;
   }
 
+  // GFX6 L1 (R10): a soft baked drop shadow on the SURFACE beneath a static
+  // device, grounding it. Static Image (both tiers — texture swap, zero runtime
+  // cost, R1). The contact strip is found from the grid: scan the device tile +
+  // the one directly below for the first solid cell (the "within a tile" grounded
+  // test) — a FLOATING device (no floor within reach) is skipped, never shadowed.
+  // Offset x along theme.lightDir so the shadow falls AWAY from the world's light
+  // (R10: one light per world). NEUTRAL near-black; hazards never call this (R9).
+  //   tileX/tileY — the grid cell to ground FROM (for a door, pass its base row).
+  castShadow(px, tileX, tileY, w, opts = {}) {
+    const g = this.grid;
+    let row = -1;
+    for (let gy = tileY; gy <= tileY + 1 && gy < this.def.rows; gy++) {
+      if (g[gy] && g[gy][tileX] === "#") { row = gy; break; }
+    }
+    if (row < 0) return null; // floating device — nothing to ground to
+    const { alpha = 0.22, h = 15 } = opts;
+    const dir = (this.theme && this.theme.lightDir) || { x: 0, y: -1 };
+    // Offset the contact shadow AWAY from the light (R10): lightDir points toward
+    // the source, so the shadow falls opposite it — `-dir.x`. W1's upper-left light
+    // (x=-0.6) → shadow nudged RIGHT; W3's upper-right (x=0.5) → nudged LEFT.
+    const img = this.add.image(px - dir.x * 6, row * TILE + 2, "castshadow")
+      .setDepth(DEPTH.shadow).setAlpha(alpha);
+    img.setDisplaySize(Math.max(28, w), h);
+    return img;
+  }
+
   // --- entities --------------------------------------------------------------
   spawnEntity(e) {
     const px = e.x * TILE + 24;
@@ -1621,6 +1686,7 @@ export default class GameScene extends Phaser.Scene {
           }).setDepth(DEPTH.entity - 1);
         }
         const img = this.add.image(px, py + 2, "pedestal").setDepth(DEPTH.entity);
+        this.castShadow(px, e.x, e.y, 44); // GFX6 L1: grounding drop shadow
         // P8: ambient light pool washing the floor under the pedestal, skill-tinted.
         this.addLightPool(px, py + 8, info ? info.color : COLORS.neon, { alpha: 0.26, scale: 1.15 });
         // floating skill icon orbited by 2 sparkle particles (icon = container so
@@ -1666,6 +1732,7 @@ export default class GameScene extends Phaser.Scene {
       }
       case "lever": {
         const img = this.add.image(px, py + 4, "lever").setDepth(DEPTH.entity);
+        this.castShadow(px, e.x, e.y, 34); // GFX6 L1: grounding drop shadow
         // drawn handle, pivots at the base hub — a flip is a rotation tween
         const handle = this.add.image(px, py + 8, "lever_handle")
           .setOrigin(0.5, 1).setDepth(DEPTH.entity + 1).setAngle(-6);
@@ -1706,6 +1773,8 @@ export default class GameScene extends Phaser.Scene {
         const cy = e.y * TILE + h / 2;
         const top = e.y * TILE;
         const halfW = (TILE - 6) / 2;
+        // GFX6 L1: grounding drop shadow at the door's BASE row (bottom of the shaft)
+        this.castShadow(cx, e.x, e.y + (e.h || 3), (halfW + 5) * 2);
         // frame: side rails + top light-bar housing (static, behind the panel)
         const frame = this.add.graphics().setDepth(DEPTH.entity - 1);
         frame.fillStyle(0x161d30);
@@ -1907,6 +1976,7 @@ export default class GameScene extends Phaser.Scene {
       }
       case "checkpoint": {
         const img = this.add.image(px, py - 9, "checkpoint").setDepth(DEPTH.entity).setAlpha(0.85);
+        this.castShadow(px, e.x, e.y, 30); // GFX6 L1: grounding drop shadow
         // short light-cone fanning below the lamp, shown only while active
         const cone = this.add.graphics().setDepth(DEPTH.entity - 1)
           .setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
@@ -2046,6 +2116,7 @@ export default class GameScene extends Phaser.Scene {
       }
       case "warden": {
         const img = this.add.image(px, e.y * TILE + 48 - 31, "warden").setDepth(DEPTH.entity);
+        this.castShadow(px, e.x, e.y, 40); // GFX6 L1: grounding drop shadow (turret/guard base)
         const facing = e.facing || 1;
         img.setFlipX(e.facing === -1);
         this.physics.add.existing(img, true);

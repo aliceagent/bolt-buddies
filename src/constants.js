@@ -97,14 +97,19 @@ export const COLORS = {
 //                each plate's TOP edge (a≈0.18) so floors catch the world's light.
 // `fade` (GFX3 G1) reviewed against the deepened bgBottom — the authored transition
 // tones still harmonize, so all four are unchanged (S1-D3).
+// GFX6 R10 (L1): `lightDir` — the per-world direction the key light comes FROM
+// (unit-ish {x,y}, y negative = from above). ONE light per world: every GFX6
+// shadow offsets AWAY from it, every specular/spill sits ON it. Chosen per each
+// world's existing art read (logged L1-D1): W1 warm sun upper-LEFT; W2 tunnel
+// ceiling glow straight TOP; W3 gilded upper-RIGHT; W4 cold datacenter TOP.
 export const WORLD_THEMES = {
-  1: { accent: 0xffb347, accent2: 0x35f0ff, accent3: 0xff7a5c, warmth: 0xffcf8f, bgTop: 0x8c4d60, bgBottom: 0x060309, glow: 0xf08a55, fade: 0x48321e, mortar: 0x241812, edgeLight: 0xffcf9a },
-  2: { accent: 0xc39dff, accent2: 0x59ffb0, accent3: 0xc9a24b, warmth: 0x8fe8d0, bgTop: 0x14766b, bgBottom: 0x020a08, glow: 0x2fc2a8, fade: 0x33334a, mortar: 0x0b2a22, edgeLight: 0xa6ecd6 },
-  3: { accent: 0xffd24d, accent2: 0xff4dd2, accent3: 0x8b4a9c, warmth: 0xffcf6b, bgTop: 0x5c2984, bgBottom: 0x07030f, glow: 0xcf5cff, fade: 0x493924, mortar: 0x2a0f1e, edgeLight: 0xffe088 },
+  1: { accent: 0xffb347, accent2: 0x35f0ff, accent3: 0xff7a5c, warmth: 0xffcf8f, bgTop: 0x8c4d60, bgBottom: 0x060309, glow: 0xf08a55, fade: 0x48321e, mortar: 0x241812, edgeLight: 0xffcf9a, lightDir: { x: -0.6, y: -1 } },
+  2: { accent: 0xc39dff, accent2: 0x59ffb0, accent3: 0xc9a24b, warmth: 0x8fe8d0, bgTop: 0x14766b, bgBottom: 0x020a08, glow: 0x2fc2a8, fade: 0x33334a, mortar: 0x0b2a22, edgeLight: 0xa6ecd6, lightDir: { x: 0, y: -1 } },
+  3: { accent: 0xffd24d, accent2: 0xff4dd2, accent3: 0x8b4a9c, warmth: 0xffcf6b, bgTop: 0x5c2984, bgBottom: 0x07030f, glow: 0xcf5cff, fade: 0x493924, mortar: 0x2a0f1e, edgeLight: 0xffe088, lightDir: { x: 0.5, y: -1 } },
   // W3W4 M4: World 4 committed to its designed identity — near-black datacenter/
   // void, DEEP VIOLET-BLACK (the darkest world), thin neon seams (cyan accent2)
   // over a violet accent. Only backdrop/mood consumers read these.
-  4: { accent: 0x8f7bff, accent2: 0x35f0ff, accent3: 0x3a3f8f, warmth: 0xffd9a0, bgTop: 0x261c6e, bgBottom: 0x010104, glow: 0x5b3fd8, fade: 0x252046, mortar: 0x0b0f28, edgeLight: 0xb4d4ff },
+  4: { accent: 0x8f7bff, accent2: 0x35f0ff, accent3: 0x3a3f8f, warmth: 0xffd9a0, bgTop: 0x261c6e, bgBottom: 0x010104, glow: 0x5b3fd8, fade: 0x252046, mortar: 0x0b0f28, edgeLight: 0xb4d4ff, lightDir: { x: 0, y: -1 } },
 };
 
 // Neutral navy scene-fade [r, g, b] — the pre-GFX3 hardcoded value, now the ONE

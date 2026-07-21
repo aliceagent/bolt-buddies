@@ -103,3 +103,43 @@ The flashy one; everything here behind isWebGL.
 - L0-D2: R10 one-light-per-world added — all new shadows/speculars/spills
   derive from theme.lightDir; prevents the "every object lit differently"
   incoherence that plagues piecemeal shadow work.
+- L1-D1: lightDir per world (unit-ish {x,y}, direction light comes FROM,
+  chosen per each world's existing art read): W1 warm sun UPPER-LEFT
+  {-0.6,-1}; W2 tunnel ceiling-glow straight TOP {0,-1}; W3 gilded
+  UPPER-RIGHT {0.5,-1}; W4 cold datacenter TOP {0,-1}. Added to WORLD_THEMES.
+- L1-D2: shadow offset direction resolved in favour of the binding rule (L1
+  spec / R10: "shadows offset AWAY from the light"), not the loose "offset by
+  lightDir.x*6" phrasing. lightDir points TOWARD the source, so the contact
+  shadow uses `-lightDir.x * 6` (W1 upper-left light → shadow nudged RIGHT;
+  W3 upper-right → nudged LEFT). Speculars (L3) will use `+lightDir` (ON it).
+- L1-D3: castShadow (soft baked `castshadow` strip, alpha 0.22, DEPTH.shadow,
+  x offset -lightDir.x*6) wired to STATIC grounded devices only: pedestal,
+  lever, checkpoint, door BASE (grounded from row e.y+h), warden (turret/guard
+  base). Grounded test = first solid cell in the device tile or the one
+  directly below ("within a tile"); a floating device returns null (no shadow).
+  CRATES DEFERRED: a crate is a dynamic physics body — a baked static shadow
+  would detach when it is pushed, and a per-frame follow shadow would add an
+  update loop (R3 violation). LASER turret SKIPPED (hazard-class, R9). Wiring
+  sites logged in the report.
+- L1-D4: under-ledge shading (one `underledge` 48x24 gradient tileSprite per
+  qualifying run, alpha 0.18) hooks the flush()`openBelow` block; concave-corner
+  AO (`aocorner` 24x24 quarter pocket, alpha 0.2, flipX per side) is a second
+  grid walk after the terrain row loop — an open "." cell with a "#" floor below
+  and a "#" wall to one side. Both DEPTH.terrain-1 (above backdrop, below
+  terrain). TIER DECISION by measurement (G4 precedent): 2-2 Canvas fps A/B —
+  A(AO+ledge gated off, ?gfx6gate=1)=35.7 mean, B(both-tier)=36.3 mean, delta
+  -0.6fps (features ON marginally faster; within SwiftShader jitter, <=2fps).
+  → BOTH TIERS, no WebGL gate. `_aoTier`/`_ledgeTier` + ?gfx6gate=1 retained as
+  the A/B lever. Per-level counts: 1-2 AO5/ledge3, 2-2 AO3/ledge7, 3-2 AO18/
+  ledge4, 4-2 AO2/ledge3 (deterministic, no flooding).
+- L1-D5: height-responsive robot shadow ALREADY PRESENT (P6, Player.js update:
+  sc=clamp(1-lift/320,0.34,1); shadow.setScale(sc*baseScaleX,sc) +
+  setAlpha(0.35*sc), driven from the existing per-player update path). Plan
+  item 5 → logged "already present", NO change.
+- L1-D6: all L1 grounding tones kept NEUTRAL near-black (never hued — a tinted
+  shadow reads as a decal), INCLUDING W4's near-black datacenter: a hue was
+  trialled and read as a coloured decal, so W4 keeps neutral — its shadows are
+  subtle but present and readable against the cyan-dark floor (R9 intact). No
+  world required a hue. Textures baked once in BootScene (both-tier by nature,
+  R1 texture-swap = zero runtime): castshadow 64x20, underledge 48x24,
+  aocorner 24x24.

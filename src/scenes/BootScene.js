@@ -940,6 +940,40 @@ export default class BootScene extends Phaser.Scene {
       }
     });
 
+    // GFX6 L1: grounding textures — NEUTRAL near-black, alpha dialled at placement
+    // (never hued — a tinted shadow reads as a decal). Baked once here so they are
+    // both-tier by nature (R1 texture-swap: zero runtime cost on Canvas).
+    //
+    // `castshadow` — soft-edged flat horizontal ellipse strip laid on the surface
+    // beneath a static device (castShadow helper scales it to the device width).
+    make("castshadow", 64, 20, (g) => {
+      for (let i = 22; i > 0; i--) {
+        const t = i / 22;
+        g.fillStyle(0x000000, 0.03);
+        g.fillEllipse(32, 10, 62 * t, 16 * t);
+      }
+    });
+    // `underledge` — vertical dark gradient hung below a run's lip (dark at the
+    // top edge where it meets the plate underside, fading to nothing). Tiled
+    // horizontally by ONE tileSprite per qualifying run.
+    make("underledge", 48, 24, (g) => {
+      for (let y = 0; y < 24; y++) {
+        const a = 0.5 * (1 - y / 24) * (1 - y / 24); // quadratic falloff
+        g.fillStyle(0x000000, a).fillRect(0, y, 48, 1);
+      }
+    });
+    // `aocorner` — quarter ambient-occlusion pocket, DARKEST at the bottom-left
+    // (the wall-meets-floor junction), fading up the wall and out along the floor.
+    // Flipped per corner orientation at stamp time. 24x24 static Image.
+    make("aocorner", 24, 24, (g) => {
+      for (let i = 24; i > 0; i--) {
+        const t = i / 24;
+        g.fillStyle(0x000000, 0.03);
+        // centre the falloff on the bottom-left corner (0, 24)
+        g.fillEllipse(0, 24, 46 * t, 46 * t);
+      }
+    });
+
     // P6 phase edge-shimmer: a violet outline that hugs the robot silhouette while
     // it is inside a phase-wall. Baked violet (reads on Canvas); the additive GLOW
     // is gated to WebGL by setting ADD blend only on that renderer (see Player.js).
