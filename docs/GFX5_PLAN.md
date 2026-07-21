@@ -342,3 +342,9 @@ Goal: every level recognizable at a glance ("the room with the...").
   read correctly subtle at play framing. S4 accepted as landed.
 - S5-D0: walkthrough-video regeneration DEFERRED to GFX6 L4 (one regen covers
   GFX5+GFX6; see docs/GFX6_PLAN.md L0-D1). S5 promotes without it.
+- S5 (full gate, 2026-07-21): campaign 2/2 CLEAN (0 page errors); suites green
+  with three cold-container flakes all green on isolated re-run (audio 29/29,
+  beat 1-1/1-3/4-2 6/6, softlock 2-2+4-1 all RECOVERABLE, 0 UNVERIFIED);
+  final matrix 21/24→24/24 effective; softlock 38-scenario ledger holds 0 HARD.
+  Canvas fps A/B dev-vs-main identical within noise on 2-2 + 4-3. Video regen
+  deferred to GFX6 L4 (S5-D0). Promoted dev → main.
